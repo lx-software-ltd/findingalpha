@@ -213,8 +213,10 @@ describe("findingalpha stack", () => {
     const permissions = Object.values(resources("AWS::Lambda::Permission"));
     const apiGateway = permissions.filter((permission) => {
       const principal = permission.Properties.Principal;
-      const text = typeof principal === "string" ? principal : JSON.stringify(principal);
-      return text.includes("apigateway.amazonaws.com");
+      if (typeof principal === "string") {
+        return principal === "apigateway.amazonaws.com";
+      }
+      return (principal as { Service?: string }).Service === "apigateway.amazonaws.com";
     });
     expect(apiGateway).toHaveLength(1);
     expect(JSON.stringify(apiGateway[0].Properties.FunctionName)).toContain("AdminApiFn");

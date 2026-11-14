@@ -132,10 +132,23 @@ jobs:
                 fi
               done
             fi
+            if [ -z "${AWS_SESSION_TOKEN:-}${AWS_ACCESS_KEY_ID:-}" ]; then
+              echo "AWS credentials are not configured. Synthesizing the templates instead of diffing the account."
+              CDK_DEFAULT_ACCOUNT=000000000000 CDK_DEFAULT_REGION=ap-southeast-1 \
+                npx cdk synth --quiet findingalpha findingalpha-admin-web
+              exit 0
+            fi
+            set +e
             if [ ${#STACK_ARGS[@]} -gt 0 ]; then
               npx cdk diff --no-color "${PARAM_ARGS[@]}" "${STACK_ARGS[@]}"
             else
               npx cdk diff --no-color "${PARAM_ARGS[@]}" findingalpha findingalpha-admin-web
+            fi
+            diff_code="$?"
+            set -e
+            # 0 is no difference and 1 is a difference. A higher code is a failure.
+            if [ "$diff_code" -gt 1 ]; then
+              exit "$diff_code"
             fi
           else
             echo "Missing backend/infrastructure/package.json"
