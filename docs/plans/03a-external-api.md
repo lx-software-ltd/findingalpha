@@ -16,7 +16,9 @@ This is the `lx-software` "public API key" design, copied: `/public/*`
 mirror routes, the `x-api-key` header, a Lambda authorizer, scrypt
 digests, scopes, expiry, an optional IP allow-list, a write flag, a
 stack kill switch for writes, and owner-only routes that no key can
-reach. The only additions are the tier and a route index.
+reach. The additions are the tier, a route index, and the hostname
+`api.<domain>`, which follows the custom-domain pattern of the
+`siutindei` API stack.
 
 ## Non-goals
 
@@ -27,14 +29,20 @@ reach. The only additions are the tier and a route index.
   only lists them.
 - No OAuth client-credentials flow, no JWT for machines, no per-key
   rate plans.
-- No custom API hostname. See open questions.
+- No edge caching, no Cloudflare proxy and no second hostname for the
+  API.
+- The dashboard does not move to `api.<domain>`. It keeps calling the
+  `AdminApiBaseUrl` address, so the default API Gateway endpoint stays
+  enabled.
 - No route that exists only for keys, except the index.
 
 ## How it works
 
 1. A caller sends `x-api-key: fapk_...` to
-   `<AdminApiBaseUrl>/public/<path>`, where `<path>` is the path of a
-   dashboard route. Example: `GET /public/system/status`.
+   `https://api.<domain>/public/<path>`, where `<path>` is the path of
+   a dashboard route. Example:
+   `GET https://api.<domain>/public/system/status`. The same routes
+   also answer on the `AdminApiBaseUrl` address.
 2. API Gateway calls `PublicApiKeyAuthorizerFn`. It computes the
    scrypt digest of the key, reads `APIKEY#<digest>` / `META`, and
    denies when the row is missing, revoked, expired, of a tier that is
@@ -222,10 +230,36 @@ One proxy route serves every mirror, so a later milestone that adds a
 mirrored route changes no infrastructure. The handler's route table is
 the allow-list.
 
+Custom hostname, after the `siutindei` API stack (`ApiCustomDomain`
+there is for a REST API. This one is the HTTP API equivalent):
+
+- Parameters `ApiCustomDomainName` and `ApiCustomDomainCertificateArn`,
+  both default empty. Values come from the GitHub variables
+  `API_CUSTOM_DOMAIN_NAME` and `API_CUSTOM_DOMAIN_CERTIFICATE_ARN`. Add
+  both to the deploy command in `deploy-backend.yml`.
+- Condition `UseApiCustomDomain`: both parameters are not empty. With
+  either one empty the stack creates no domain and deploys as before.
+- `apigwv2.DomainName` with the imported certificate, a regional
+  endpoint and security policy TLS 1.2, and an `apigwv2.ApiMapping`
+  from the domain to the `$default` stage with no path prefix. Put the
+  condition on both resources through `cfnOptions.condition`, as the
+  sibling does.
+- The certificate is in the **stack's region**, not `us-east-1`. A
+  regional endpoint cannot use a `us-east-1` certificate.
+- Outputs, both conditional: `ApiCustomDomainTarget` (the regional
+  name, `d-<id>.execute-api.<region>.amazonaws.com`, which the DNS
+  record points at) and `ApiCustomDomainUrl` (`https://api.<domain>`).
+- Do not set `disableExecuteApiEndpoint`. The dashboard uses the
+  default endpoint.
+- CORS does not change. It allows only the dashboard origin. Callers
+  with a key are servers, not browsers.
+
 Jest: the authorizer's policy has the leading-key condition and no
 other table action; the proxy routes use the key authorizer; no
 dashboard route uses it; the parameter defaults to `false`;
-`AdminApiFn` has no new permission.
+`AdminApiFn` has no new permission; with both domain parameters empty
+the template has the domain and the mapping only under the condition;
+the domain is regional with TLS 1.2.
 
 ### M03A-T04 Engine
 
@@ -305,13 +339,32 @@ within 14 days is highlighted. Mock fixture and a unit test.
   list, revoke, and decrypt the minted key, and `curl` examples:
 
   ```bash
-  curl -H "x-api-key: fapk_..." "$ADMIN_API_BASE_URL/public"
-  curl -H "x-api-key: fapk_..." "$ADMIN_API_BASE_URL/public/system/status"
+  API="https://api.<domain>"
+  curl -H "x-api-key: fapk_..." "$API/public"
+  curl -H "x-api-key: fapk_..." "$API/public/system/status"
   curl -X PUT -H "x-api-key: fapk_..." -H "Content-Type: application/json" \
-    -d '{"tradingEnabled": false}' "$ADMIN_API_BASE_URL/public/settings"
+    -d '{"tradingEnabled": false}' "$API/public/settings"
   ```
+- The same document: a section "API hostname" with the certificate
+  region, the two variables, the DNS record, and the warning from the
+  `siutindei` consolidation plan: the record must point at the
+  `ApiCustomDomainTarget` output, never at the
+  `<api-id>.execute-api` name, and must not be proxied.
 
 ### M03A-T08 Deploy and test
+
+Needs O19 and O20. Before the numbered tests, bring the hostname up:
+
+- The owner has set the two `API_CUSTOM_DOMAIN_*` variables (O20).
+  Deploy.
+- With the owner's go, the developer creates the DNS record `api` as a
+  CNAME to the `ApiCustomDomainTarget` output, DNS only.
+- `curl https://api.<domain>/health` returns 200 with a valid
+  certificate. `GET https://api.<domain>/me` without a token returns
+  401. The `AdminApiBaseUrl` address still answers and the dashboard
+  still works.
+
+Run the tests below against `https://api.<domain>`.
 
 1. With `PublicApiWritesEnabled=false`: mint a key with scope
    `system`. `GET /public` lists the routes. `GET /public/system/status`
@@ -347,13 +400,15 @@ M11 adds an email alert when a key is denied or is used for a write
 
 Revoke every key with the workflow, then revert the pull request.
 Setting `PublicApiWritesEnabled=false` stops all writes by key at
-once, without a revert.
+once, without a revert. To remove the hostname: empty the two
+`API_CUSTOM_DOMAIN_*` variables, deploy, then delete the `api` DNS
+record. In that order, so the record never points at a name that no
+longer exists.
 
 ## Open questions
 
-- A stable hostname such as `api.<domain>`. It needs a certificate in
-  the stack's region, an API Gateway custom domain and one DNS record.
-  The sibling does not have one. Not planned. Callers use the
-  `AdminApiBaseUrl` stack output.
+- Whether the default API Gateway endpoint should be closed to key
+  callers later, so that keys only work on `api.<domain>`. Not
+  planned. It would mean moving the dashboard to the hostname first.
 - What the `user` tier is for. The contract reserves read-only
   `research`. Decide before building it.

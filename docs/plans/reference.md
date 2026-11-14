@@ -43,6 +43,8 @@ scripts/            checks, contract sync, deploy helpers, offline tools
 | Web bucket | `findingalpha-web-<account>-<region>` |
 | Web logs bucket | `findingalpha-web-logs-<account>-<region>` |
 | HTTP API | `findingalpha-admin-api` |
+| Dashboard hostname | `admin.<domain>` |
+| API hostname for key callers | `api.<domain>` (M03A) |
 | Schedules | `findingalpha-<job>` |
 | Paper broker secret | `findingalpha/alpaca-paper` |
 | OpenRouter secret | `findingalpha/openrouter` |
@@ -83,6 +85,8 @@ come from the GitHub `production` environment, not from the file.
 | `BriefEmailEnabled` | params file | `false` | Kill switch |
 | `BrokerMode` | params file | `paper` | `allowedValues: ["paper"]` until M12 |
 | `PublicApiWritesEnabled` | params file | `false` | Kill switch for writes by API key (M03A) |
+| `ApiCustomDomainName` | GitHub var `API_CUSTOM_DOMAIN_NAME` | empty | `api.<domain>`. Empty: no custom hostname (M03A) |
+| `ApiCustomDomainCertificateArn` | GitHub var `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | ACM, **stack region**, ISSUED (M03A) |
 | `CommitteeAnalystModel` | params file | set in M08 | OpenRouter slug |
 | `CommitteeChairModel` | params file | set in M08 | OpenRouter slug |
 | `KbMaxRawBytes` | params file | `2147483648` | 2 GB cap |
@@ -246,7 +250,9 @@ also calls `_require_admin`. `/health` has no authorizer.
 
 **Key routes** (M03A): each dashboard route with a scope in the "Key
 scope" column is also served at `/public/<same path>` with the
-`x-api-key` header. "owner only" means no key can reach it. A write
+`x-api-key` header. Key callers use `https://api.<domain>`. The
+dashboard uses the `AdminApiBaseUrl` stack output. Both reach the same
+API. "owner only" means no key can reach it. A write
 needs the scope `operate`, `allowWrite` on the key and
 `PublicApiWritesEnabled`.
 

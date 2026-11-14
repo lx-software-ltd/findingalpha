@@ -29,6 +29,7 @@ git, a pull request, or chat.
 | O17 | Run the kill-switch and breaker drill with the developer | M11 |
 | O18 | Decide on real money after the gate report is green | M12 |
 | O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
+| O20 | Request an ACM certificate for `api.<domain>` in `ap-southeast-1` (the stack's region, not `us-east-1`) with DNS validation. Give the validation record to the developer. When ISSUED, set the two `API_CUSTOM_DOMAIN_*` variables | API hostname (M03A) |
 
 ## Details
 
@@ -83,6 +84,8 @@ Needed later, or optional:
 | `SEC_CONTACT_EMAIL` | Contact address sent to the SEC in the `User-Agent` | M04 |
 | `MAIL_SENDING_DOMAIN` | `<domain>` | M10 |
 | `BRIEF_RECIPIENT_EMAIL` | Where the daily email goes | M10 |
+| `API_CUSTOM_DOMAIN_NAME` | `api.<domain>` | M03A |
+| `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | ARN of the issued certificate from O20, in `ap-southeast-1` | M03A |
 | `ADMIN_WAF_WEB_ACL_ARN` | ARN of an existing global web ACL | Optional |
 | `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | Only if sign-in should run on `auth.<domain>` | Optional |
 
@@ -116,6 +119,8 @@ through the Cloudflare API with a token from their environment. Rules:
 | --- | --- | --- | --- |
 | ACM validation name for `admin.<domain>` | CNAME | The validation value ACM shows | Before the first deploy (O06) |
 | `admin` | CNAME | The CloudFront domain from the `findingalpha-admin-web` output | After the first deploy (O08) |
+| ACM validation name for `api.<domain>` | CNAME | The validation value ACM shows | M03A (O20) |
+| `api` | CNAME | The `ApiCustomDomainTarget` output of the `findingalpha` stack | M03A, after the deploy that creates the domain |
 | Three SES DKIM names | CNAME | The three SES values | M10 (O16) |
 | `_dmarc` | TXT | A DMARC policy for the sending domain | M10 |
 

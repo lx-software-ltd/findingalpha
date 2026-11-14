@@ -50,7 +50,7 @@ Do not reopen these. If one looks wrong, raise it in chat.
 | Dashboard | `admin.<domain>`, Cognito sign-in, same strategy as `admin.lx-software.com` |
 | Domain | Registered, DNS on Cloudflare. It stays a setting and is not written in git |
 | DNS | Records are created by the developer through the Cloudflare API, in this project's zone only |
-| External API | API keys with scopes. Two tiers, `admin` and `user`. Only `admin` is built |
+| External API | API keys with scopes. Two tiers, `admin` and `user`. Only `admin` is built. Served on `api.<domain>` |
 | Stacks | Created from nothing, deployed with the existing `siutindei` bootstrap |
 | Cost ceiling | 45 US dollars a month |
 | Tax | Ledger books 30% dividend withholding and shows an estate-tax exposure line |
@@ -178,7 +178,7 @@ ACL from `lx-software` if there is one, or leave it off.
 | M01 | Agent harness and repository skeleton | [01](01-agent-harness.md) | red | PII denylist hashes, branch protection |
 | M02 | Infrastructure skeleton | [02](02-infrastructure-skeleton.md) | red | Domain, GitHub environment, certificate, Google client |
 | M03 | Admin dashboard v1 | [03](03-admin-dashboard.md) | yellow | DNS record |
-| M03A | External API with keys and scopes | [03a](03a-external-api.md) | red | Passphrase secret, first key |
+| M03A | External API with keys and scopes | [03a](03a-external-api.md) | red | Passphrase secret, first key, API certificate |
 | M04 | Data ingest | [04](04-data-ingest.md) | yellow | Alpaca paper keys |
 | M05 | Methodology register and factor library | [05](05-methodology-and-factors.md) | red | Review of provisional formulas |
 | M06 | Screen and backtest | [06](06-screen-and-backtest.md) | yellow | Read the research memo |
