@@ -1,0 +1,192 @@
+name: Test
+
+on:
+  workflow_dispatch:
+  # No path filter. The `test` job is a required check, and a skipped
+  # required check leaves the pull request blocked.
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/admin_web/**"
+      - "backend/infrastructure/**"
+      - "backend/lambda/**"
+      - "contracts/**"
+      - "scripts/**"
+
+jobs:
+  check-contracts:
+    name: Check shared contracts
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify contract artifacts
+        run: python3 scripts/check-contracts.py
+
+      - name: Check hashed PII denylist
+        run: python3 scripts/check_pii.py
+
+      - name: Test scripts
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
+
+  test-python:
+    name: Test Python
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install boto3
+      - run: |
+          for dir in backend/lambda/engine backend/lambda/pre_token_generation; do
+            if [ -d "$dir" ]; then
+              python3 -m unittest discover -s "$dir" -p 'test_*.py' -v
+            fi
+          done
+
+  build-admin-web:
+    name: Build Admin Web
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Skip when the app does not exist yet
+        id: exists
+        run: test -f apps/admin_web/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        if: steps.exists.outputs.present == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: apps/admin_web/package-lock.json
+
+      - name: Install dependencies
+        if: steps.exists.outputs.present == 'true'
+        run: npm ci
+        working-directory: apps/admin_web
+
+      - name: Build admin website
+        if: steps.exists.outputs.present == 'true'
+        run: npm run build
+        working-directory: apps/admin_web
+        env:
+          VITE_COGNITO_CLIENT_ID: placeholder-client-id
+          VITE_COGNITO_DOMAIN: https://placeholder.auth.us-east-1.amazoncognito.com
+          VITE_COGNITO_REDIRECT_URI: http://localhost:5174/auth/callback
+          VITE_API_BASE_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
+
+      - name: Test admin website
+        if: steps.exists.outputs.present == 'true'
+        run: npm test
+        working-directory: apps/admin_web
+        env:
+          VITE_COGNITO_CLIENT_ID: placeholder-client-id
+          VITE_COGNITO_DOMAIN: https://placeholder.auth.us-east-1.amazoncognito.com
+          VITE_COGNITO_REDIRECT_URI: http://localhost:5174/auth/callback
+          VITE_API_BASE_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
+
+  e2e-admin-web:
+    name: Admin Web viewport smoke
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Skip when the app does not exist yet
+        id: exists
+        run: test -f apps/admin_web/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        if: steps.exists.outputs.present == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: apps/admin_web/package-lock.json
+
+      - name: Install dependencies
+        if: steps.exists.outputs.present == 'true'
+        run: npm ci
+        working-directory: apps/admin_web
+
+      - name: Install Playwright Chromium
+        if: steps.exists.outputs.present == 'true'
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/admin_web
+
+      - name: Run viewport smoke tests
+        if: steps.exists.outputs.present == 'true'
+        run: npm run test:e2e
+        working-directory: apps/admin_web
+
+  test-infrastructure:
+    name: Test Infrastructure
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: backend/infrastructure/package-lock.json
+
+      - name: Install infrastructure dependencies
+        run: npm ci
+        working-directory: backend/infrastructure
+
+      - name: Build CDK app
+        run: npm run build
+        working-directory: backend/infrastructure
+
+      - name: Run CDK assertion tests
+        run: npm test
+        working-directory: backend/infrastructure
+        env:
+          CI: "true"
+
+  test:
+    name: test
+    runs-on: ubuntu-26.04
+    needs:
+      - check-contracts
+      - test-python
+      - build-admin-web
+      - e2e-admin-web
+      - test-infrastructure
+    if: always()
+    steps:
+      - name: Require every test job
+        env:
+          CHECK_CONTRACTS: ${{ needs.check-contracts.result }}
+          TEST_PYTHON: ${{ needs.test-python.result }}
+          BUILD_ADMIN_WEB: ${{ needs.build-admin-web.result }}
+          E2E_ADMIN_WEB: ${{ needs.e2e-admin-web.result }}
+          TEST_INFRASTRUCTURE: ${{ needs.test-infrastructure.result }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import sys
+
+          jobs = {
+              "check-contracts": os.environ["CHECK_CONTRACTS"],
+              "test-python": os.environ["TEST_PYTHON"],
+              "build-admin-web": os.environ["BUILD_ADMIN_WEB"],
+              "e2e-admin-web": os.environ["E2E_ADMIN_WEB"],
+              "test-infrastructure": os.environ["TEST_INFRASTRUCTURE"],
+          }
+          failed = [f"{name}={result}" for name, result in jobs.items() if result != "success"]
+          if failed:
+              print("Test jobs did not all succeed: " + ", ".join(failed))
+              sys.exit(1)
+          print("All test jobs succeeded.")
+          PY

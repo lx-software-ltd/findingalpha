@@ -1,0 +1,147 @@
+name: CDK Diff
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "contracts/**"
+  workflow_dispatch:
+    inputs:
+      stacks:
+        description: "Optional space/comma-separated CDK stack names"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: cdk-diff-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  diff:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: backend/infrastructure/package-lock.json
+
+      - name: Configure AWS credentials
+        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+
+      - name: Install CDK dependencies
+        working-directory: backend/infrastructure
+        run: npm ci
+
+      - name: Set up QEMU for arm64 Lambda bundling
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Check CDK Bootstrap status
+        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
+        run: |
+          QUALIFIER="${CDK_BOOTSTRAP_QUALIFIER:-hnb659fds}"
+          SSM_PARAM="/cdk-bootstrap/${QUALIFIER}/version"
+          echo "Checking for CDK Bootstrap in account $AWS_ACCOUNT_ID region $AWS_REGION..."
+          if ! aws ssm get-parameter --name "$SSM_PARAM" --query "Parameter.Value" --output text 2>/dev/null; then
+            echo "::error::CDK Bootstrap not found or not accessible ($SSM_PARAM)."
+            exit 1
+          fi
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
+
+      - name: Run CDK diff
+        working-directory: backend/infrastructure
+        run: |
+          set -eo pipefail
+          npx cdk acknowledge 34892 || true
+          npm run build --if-present
+          BACKEND_PARAM_ARGS=()
+          ADMIN_WEB_PARAM_ARGS=()
+          resolve_param_file() {
+            local path="$1"
+            if [ -z "$path" ]; then
+              return 1
+            fi
+            if [ -f "$path" ]; then
+              echo "$path"
+              return 0
+            fi
+            if [ -n "$GITHUB_WORKSPACE" ] && [ -f "$GITHUB_WORKSPACE/$path" ]; then
+              echo "$GITHUB_WORKSPACE/$path"
+              return 0
+            fi
+            return 1
+          }
+          if [ -n "${CDK_PARAM_FILE:-}" ]; then
+            RESOLVED_PARAM_FILE=$(resolve_param_file "$CDK_PARAM_FILE" || true)
+            if [ -n "$RESOLVED_PARAM_FILE" ]; then
+              # shellcheck source=../../scripts/deploy/cdk-params.sh
+              source ../../scripts/deploy/cdk-params.sh
+              cdk_load_param_args "$RESOLVED_PARAM_FILE"
+            else
+              echo "CDK_PARAM_FILE '$CDK_PARAM_FILE' not found"
+              exit 1
+            fi
+          fi
+          PARAM_ARGS=( "${BACKEND_PARAM_ARGS[@]}" "${ADMIN_WEB_PARAM_ARGS[@]}" )
+          STACK_ARGS=()
+          if [ -n "${CDK_STACKS:-}" ]; then
+            IFS=$', \n\t' read -r -a STACK_LIST <<< "$CDK_STACKS"
+            for stack in "${STACK_LIST[@]}"; do
+              trimmed="${stack#"${stack%%[![:space:]]*}"}"
+              trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+              if [ -n "$trimmed" ]; then
+                STACK_ARGS+=("$trimmed")
+              fi
+            done
+          fi
+          set +e
+          if [ ${#STACK_ARGS[@]} -gt 0 ]; then
+            npx cdk diff --no-color "${PARAM_ARGS[@]}" "${STACK_ARGS[@]}" | tee "$RUNNER_TEMP/cdk-diff.txt"
+          else
+            npx cdk diff --no-color "${PARAM_ARGS[@]}" | tee "$RUNNER_TEMP/cdk-diff.txt"
+          fi
+          diff_code="${PIPESTATUS[0]}"
+          set -e
+          # 0 is no difference, 1 is a difference. Anything else is a failure.
+          if [ "$diff_code" -gt 1 ]; then
+            exit "$diff_code"
+          fi
+        env:
+          CDK_STACKS: ${{ inputs.stacks }}
+          CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
+          CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
+
+      - name: Post the diff
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require("fs");
+            const path = process.env.RUNNER_TEMP + "/cdk-diff.txt";
+            const text = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "(no diff output)";
+            const body = "```\n" + text.slice(0, 60000) + "\n```";
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });

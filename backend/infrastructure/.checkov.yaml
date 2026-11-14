@@ -1,0 +1,16 @@
+# Checkov configuration for the findingalpha CDK app.
+# Global skips are only for checks the whole stack cannot satisfy.
+# Per-resource skips live in lib/constructs/checkov-suppressions.ts.
+
+framework:
+  - cloudformation
+
+soft-fail: true
+compact: true
+download-external-modules: false
+
+skip-check:
+  # The access-log buckets are the destination. Logging them to themselves loops.
+  - CKV_AWS_18
+  # WAF is optional. The web stack attaches one when WafWebAclArn is set.
+  - CKV_AWS_68

@@ -1,0 +1,13 @@
+---
+description: Admin console layout, data, and auth rules. Read before editing apps/admin_web.
+globs: apps/admin_web/**
+alwaysApply: false
+---
+
+# Admin web
+
+- Verify UI changes with `npm run dev:mock` (fixtures, no AWS). A behavior change is exercised in the browser, not judged from one screenshot. [why: convention from the sibling repository]
+- The admin console uses Bootstrap 5. Do not add Tailwind. Use TanStack Query for server data. [why: convention from the sibling repository]
+- The API client sends the Cognito ID token as the bearer token. [why: convention from the sibling repository]
+- Tokens live in sessionStorage. Closing the tab ends the session. [why: convention from the sibling repository]
+- Cover a changed page with a unit test, and with the Playwright smoke when navigation changes. [why: convention from the sibling repository]

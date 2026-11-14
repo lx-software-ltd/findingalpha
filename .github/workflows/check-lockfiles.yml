@@ -1,0 +1,40 @@
+name: Check Lockfiles
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  node-lockfiles:
+    name: Check Node.js lockfiles
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+
+      - name: Validate package-lock.json
+        run: |
+          set -e
+          for dir in apps/admin_web backend/infrastructure; do
+            if [ -f "$dir/package.json" ]; then
+              if [ ! -f "$dir/package-lock.json" ]; then
+                echo "Missing package-lock.json in $dir"
+                exit 1
+              fi
+              (cd "$dir" && npm ci)
+              if ! git diff --exit-code "$dir/package-lock.json"; then
+                echo "package-lock.json is out of sync in $dir"
+                exit 1
+              fi
+            else
+              echo "Skipping Node lockfile check for $dir"
+            fi
+          done

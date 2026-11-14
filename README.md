@@ -10,3 +10,8 @@ Start with [`docs/plans/00-overview.md`](docs/plans/00-overview.md).
 
 This repository is public. The owner's capital, holdings, personal data,
 account identifiers and source PDFs never go into git.
+
+## Working here
+
+Read [`AGENTS.md`](AGENTS.md) before changing anything. Zones, rules and
+checks live there and in `.cursor/`.

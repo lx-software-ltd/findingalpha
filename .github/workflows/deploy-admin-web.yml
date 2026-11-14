@@ -1,0 +1,97 @@
+name: Deploy Admin Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/admin_web/**"
+      - "scripts/deploy/deploy-admin-www.sh"
+      - "contracts/roadmap.json"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy Backend"]
+    types: [completed]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-admin-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
+    runs-on: ubuntu-26.04
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Wait until the dashboard app exists
+        id: app
+        run: |
+          if [ -f apps/admin_web/package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "The admin app is added in a later milestone. Nothing to publish."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v7
+        if: steps.app.outputs.present == 'true'
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: apps/admin_web/package-lock.json
+
+      - run: npm ci
+        if: steps.app.outputs.present == 'true'
+        working-directory: apps/admin_web
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        if: steps.app.outputs.present == 'true'
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Read admin SPA settings from the findingalpha stack
+        id: admin_spa
+        if: steps.app.outputs.present == 'true'
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          stack=findingalpha
+          json="$(aws cloudformation describe-stacks --stack-name "$stack" --output json)"
+          read_output() {
+            jq -r --arg key "$1" '
+              (.Stacks[0].Outputs // [])[] | select(.OutputKey == $key) | .OutputValue
+            ' <<<"$json"
+          }
+          client_id="$(read_output UserPoolClientId)"
+          domain="$(read_output CognitoDomain)"
+          api_url="$(read_output AdminApiBaseUrl)"
+          if [ -z "$client_id" ] || [ -z "$domain" ] || [ -z "$api_url" ]; then
+            echo "::error::Stack $stack is missing UserPoolClientId, CognitoDomain, or AdminApiBaseUrl"
+            exit 1
+          fi
+          {
+            echo "client_id=$client_id"
+            echo "domain=$domain"
+            echo "api_url=$api_url"
+          } >> "$GITHUB_OUTPUT"
+
+      - run: npm run build
+        if: steps.app.outputs.present == 'true'
+        working-directory: apps/admin_web
+        env:
+          VITE_COGNITO_CLIENT_ID: ${{ steps.admin_spa.outputs.client_id }}
+          VITE_COGNITO_DOMAIN: ${{ steps.admin_spa.outputs.domain }}
+          VITE_COGNITO_REDIRECT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/auth/callback
+          VITE_COGNITO_LOGOUT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/
+          VITE_API_BASE_URL: ${{ steps.admin_spa.outputs.api_url }}
+
+      - run: bash scripts/deploy/deploy-admin-www.sh
+        if: steps.app.outputs.present == 'true'

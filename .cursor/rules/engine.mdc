@@ -1,0 +1,18 @@
+---
+description: Engine constraints for jobs, models, money, and the broker. Read before editing backend/lambda/engine.
+globs: backend/lambda/engine/**
+alwaysApply: false
+---
+
+# Engine
+
+- Every model call goes through `openrouter_client.py` with data collection denied. [why: convention from the sibling repository]
+- No model call inside an HTTP request. Long work is a job with a job row and the page polls. [why: convention from the sibling repository]
+- Kill switches fail closed. [why: convention from the sibling repository]
+- Holds and approvals are separate record types. [why: convention from the sibling repository]
+- Spend is recorded on `USAGE#<date>` rows and checked before each call. [why: convention from the sibling repository]
+- Schedules are EventBridge Scheduler with an IAM-role target and an explicit time zone. [why: convention from the sibling repository]
+- A model never produces a number that sizes or prices an order. [why: convention from the sibling repository]
+- Formulas and thresholds come from `contracts/methodology.json`. [why: convention from the sibling repository]
+- The broker host is the paper host unless `BROKER_MODE` is `live`. [why: convention from the sibling repository]
+- No file over 500 lines. [why: convention from the sibling repository]
