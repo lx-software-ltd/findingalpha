@@ -10,14 +10,14 @@ git, a pull request, or chat.
 
 | Id | Task | Blocks |
 | --- | --- | --- |
-| O01 | Choose and register the new domain. Add it to Cloudflare DNS | First deploy (M02), email (M10) |
+| O01 | Choose and register the new domain. Add it to Cloudflare DNS. **Done** | First deploy (M02), email (M10) |
 | O02 | Protect `main`: pull request required, required checks `lint` and `test`, no force-push | Merging M01 safely |
 | O03 | Produce the PII denylist hashes (step in M01) and hand over the hash file | M01 |
-| O04 | Create the GitHub environment `production` in `findingalpha` with the variables and secrets in `reference.md` section 3 | First deploy (M02) |
+| O04 | Create the GitHub variables, the environment `production` and its secrets (list below) | First deploy (M02) |
 | O05 | Confirm AWS access for GitHub Actions (details below) | First deploy (M02) |
-| O06 | Request an ACM certificate for `admin.<domain>` in `us-east-1`, validate by DNS with Cloudflare proxy off, wait for ISSUED | First deploy (M02) |
+| O06 | Request an ACM certificate for `admin.<domain>` in `us-east-1` with DNS validation. Give the validation record to the developer, who adds it in Cloudflare (see DNS below). Wait for ISSUED | First deploy (M02) |
 | O07 | Create a Google OAuth client (type Web application). Authorised redirect URI: `https://<cognito-domain>/oauth2/idpresponse` | First sign-in (M02) |
-| O08 | After the first deploy: CNAME `admin.<domain>` to the CloudFront domain, proxy off | Dashboard reachable (M03) |
+| O08 | After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare | Dashboard reachable (M03) |
 | O09 | Sign in once with the bootstrap user, set a new password, enrol TOTP | Dashboard use (M03) |
 | O10 | Open a free Alpaca paper account. Set the paper balance to the planned capital in US dollars. Store the paper API key in the secret `findingalpha/alpaca-paper` | M04 |
 | O11 | Review the provisional formulas listed in M05 and say which to keep | M05 merge |
@@ -25,9 +25,10 @@ git, a pull request, or chat.
 | O13 | Write 20 questions whose answers are formulas in the PDFs, with the book and page. Upload as `eval/questions.json` | M07 evaluation |
 | O14 | Add `findingalpha` to `contracts/openrouter-apps.json` in `lx-software` (red zone there), mint the key, store it in the secret `findingalpha/openrouter` | M08 |
 | O15 | Confirm the tax figures in M09 with an adviser (dividend withholding rate, estate-tax schedule) | M09 register status |
-| O16 | Verify the sending domain in SES (three DKIM CNAMEs in Cloudflare) and verify the recipient address | M10 |
+| O16 | Create the sending-domain identity in SES and give the three DKIM records to the developer, who adds them in Cloudflare. Verify the recipient address | M10 |
 | O17 | Run the kill-switch and breaker drill with the developer | M11 |
 | O18 | Decide on real money after the gate report is green | M12 |
+| O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
 
 ## Details
 
@@ -47,6 +48,80 @@ Normalisation rules are at the top of `scripts/check_pii.py`: lower
 case, apostrophes removed, phone numbers as digits only, names as words
 separated by single spaces.
 
+### O04 GitHub variables and secrets
+
+Nothing here is written in git. Values with `<...>` are the owner's.
+Do not create a variable whose value would be empty. An unset variable
+reads as empty, which is what "optional" means below.
+
+**Repository variables** (Settings, Secrets and variables, Actions,
+Variables). They are at repository level so that the `cdk-diff` check
+on pull requests can read them:
+
+| Variable | Value |
+| --- | --- |
+| `AWS_ACCOUNT_ID` | The 12-digit account id used by `lx-software` |
+| `AWS_REGION` | `ap-southeast-1` |
+| `CDK_BOOTSTRAP_QUALIFIER` | `siutindei` |
+| `CDK_PARAM_FILE` | `backend/infrastructure/params/production.json` |
+
+**Environment `production`, variables.** Needed for the first deploy:
+
+| Variable | Value |
+| --- | --- |
+| `ADMIN_WEB_DOMAIN_NAME` | `admin.<domain>` |
+| `ADMIN_WEB_CERTIFICATE_ARN` | ARN of the issued certificate from O06 |
+| `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.ap-southeast-1.amazoncognito.com` |
+| `ADMIN_GOOGLE_CLIENT_ID` | From O07 |
+| `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | The Google account emails allowed to sign in, lower case, comma-separated |
+| `ADMIN_BOOTSTRAP_EMAIL` | Email of the password-and-TOTP fallback user |
+
+Needed later, or optional:
+
+| Variable | Value | When |
+| --- | --- | --- |
+| `SEC_CONTACT_EMAIL` | Contact address sent to the SEC in the `User-Agent` | M04 |
+| `MAIL_SENDING_DOMAIN` | `<domain>` | M10 |
+| `BRIEF_RECIPIENT_EMAIL` | Where the daily email goes | M10 |
+| `ADMIN_WAF_WEB_ACL_ARN` | ARN of an existing global web ACL | Optional |
+| `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | Only if sign-in should run on `auth.<domain>` | Optional |
+
+**Environment `production`, secrets:**
+
+| Secret | Value | When |
+| --- | --- | --- |
+| `ADMIN_GOOGLE_CLIENT_SECRET` | From O07 | First deploy |
+| `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | 14 or more characters, upper and lower case, digit, symbol. Used once | First deploy |
+| `PUBLIC_API_KEY_GPG_PASSPHRASE` | A long random passphrase. Encrypts a newly minted API key in the public run summary | M03A |
+
+Environment settings: limit deployment branches to `main`.
+
+**Not on GitHub:** AWS access keys (the workflows use OIDC and
+`GitHubActionsRole`), the Alpaca keys and the OpenRouter key (Secrets
+Manager, O10 and O14), and the Cloudflare token (the developer's
+environment only).
+
+### DNS records
+
+DNS for `<domain>` is on Cloudflare. The developer creates records
+through the Cloudflare API with a token from their environment. Rules:
+
+- only in this project's zone, even if the token can see other zones;
+- every record is DNS only (proxy off);
+- each record is created after the owner says go in chat and is listed
+  in the pull request or the chat message;
+- the token is never written to git, to GitHub, or to a log.
+
+| Record | Type | Points at | When |
+| --- | --- | --- | --- |
+| ACM validation name for `admin.<domain>` | CNAME | The validation value ACM shows | Before the first deploy (O06) |
+| `admin` | CNAME | The CloudFront domain from the `findingalpha-admin-web` output | After the first deploy (O08) |
+| Three SES DKIM names | CNAME | The three SES values | M10 (O16) |
+| `_dmarc` | TXT | A DMARC policy for the sending domain | M10 |
+
+The ACM and SES values are not secret. The owner can paste them in
+chat.
+
 ### O05 AWS access for GitHub Actions
 
 Confirm these in the AWS account. None of them needs a value in git.
@@ -54,8 +129,13 @@ Confirm these in the AWS account. None of them needs a value in git.
 1. The SSM parameter `/cdk-bootstrap/siutindei/version` exists in
    `ap-southeast-1`. The deploy workflow checks it and stops with a
    clear error if it is missing.
-2. The trust policy of `GitHubActionsRole` accepts this repository. The
-   `lx-software` setup guide says it accepts every repository of the
+2. The trust policy of `GitHubActionsRole` accepts this repository
+   under its new name. Deploy jobs run in the `production` environment,
+   so their token subject is
+   `repo:lx-software-ltd/findingalpha:environment:production`. The
+   pull-request diff uses
+   `repo:lx-software-ltd/findingalpha:pull_request`. The `lx-software`
+   setup guide says the role accepts every repository of the
    organisation, so this should already be true.
 3. `GitHubActionsRole` may assume the `cdk-siutindei-*` roles.
 4. `GitHubActionsRole` may, for the new stacks: describe the stacks
@@ -64,6 +144,14 @@ Confirm these in the AWS account. None of them needs a value in git.
    permissions may be limited to the `lxsoftware*` names. If so, the
    role's policy needs the `findingalpha*` names added. That is a
    change in the account, done by the owner.
+5. For the key workflow (M03A): `GetItem`, `PutItem`, `UpdateItem` and
+   `Scan` on the table `findingalpha-records`, and `kms:Decrypt` and
+   `kms:GenerateDataKey` on the shared key.
+
+The developer's own AWS user is read-only and narrow. It could not
+read the bootstrap parameter, the role, the stacks or the
+certificates, so none of the points above has been checked from the
+developer's side.
 
 ### O10 Alpaca paper account
 

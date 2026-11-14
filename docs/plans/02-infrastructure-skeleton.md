@@ -449,7 +449,8 @@ Needs owner tasks O01, O04, O05, O06, O07 done.
 
 1. Merge. **Deploy Backend** runs. If it fails at the bootstrap check,
    stop and tell the owner (O05).
-2. Owner adds the DNS record (O08) and the Google redirect URI (O07).
+2. The developer adds the `admin` DNS record in Cloudflare after the
+   owner's go (O08). The owner adds the Google redirect URI (O07).
 3. Smoke test, from the sibling runbook:
    - `GET <AdminApiBaseUrl>/health` returns 200 without a token.
    - `GET /me` without a token returns 401.
@@ -458,9 +459,10 @@ Needs owner tasks O01, O04, O05, O06, O07 done.
    - Both secrets exist. Do not read their values.
    - Sign-in itself is tested in M03 when there is a page to sign in to.
 
-### Fallback: backend before the domain
+### Fallback: backend before the certificate
 
-If the domain is late and the owner wants ingest (M04) running first,
+If the certificate is late and the owner wants ingest (M04) running
+first,
 the `findingalpha` stack can deploy alone. The domain is only used for
 the Cognito callback and CORS, and CDK rewrites both on the next
 deploy. This needs the owner's explicit yes, a placeholder value in
