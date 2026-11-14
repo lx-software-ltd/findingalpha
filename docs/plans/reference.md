@@ -4,8 +4,9 @@ Look things up here. Milestone files point at sections of this file.
 When a milestone changes one of these, it changes this file in the same
 pull request.
 
-`<domain>` is the new domain the owner will choose. `<account>` and
-`<region>` are filled by CloudFormation. Neither is written in git.
+`<domain>` is the owner's domain. It is registered, with DNS on
+Cloudflare, and stays a setting. `<account>` and `<region>` are filled
+by CloudFormation. None of the three is written in git.
 
 ## 1. Repository layout (target)
 
@@ -17,6 +18,7 @@ apps/admin_web/     the dashboard (Vite, React, TypeScript, Bootstrap)
 backend/infrastructure/   CDK app (bin, lib, test, params)
 backend/lambda/engine/    all Python for AdminApiFn and EngineFn, tests beside code
 backend/lambda/pre_token_generation/   Cognito sign-in gate
+backend/lambda/public_api_authorizer/  API key check for /public/* routes
 backend/scripts/run-cdk-app.sh
 contracts/          JSON sources of truth
 docs/architecture/  overview.md, zones.md, security.md
@@ -46,6 +48,7 @@ scripts/            checks, contract sync, deploy helpers, offline tools
 | OpenRouter secret | `findingalpha/openrouter` |
 | Cognito domain prefix | `findingalpha-admin-auth` |
 | Response headers policy | `findingalpha-admin-security-headers` |
+| API key prefix | `fapk_` |
 
 All bucket names stay under 63 characters. Buckets are private
 (`BLOCK_ALL`), `enforceSSL`, versioned, `RETAIN`.
@@ -68,7 +71,7 @@ come from the GitHub `production` environment, not from the file.
 | `AdminBootstrapTempPassword` | GitHub secret `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | none | `noEcho`, 14+ characters |
 | `CognitoDomainPrefix` | params file | `findingalpha-admin-auth` | |
 | `CognitoCustomDomainName` | params file | empty | Optional `auth.<domain>` |
-| `CognitoCustomDomainCertificateArn` | GitHub var | empty | us-east-1 |
+| `CognitoCustomDomainCertificateArn` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | us-east-1 |
 | `MailSendingDomain` | GitHub var `MAIL_SENDING_DOMAIN` | empty | `<domain>`. Empty disables email |
 | `BriefFromLocalPart` | params file | `brief` | Sender is `brief@<domain>` |
 | `BriefRecipientEmail` | GitHub var `BRIEF_RECIPIENT_EMAIL` | empty | |
@@ -79,6 +82,7 @@ come from the GitHub `production` environment, not from the file.
 | `LeverageEnabled` | params file | `false` | Kill switch |
 | `BriefEmailEnabled` | params file | `false` | Kill switch |
 | `BrokerMode` | params file | `paper` | `allowedValues: ["paper"]` until M12 |
+| `PublicApiWritesEnabled` | params file | `false` | Kill switch for writes by API key (M03A) |
 | `CommitteeAnalystModel` | params file | set in M08 | OpenRouter slug |
 | `CommitteeChairModel` | params file | set in M08 | OpenRouter slug |
 | `KbMaxRawBytes` | params file | `2147483648` | 2 GB cap |
@@ -93,12 +97,19 @@ come from the GitHub `production` environment, not from the file.
 | `CspCognitoConnectOrigin` | GitHub var `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.<region>.amazoncognito.com` or `https://auth.<domain>` |
 | `WafWebAclArn` | GitHub var `ADMIN_WAF_WEB_ACL_ARN` | Empty disables |
 
-### GitHub `production` environment
+### GitHub variables and secrets
 
-Variables: `AWS_ACCOUNT_ID`, `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER`
+Repository variables (read by `cdk-diff` on pull requests as well):
+`AWS_ACCOUNT_ID`, `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER`
 (`siutindei`), `CDK_PARAM_FILE`
-(`backend/infrastructure/params/production.json`), and every
-"GitHub var" above. Secrets: the two "GitHub secret" rows.
+(`backend/infrastructure/params/production.json`).
+
+Environment `production`: every "GitHub var" above as a variable. The
+two "GitHub secret" rows and `PUBLIC_API_KEY_GPG_PASSPHRASE` (M03A) as
+secrets.
+
+The list with values and timing is in
+[`owner-checklist.md`](owner-checklist.md), under O04.
 
 ## 4. Lambda functions
 
@@ -107,6 +118,7 @@ Variables: `AWS_ACCOUNT_ID`, `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER`
 | `AdminApiFn` | `backend/lambda/engine` | `api_handler.lambda_handler` | 29 s | 512 MB | Table read/write, data bucket read, invoke `EngineFn` async |
 | `EngineFn` | `backend/lambda/engine` | `jobs_handler.lambda_handler` | 900 s | 2048 MB | Table, buckets, both secrets, Bedrock retrieve and ingest, SES send |
 | `PreTokenGenerationFn` | `backend/lambda/pre_token_generation` | `handler.lambda_handler` | 10 s | 256 MB | Nothing |
+| `PublicApiKeyAuthorizerFn` | `backend/lambda/public_api_authorizer` | `handler.lambda_handler` | 5 s | 256 MB | Get and update on `APIKEY#*` rows only (M03A) |
 
 Environment variables (both engine functions unless noted):
 
@@ -117,6 +129,7 @@ Environment variables (both engine functions unless noted):
 | `ENGINE_FUNCTION_NAME` | `AdminApiFn` only. Target for async job starts |
 | `INGEST_ENABLED`, `COMMITTEE_ENABLED`, `TRADING_ENABLED`, `LEVERAGE_ENABLED`, `BRIEF_EMAIL_ENABLED` | Kill switch parameters |
 | `BROKER_MODE` | `paper` |
+| `PUBLIC_API_WRITES_ENABLED` | `AdminApiFn` only. From `PublicApiWritesEnabled` |
 | `ALPACA_SECRET_ID`, `OPENROUTER_SECRET_ID` | `EngineFn` only. Secret names |
 | `COMMITTEE_ANALYST_MODEL`, `COMMITTEE_CHAIR_MODEL` | `EngineFn` only |
 | `KNOWLEDGE_BASE_ID`, `KB_DATA_SOURCE_IDS` | From M07 |
@@ -136,6 +149,7 @@ point-in-time recovery on, encrypted with the shared key, `RETAIN`.
 | Runtime settings | `SETTINGS#global` | `META` | | M03 |
 | Owner task | `OWNER_TASK#<id>` | `META` | | M03 |
 | Job run | `JOB#<job>` | `RUN#<startIso>` | `JOBRUNS` / `<startIso>` | M03 |
+| API key | `APIKEY#<scrypt digest>` | `META` | | M03A |
 | Job cursor | `JOB#<job>` | `STATE` | | M04 |
 | Universe | `UNIVERSE#<date>` | `META` | `UNIVERSE` / `<date>` | M04 |
 | Screen run | `SCREEN#<date>` | `META` | `SCREENS` / `<date>` | M06 |
@@ -167,7 +181,7 @@ two never mix. Job runs and usage rows expire after 400 days through
 
 Audit table: `pk = USER#<sub>`, `sk = <epochMillis>#<action>`,
 attributes `target`, `requestId`. Written on every state-changing API
-call.
+call. A write made with an API key uses `pk = USER#apikey:<keyId>`.
 
 ## 6. S3 data bucket layout
 
@@ -210,7 +224,8 @@ Knowledge base bucket:
 | --- | --- | --- |
 | `contracts/roadmap.json` | Milestones and steps with status | green |
 | `contracts/admin-domains.json` | Storage key prefix and default hostnames | red |
-| `contracts/jobs.json` | Job names, schedules, timeouts, manual-run allow-list | red |
+| `contracts/jobs.json` | Job names, schedules, timeouts, manual-run allow-list, `keyRun` | red |
+| `contracts/public-api-scopes.json` | API key scopes and tiers | red |
 | `contracts/methodology.json` | Universe, factors, composite, screen, backtest, portfolio, leverage, exits, execution, tax | red |
 | `contracts/fundamentals.json` | Our field names mapped to XBRL tags | red |
 | `contracts/sic-sectors.json` | SIC code ranges mapped to sectors | red |
@@ -226,33 +241,46 @@ Generated by `scripts/sync-contracts.py`:
 
 ## 8. HTTP API routes
 
-All routes except `/health` use the Cognito JWT authorizer, and every
-handler also calls `_require_admin`.
+**Dashboard routes** use the Cognito JWT authorizer, and every handler
+also calls `_require_admin`. `/health` has no authorizer.
 
-| Method and path | Purpose | Milestone |
-| --- | --- | --- |
-| `GET /health` | Liveness, no auth | M02 |
-| `GET /me` | Claims of the caller | M02 |
-| `GET /system/status` | Kill switches, last run per job, breakers, versions | M03 |
-| `GET /settings`, `PUT /settings` | Runtime settings | M03 |
-| `GET /owner-tasks`, `PUT /owner-tasks/{taskId}` | Owner checklist | M03 |
-| `GET /jobs/runs` | Recent job runs | M03 |
-| `POST /jobs/{jobName}/run` | Start an allowed job now. Returns a run id | M04 |
-| `GET /universe/latest` | Universe summary | M04 |
-| `GET /methodology` | The register with citation status | M05 |
-| `GET /screens/latest`, `GET /screens/{date}` | Shortlist and scores | M06 |
-| `GET /backtests`, `GET /backtests/{runId}` | Backtest results | M06 |
-| `GET /kb/status`, `POST /kb/sync`, `GET /kb/eval/latest` | Knowledge base | M07 |
-| `GET /costs` | Month-to-date spend against budget | M08 |
-| `GET /committee/runs`, `GET /committee/runs/{runId}` | Committee output | M08 |
-| `GET /theses`, `GET /theses/{symbol}` | Thesis journal | M08 |
-| `GET /proposals` | Methodology proposals | M08 |
-| `GET /portfolio/summary`, `GET /portfolio/positions`, `GET /portfolio/history` | Portfolio | M09 |
-| `GET /ledger` | Ledger entries, paged | M09 |
-| `GET /holds`, `POST /holds/{holdId}/veto` | Holds | M10 |
-| `GET /briefs`, `GET /briefs/{date}` | Daily briefs | M10 |
-| `GET /breakers`, `POST /breakers/{name}/reset` | Breakers | M11 |
-| `GET /gate` | Go-live gate report | M11 |
+**Key routes** (M03A): each dashboard route with a scope in the "Key
+scope" column is also served at `/public/<same path>` with the
+`x-api-key` header. "owner only" means no key can reach it. A write
+needs the scope `operate`, `allowWrite` on the key and
+`PublicApiWritesEnabled`.
+
+| Method and path | Purpose | Milestone | Key scope |
+| --- | --- | --- | --- |
+| `GET /health` | Liveness, no auth | M02 | not mirrored |
+| `GET /me` | Claims of the caller | M02 | owner only |
+| `GET /system/status` | Kill switches, last run per job, breakers, versions | M03 | `system` |
+| `GET /settings` | Runtime settings | M03 | `system` |
+| `PUT /settings` | Change runtime switches | M03 | `operate`, and only to turn switches off |
+| `GET /owner-tasks` | Owner checklist | M03 | `system` |
+| `PUT /owner-tasks/{taskId}` | Tick an owner task | M03 | owner only |
+| `GET /jobs/runs` | Recent job runs | M03 | `system` |
+| `GET /public` | The routes the calling key may use | M03A | any key |
+| `GET /api-keys` | Key list without digests | M03A | owner only |
+| `POST /jobs/{jobName}/run` | Start an allowed job now. Returns a run id | M04 | `operate`, jobs with `keyRun` only |
+| `GET /universe/latest` | Universe summary | M04 | `research` |
+| `GET /methodology` | The register with citation status | M05 | `research` |
+| `GET /screens/latest`, `GET /screens/{date}` | Shortlist and scores | M06 | `research` |
+| `GET /backtests`, `GET /backtests/{runId}` | Backtest results | M06 | `research` |
+| `GET /kb/status`, `GET /kb/eval/latest` | Knowledge base | M07 | `research` |
+| `POST /kb/sync` | Start a knowledge base sync | M07 | `operate` |
+| `GET /costs` | Month-to-date spend against budget | M08 | `system` |
+| `GET /committee/runs`, `GET /committee/runs/{runId}` | Committee output | M08 | `research` |
+| `GET /theses`, `GET /theses/{symbol}` | Thesis journal | M08 | `research` |
+| `GET /proposals` | Methodology proposals | M08 | `research` |
+| `GET /portfolio/summary`, `GET /portfolio/positions`, `GET /portfolio/history` | Portfolio | M09 | `portfolio` |
+| `GET /ledger` | Ledger entries, paged | M09 | `portfolio` |
+| `GET /holds` | Holds | M10 | `portfolio` |
+| `POST /holds/{holdId}/veto` | Veto a hold | M10 | `operate` |
+| `GET /briefs`, `GET /briefs/{date}` | Daily briefs | M10 | `portfolio` |
+| `GET /breakers` | Breakers | M11 | `system` |
+| `POST /breakers/{name}/reset` | Reset a breaker | M11 | owner only |
+| `GET /gate` | Go-live gate report | M11 | `system` |
 
 ## 9. Jobs and schedules
 
@@ -282,6 +310,8 @@ A job that is switched off still writes a job run with status
 
 Jobs without a schedule, started from the dashboard through
 `POST /jobs/{jobName}/run` when `contracts/jobs.json` allows it:
+An API key can start a job only when the job has `keyRun: true`. Jobs
+that touch the broker or the drill never have it.
 
 | Job | Purpose | Milestone |
 | --- | --- | --- |
@@ -305,7 +335,7 @@ with a `test_<name>.py` beside it.
 
 | Area | Modules |
 | --- | --- |
-| Entry | `api_handler`, `jobs_handler`, `router`, `http_common`, `runtime`, `config`, `timeutil` |
+| Entry | `api_handler`, `jobs_handler`, `router`, `public_api`, `http_common`, `runtime`, `config`, `timeutil` |
 | Storage | `store`, `s3io`, `settings`, `owner_tasks`, `system_status`, `kill_switch`, `job_runs`, `chunked`, `audit`, `secrets_read`, `http_client` |
 | Data | `alpaca_data`, `sec_edgar`, `universe`, `ingest_prices`, `ingest_fundamentals`, `fundamentals_pit`, `ingest_news`, `market_calendar` |
 | Method | `methodology`, `snapshot`, `factors_quality`, `factors_value`, `factors_trend`, `composite`, `screen`, `backtest`, `backtest_metrics` |
@@ -325,5 +355,6 @@ with a `test_<name>.py` beside it.
 | OpenRouter | `https://openrouter.ai/api/v1` | Bearer key | Budget in `contracts/budgets.json` |
 | Bedrock Managed KB | AWS SDK `bedrock-agent`, `bedrock-agent-runtime` | IAM | 5,000 retrievals a month (own cap) |
 | SES | AWS SDK `sesv2` | IAM | One recipient |
+| Cloudflare DNS | `https://api.cloudflare.com/client/v4` | Token in the developer's environment, never in git | This project's zone only. Not used by the running system |
 
 Confirm each limit and price when the milestone starts. They change.

@@ -18,6 +18,7 @@ order. Each milestone is one or more pull requests.
 | [`01-agent-harness.md`](01-agent-harness.md) | Rules, zones, hooks, checks, CI |
 | [`02-infrastructure-skeleton.md`](02-infrastructure-skeleton.md) | CDK stacks, sign-in, API, web hosting, deploy workflows |
 | [`03-admin-dashboard.md`](03-admin-dashboard.md) | The dashboard on `admin.<domain>` behind Cognito |
+| [`03a-external-api.md`](03a-external-api.md) | API keys with tiers and scopes for other systems |
 | [`04-data-ingest.md`](04-data-ingest.md) | Universe, prices, fundamentals, news |
 | [`05-methodology-and-factors.md`](05-methodology-and-factors.md) | Methodology register and the factor library |
 | [`06-screen-and-backtest.md`](06-screen-and-backtest.md) | The numeric screen and the 2016–2026 backtest |

@@ -22,6 +22,8 @@ A system for one owner that:
 5. Places the orders on a paper (pretend-money) broker account. Real
    money comes later, after a gate is passed.
 6. Shows everything on a private dashboard at `admin.<domain>`.
+7. Lets other systems read it and operate it through an HTTP API with
+   API keys that carry a tier and scopes.
 
 The target is to beat the S&P 500 after costs and tax. Outperformance
 that comes from skill is called alpha.
@@ -46,7 +48,10 @@ Do not reopen these. If one looks wrong, raise it in chat.
 | Rhythm | Daily check, rare trades, monthly rebalance |
 | Interface | Daily email plus the admin dashboard |
 | Dashboard | `admin.<domain>`, Cognito sign-in, same strategy as `admin.lx-software.com` |
-| Domain | New domain, not bought yet. Everything takes it as a setting |
+| Domain | Registered, DNS on Cloudflare. It stays a setting and is not written in git |
+| DNS | Records are created by the developer through the Cloudflare API, in this project's zone only |
+| External API | API keys with scopes. Two tiers, `admin` and `user`. Only `admin` is built |
+| Stacks | Created from nothing, deployed with the existing `siutindei` bootstrap |
 | Cost ceiling | 45 US dollars a month |
 | Tax | Ledger books 30% dividend withholding and shows an estate-tax exposure line |
 | Deferred | X/Twitter feeds, paid earnings-call transcripts |
@@ -88,6 +93,10 @@ touches. A pull request that breaks one is rejected.
 11. **Shared constants live in `contracts/*.json`** and are synced with
     `python3 scripts/sync-contracts.py`.
 12. **Every order traces to a thesis record with citations.**
+13. **API keys are limited.** Only the scrypt digest of a key is
+    stored. A key has a tier, scopes and an expiry, and is read-only
+    unless both the key and the stack allow writes. No key can turn a
+    switch on, reset a breaker, approve an order or manage keys.
 
 ## 4. Architecture
 
@@ -119,8 +128,9 @@ touches. A pull request that breaks one is rejected.
   `findingalpha-admin-web` (S3 + CloudFront for the dashboard).
 - **Two Lambda functions from one code folder** (`backend/lambda/engine`).
   `AdminApiFn` serves the dashboard and holds no broker or model keys.
-  `EngineFn` runs scheduled jobs and holds those keys. A third small
-  function, `PreTokenGenerationFn`, guards sign-in.
+  `EngineFn` runs scheduled jobs and holds those keys. Two small
+  functions guard the doors: `PreTokenGenerationFn` for sign-in and
+  `PublicApiKeyAuthorizerFn` for API keys.
 - **One DynamoDB table** with `pk`/`sk` and one index `gsi1`. Price and
   fundamentals history are gzip files in S3.
 - **One KMS key** for Lambda environment variables, logs, DynamoDB and
@@ -168,6 +178,7 @@ ACL from `lx-software` if there is one, or leave it off.
 | M01 | Agent harness and repository skeleton | [01](01-agent-harness.md) | red | PII denylist hashes, branch protection |
 | M02 | Infrastructure skeleton | [02](02-infrastructure-skeleton.md) | red | Domain, GitHub environment, certificate, Google client |
 | M03 | Admin dashboard v1 | [03](03-admin-dashboard.md) | yellow | DNS record |
+| M03A | External API with keys and scopes | [03a](03a-external-api.md) | red | Passphrase secret, first key |
 | M04 | Data ingest | [04](04-data-ingest.md) | yellow | Alpaca paper keys |
 | M05 | Methodology register and factor library | [05](05-methodology-and-factors.md) | red | Review of provisional formulas |
 | M06 | Screen and backtest | [06](06-screen-and-backtest.md) | yellow | Read the research memo |
@@ -182,16 +193,18 @@ Order and dependencies:
 
 ```
 M01 -> M02 -> M03 -> M04 -> M05 -> M06
-                       \            \
-                        +-> M07 -----+-> M08 -> M09 -> M10 -> M11 -> (M12)
+               |       \            \
+               |        +-> M07 -----+-> M08 -> M09 -> M10 -> M11 -> (M12)
+               +-> M03A
 ```
 
 M03 comes early on purpose. From that point the owner follows progress
-on the dashboard. M07 can start as soon as M02 is deployed and the PDFs
-are uploaded. It does not wait for M06.
+on the dashboard. M03A follows M03 and blocks nothing: later milestones
+only have to give each new route a key scope. M07 can start as soon as
+M02 is deployed and the PDFs are uploaded. It does not wait for M06.
 
-Everything in M01 to M03 can be written and tested before the domain
-exists. Only the first deploy needs the domain.
+The first deploy needs the certificate and the GitHub variables and
+secrets listed in [`owner-checklist.md`](owner-checklist.md).
 
 ## 8. How to work on a milestone
 
@@ -219,12 +232,15 @@ Follow this every time.
    - `python3 scripts/check_pii.py`
    - In `apps/admin_web`: `npm run lint`, `npm test`, `npm run build`
    - In `backend/infrastructure`: `npm run build`, `npm test`
-7. In the same pull request, set the finished steps to `done` in
+7. From M03A on: a new dashboard route gets a key scope or is marked
+   owner only, in the route table and in `reference.md` section 8. A
+   new job gets a `keyRun` decision.
+8. In the same pull request, set the finished steps to `done` in
    `contracts/roadmap.json` and run `python3 scripts/sync-contracts.py`.
-8. Fill in the pull request template: Intent, Zone, Invariants,
+9. Fill in the pull request template: Intent, Zone, Invariants,
    Evidence, Docs and contracts, Rollback.
-9. Never run `cdk deploy`, `cdk destroy` or an `aws delete-*` command.
-   Deploys happen from GitHub Actions after merge. Never push to `main`.
+10. Never run `cdk deploy`, `cdk destroy` or an `aws delete-*` command.
+    Deploys happen from GitHub Actions after merge. Never push to `main`.
 
 ### Stop and ask
 
@@ -235,8 +251,9 @@ Stop and ask the owner in chat when:
 - a check in a step fails and the fix is not obvious within the step;
 - an external service behaves differently from what the plan says
   (prices, limits, request shapes);
-- anything would put capital, holdings, names, emails or account ids
-  into git;
+- anything would put capital, holdings, names, emails, account ids or
+  the domain into git;
+- a DNS record is about to be created or changed;
 - the monthly cost estimate would pass the ceiling.
 
 ### Where to copy from
@@ -275,7 +292,6 @@ wins for style and the plan wins for names.
 
 ## Open questions
 
-- The domain name. Blocks the first deploy only.
 - Whether an existing global WAF web ACL can be shared.
 - Whether the dashboard should also show Hong Kong dollar values. Not
   planned. Add later if wanted.

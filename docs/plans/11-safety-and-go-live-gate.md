@@ -106,8 +106,14 @@ submitted afterwards.
 
 `brief_email.send_alert(subject, lines)`: a short plain email through
 the same sender and recipient, used for: a breaker trip, a brief not
-sent by 08:30 Hong Kong time on a session day (checked by `tick`), and
-the model or knowledge base budget reaching its cap. At most one alert
+sent by 08:30 Hong Kong time on a session day (checked by `tick`), the
+model or knowledge base budget reaching its cap, an API key being
+denied (revoked, expired, wrong address), and an API key making a
+write. The last two replace the sibling's "Public API key used"
+notice. The authorizer keeps its narrow permission: on a denial of a
+known key it sets `lastDeniedAt` and `lastDeniedReason` on the key
+row, and `tick` sends the alert. A write is reported by `AdminApiFn`
+through the job it already may start. At most one alert
 per cause per day, kept by a conditional write on
 `ALERT#<date>` / `<cause>`. Obeys `BriefEmailEnabled`.
 
