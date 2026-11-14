@@ -52,6 +52,39 @@ def query_gsi1(gsi1pk: str, prefix: str = "") -> list[dict[str, Any]]:
         kwargs["ExclusiveStartKey"] = token
 
 
+def scan_pk_prefix(prefix: str) -> list[dict[str, Any]]:
+    page = _table().scan(
+        FilterExpression="begins_with(pk, :pk)",
+        ExpressionAttributeValues={":pk": prefix},
+    )
+    return list(page.get("Items") or [])
+
+
+def delete(pk: str, sk: str) -> None:
+    _table().delete_item(Key={"pk": pk, "sk": sk})
+
+
+def query_latest(pk: str, prefix: str, limit: int = 1) -> list[dict[str, Any]]:
+    page = _table().query(
+        KeyConditionExpression="pk = :pk AND begins_with(sk, :sk)",
+        ExpressionAttributeValues={":pk": pk, ":sk": prefix},
+        ScanIndexForward=False,
+        Limit=limit,
+    )
+    return list(page.get("Items") or [])
+
+
+def query_gsi1_latest(gsi1pk: str, limit: int) -> list[dict[str, Any]]:
+    page = _table().query(
+        IndexName="gsi1",
+        KeyConditionExpression="gsi1pk = :pk",
+        ExpressionAttributeValues={":pk": gsi1pk},
+        ScanIndexForward=False,
+        Limit=limit,
+    )
+    return list(page.get("Items") or [])
+
+
 def update(pk: str, sk: str, expression: str, values: dict[str, Any], names: dict[str, str] | None = None) -> None:
     kwargs: dict[str, Any] = {
         "Key": {"pk": pk, "sk": sk},

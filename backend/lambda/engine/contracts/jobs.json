@@ -1,16 +1,220 @@
 {
   "jobs": [
-    {"name": "kb_sync_check", "scheduleName": "findingalpha-kb-sync-check", "cron": "30 5 * * ? *", "timeZone": "Asia/Hong_Kong", "killSwitch": "", "manual": false, "keyRun": false},
-    {"name": "ingest_daily", "scheduleName": "findingalpha-ingest-daily", "cron": "0 6 ? * TUE-SAT *", "timeZone": "Asia/Hong_Kong", "killSwitch": "IngestEnabled", "manual": false, "keyRun": false},
-    {"name": "reconcile", "scheduleName": "findingalpha-reconcile", "cron": "30 6 ? * TUE-SAT *", "timeZone": "Asia/Hong_Kong", "killSwitch": "TradingEnabled", "manual": false, "keyRun": false},
-    {"name": "daily_check", "scheduleName": "findingalpha-daily-check", "cron": "40 6 ? * TUE-SAT *", "timeZone": "Asia/Hong_Kong", "killSwitch": "TradingEnabled", "manual": false, "keyRun": false},
-    {"name": "brief_compile", "scheduleName": "findingalpha-brief-compile", "cron": "15 7 ? * TUE-SAT *", "timeZone": "Asia/Hong_Kong", "killSwitch": "", "manual": false, "keyRun": false},
-    {"name": "brief_send", "scheduleName": "findingalpha-brief-send", "cron": "30 7 ? * TUE-SAT *", "timeZone": "Asia/Hong_Kong", "killSwitch": "BriefEmailEnabled", "manual": false, "keyRun": false},
-    {"name": "execute_holds", "scheduleName": "findingalpha-execute-holds", "cron": "45 9 ? * MON-FRI *", "timeZone": "America/New_York", "killSwitch": "TradingEnabled", "manual": false, "keyRun": false},
-    {"name": "post_trade", "scheduleName": "findingalpha-post-trade", "cron": "30 16 ? * MON-FRI *", "timeZone": "America/New_York", "killSwitch": "TradingEnabled", "manual": false, "keyRun": false},
-    {"name": "weekly_refresh", "scheduleName": "findingalpha-weekly-refresh", "cron": "0 8 ? * SUN *", "timeZone": "Asia/Hong_Kong", "killSwitch": "IngestEnabled", "manual": false, "keyRun": false},
-    {"name": "monthly_rebalance", "scheduleName": "findingalpha-monthly-rebalance", "cron": "0 8 ? * 7#1 *", "timeZone": "Asia/Hong_Kong", "killSwitch": "CommitteeEnabled", "manual": false, "keyRun": false},
-    {"name": "monthly_review", "scheduleName": "findingalpha-monthly-review", "cron": "0 10 ? * 1#1 *", "timeZone": "Asia/Hong_Kong", "killSwitch": "CommitteeEnabled", "manual": false, "keyRun": false},
-    {"name": "tick", "scheduleName": "findingalpha-tick", "cron": "", "timeZone": "", "killSwitch": "", "manual": false, "keyRun": true, "rate": "15 minutes"}
+    {
+      "name": "kb_sync_check",
+      "scheduleName": "findingalpha-kb-sync-check",
+      "cron": "30 5 * * ? *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "ingest_daily",
+      "scheduleName": "findingalpha-ingest-daily",
+      "cron": "0 6 ? * TUE-SAT *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "IngestEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "reconcile",
+      "scheduleName": "findingalpha-reconcile",
+      "cron": "30 6 ? * TUE-SAT *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "TradingEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "daily_check",
+      "scheduleName": "findingalpha-daily-check",
+      "cron": "40 6 ? * TUE-SAT *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "TradingEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "brief_compile",
+      "scheduleName": "findingalpha-brief-compile",
+      "cron": "15 7 ? * TUE-SAT *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "brief_send",
+      "scheduleName": "findingalpha-brief-send",
+      "cron": "30 7 ? * TUE-SAT *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "BriefEmailEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "execute_holds",
+      "scheduleName": "findingalpha-execute-holds",
+      "cron": "45 9 ? * MON-FRI *",
+      "timeZone": "America/New_York",
+      "killSwitch": "TradingEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "post_trade",
+      "scheduleName": "findingalpha-post-trade",
+      "cron": "30 16 ? * MON-FRI *",
+      "timeZone": "America/New_York",
+      "killSwitch": "TradingEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "weekly_refresh",
+      "scheduleName": "findingalpha-weekly-refresh",
+      "cron": "0 8 ? * SUN *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "IngestEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "monthly_rebalance",
+      "scheduleName": "findingalpha-monthly-rebalance",
+      "cron": "0 8 ? * 7#1 *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "CommitteeEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "monthly_review",
+      "scheduleName": "findingalpha-monthly-review",
+      "cron": "0 10 ? * 1#1 *",
+      "timeZone": "Asia/Hong_Kong",
+      "killSwitch": "CommitteeEnabled",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "tick",
+      "scheduleName": "findingalpha-tick",
+      "cron": "rate(15 minutes)",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": false,
+      "keyRun": false
+    },
+    {
+      "name": "screen",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "backfill_monthly_stats",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "backtest",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "kb_eval",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "committee_dry_run",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "committee_eval",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "portfolio_propose",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "broker_setup",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "broker_smoke",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "leverage_overlay",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "breaker_drill",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "record_drill",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "",
+      "manualRun": true,
+      "keyRun": false
+    }
   ]
 }

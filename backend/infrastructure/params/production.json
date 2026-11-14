@@ -6,8 +6,8 @@
   "findingalpha:TradingEnabled": "false",
   "findingalpha:LeverageEnabled": "false",
   "findingalpha:BriefEmailEnabled": "false",
-  "findingalpha:BrokerMode": "paper",
   "findingalpha:PublicApiWritesEnabled": "false",
+  "findingalpha:BrokerMode": "paper",
   "findingalpha:KbMaxRawBytes": "2147483648",
   "findingalpha:KbMaxRetrievalsPerMonth": "5000"
 }

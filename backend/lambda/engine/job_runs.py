@@ -44,6 +44,8 @@ def _write(run: JobRun) -> None:
     if run.error_class:
         item["errorClass"] = run.error_class
         item["errorMessage"] = run.error_message[:300]
+    if run.status != "running":
+        item["finishedAt"] = timeutil.now_iso()
     store.put(item)
 
 

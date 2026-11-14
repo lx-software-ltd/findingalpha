@@ -40,9 +40,11 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
       bucketName: `findingalpha-web-logs-${account}-${region}`,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       enforceSSL: true,
+      versioned: true,
       encryption: s3.BucketEncryption.S3_MANAGED,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
+      lifecycleRules: [{ id: "ExpireOldLogs", expiration: cdk.Duration.days(90) }],
     });
     const bucket = new s3.Bucket(this, "AdminWebBucket", {
       bucketName: `findingalpha-web-${account}-${region}`,
@@ -55,18 +57,24 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
       serverAccessLogsPrefix: "web/",
     });
     const rewrite = new cloudfront.Function(this, "SpaRewrite", {
-      code: cloudfront.FunctionCode.fromInline(
-        "function handler(event) { var r = event.request; if (r.uri.endsWith('/')) r.uri += 'index.html'; else if (!r.uri.includes('.')) r.uri = '/index.html'; return r; }",
-      ),
+      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (uri.startsWith('/assets/')) return request;
+  if (uri.indexOf('.') === -1) {
+    request.uri = '/index.html';
+  }
+  return request;
+}`),
     });
-    const csp = [
+    const csp = cdk.Fn.join("; ", [
       "default-src 'self'",
-      `connect-src 'self' ${props.cspApiConnectOrigin} ${cognitoOrigin.valueAsString}`,
+      cdk.Fn.join(" ", ["connect-src 'self'", props.cspApiConnectOrigin, cognitoOrigin.valueAsString]),
       "img-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self'",
       "frame-ancestors 'none'",
-    ].join("; ");
+    ]);
     const headers = new cloudfront.ResponseHeadersPolicy(this, "SecurityHeaders", {
       responseHeadersPolicyName: "findingalpha-admin-security-headers",
       securityHeadersBehavior: {
@@ -114,6 +122,10 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
     new cdk.CfnOutput(this, "AdminWebDistributionDomain", {
       value: distribution.distributionDomainName,
       exportName: "findingalpha-admin-web-AdminWebDistributionDomain",
+    });
+    new cdk.CfnOutput(this, "AdminWebLoggingBucketName", {
+      value: logs.bucketName,
+      exportName: "findingalpha-admin-web-AdminWebLoggingBucketName",
     });
   }
 }

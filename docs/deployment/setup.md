@@ -1,57 +1,127 @@
-# Deployment setup
+# Deployment setup (AWS + GitHub Actions)
 
-One-time prerequisites. The CDK bootstrap with qualifier `siutindei`
-already exists in this account and region. This repository has no
-bootstrap workflow and does not run `cdk bootstrap`.
+One-time prerequisites for **Deploy Backend** and **Deploy Admin Web**.
+Do these before [`admin-website.md`](./admin-website.md).
+
+This repository does not create a CDK bootstrap and has no bootstrap
+workflow. It reuses the existing bootstrap with qualifier `siutindei`.
 
 ## 1. GitHub OIDC provider
 
-The account already has the provider used by `lx-software`.
+**IAM → Identity providers → Add provider**, if the account does not
+already have it.
 
+- Provider type: **OpenID Connect**
 - Provider URL: `https://token.actions.githubusercontent.com`
 - Audience: `sts.amazonaws.com`
 
 ## 2. `GitHubActionsRole`
 
-Workflows assume the existing role `GitHubActionsRole`. Its trust policy
-must allow this repository:
+The workflows assume an IAM role named `GitHubActionsRole`. This
+repository does not create that role. The role that already deploys the
+sibling stacks is reused, once it trusts this repository and can assume
+the `siutindei` bootstrap roles.
 
-- `repo:lx-software-ltd/findingalpha:environment:production`
-- `repo:lx-software-ltd/findingalpha:pull_request`
+### Trust
 
-The role must be able to assume the bootstrap roles
-`cdk-siutindei-deploy-role-*`, `cdk-siutindei-file-publishing-role-*`,
-`cdk-siutindei-image-publishing-role-*` and `cdk-siutindei-lookup-role-*`,
-and to read `/cdk-bootstrap/siutindei/version`.
+The role's trust policy must allow `token.actions.githubusercontent.com`
+to assume it for this repository, including the `production` environment
+subject and pull-request subjects. Confirm which subject format the
+repository issues before editing the trust policy.
 
-It also needs CloudFormation on stacks named `findingalpha` and
-`findingalpha-admin-web`, S3 and CloudFront access to the dashboard
-bucket and distribution, and (for the API-key workflow added later)
-item access on `findingalpha-records` plus decrypt on the shared key.
+### Permissions
 
-## 3. Bootstrap
+CDK deploys through the roles created by the existing bootstrap. The
+role must be able to assume them and read the bootstrap version
+parameter. `QUALIFIER` here is `siutindei`:
 
-Do not bootstrap again. Deploy jobs check
-`/cdk-bootstrap/siutindei/version` in `ap-southeast-1`. The dashboard
-certificate is requested in `us-east-1` and is not created by this
-repository.
+```json
+{
+  "Effect": "Allow",
+  "Action": "sts:AssumeRole",
+  "Resource": [
+    "arn:aws:iam::ACCOUNT_ID:role/cdk-siutindei-deploy-role-*",
+    "arn:aws:iam::ACCOUNT_ID:role/cdk-siutindei-lookup-role-*",
+    "arn:aws:iam::ACCOUNT_ID:role/cdk-siutindei-file-publishing-role-*",
+    "arn:aws:iam::ACCOUNT_ID:role/cdk-siutindei-image-publishing-role-*"
+  ]
+}
+```
 
-## 4. GitHub environment `production`
+```json
+{
+  "Effect": "Allow",
+  "Action": "ssm:GetParameter",
+  "Resource": "arn:aws:ssm:*:ACCOUNT_ID:parameter/cdk-bootstrap/*"
+}
+```
 
-Repository variables: `AWS_ACCOUNT_ID`, `AWS_REGION` (`ap-southeast-1`),
-`CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`
-(`backend/infrastructure/params/production.json`).
+For the two stacks (`findingalpha`, `findingalpha-admin-web`) the role
+also needs:
 
-Environment variables for the first deploy: `ADMIN_WEB_DOMAIN_NAME`,
-`ADMIN_WEB_CERTIFICATE_ARN` (us-east-1), `ADMIN_COGNITO_ORIGIN`,
-`ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_FEDERATED_EMAIL_ALLOWLIST`,
-`ADMIN_BOOTSTRAP_EMAIL`. Optional later: `SEC_CONTACT_EMAIL`,
-`MAIL_SENDING_DOMAIN`, `BRIEF_RECIPIENT_EMAIL`, `ADMIN_WAF_WEB_ACL_ARN`,
-`ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN`.
+- **CloudFormation** `DescribeStacks` on
+  `arn:aws:cloudformation:REGION:ACCOUNT_ID:stack/findingalpha/*` and
+  `arn:aws:cloudformation:REGION:ACCOUNT_ID:stack/findingalpha-admin-web/*`.
+  **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
+  `AdminApiBaseUrl` from `findingalpha` before it uploads the SPA.
+- **S3** `GetObject` / `PutObject` / `DeleteObject` / `ListBucket` on the
+  dashboard bucket (`findingalpha-web-*`).
+- **CloudFront** `CreateInvalidation` on the dashboard distribution.
 
-Secrets: `ADMIN_GOOGLE_CLIENT_SECRET`, `ADMIN_BOOTSTRAP_TEMP_PASSWORD`
-(14 or more characters). `PUBLIC_API_KEY_GPG_PASSPHRASE` is added with
-the API-key workflow.
+Resource names this role may create must include the `findingalpha*`
+prefix. That is an owner check, not something this repository can grant.
 
-AWS access keys, the Alpaca key and the OpenRouter key are not GitHub
-secrets. The broker and model keys go in Secrets Manager after deploy.
+## 3. CDK Bootstrap
+
+Already done, with qualifier `siutindei`, in the account and region
+these stacks use. Do not run `cdk bootstrap` again from this repository.
+There is no **CDK Bootstrap** workflow here.
+
+The deploy jobs read `/cdk-bootstrap/siutindei/version` when
+`CDK_BOOTSTRAP_QUALIFIER` is `siutindei`. CloudFront certificates for
+`admin.<domain>` are requested in `us-east-1`. That certificate is an
+owner task. This repository does not request it.
+
+## 4. GitHub environment (`production`)
+
+Repository variables, also read by **CDK Diff** on pull requests:
+`AWS_ACCOUNT_ID`, `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`),
+`CDK_PARAM_FILE` (`backend/infrastructure/params/production.json`).
+
+Environment `production` variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `AWS_ACCOUNT_ID`, `AWS_REGION` | Target account and region. Must match the existing `siutindei` bootstrap. |
+| `CDK_BOOTSTRAP_QUALIFIER` | `siutindei`. |
+| `CDK_PARAM_FILE` | `backend/infrastructure/params/production.json`. |
+| `ADMIN_WEB_DOMAIN_NAME` | `admin.<domain>`. Required. The deploy fails when this is empty. |
+| `ADMIN_WEB_CERTIFICATE_ARN` | ACM certificate in us-east-1, status ISSUED. Required. |
+| `ADMIN_GOOGLE_CLIENT_ID` | Google OAuth client id. |
+| `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | Comma-separated lower-case emails that may sign in. |
+| `ADMIN_BOOTSTRAP_EMAIL` | Bootstrap user email. |
+| `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.<region>.amazoncognito.com`, or `https://auth.<domain>` when the custom Hosted UI domain is set. |
+| `ADMIN_WAF_WEB_ACL_ARN` | Optional. Empty leaves the web ACL off. |
+| `MAIL_SENDING_DOMAIN` | `<domain>`. Empty disables email. |
+| `BRIEF_RECIPIENT_EMAIL` | Where the daily email will go. Empty until that milestone. |
+| `SEC_CONTACT_EMAIL` | Contact address in the SEC User-Agent. Empty until ingest. |
+
+Secrets:
+
+| Secret | Purpose |
+| --- | --- |
+| `ADMIN_GOOGLE_CLIENT_SECRET` | Google OAuth client secret (`noEcho`). |
+| `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | Bootstrap password, 14 or more characters (`noEcho`). |
+
+Do not put any of these values in git.
+
+## Troubleshooting
+
+**`SSM parameter /cdk-bootstrap/siutindei/version` not found.** The
+qualifier variable is unset or wrong, the role cannot read the
+parameter, or this job is pointed at a region that was not bootstrapped.
+Stop and tell the owner. Do not bootstrap a second qualifier from here.
+
+**`current credentials could not be used to assume … deploy-role`.**
+`GitHubActionsRole` is missing `sts:AssumeRole` on the `cdk-siutindei-*`
+roles, or those roles do not trust it.

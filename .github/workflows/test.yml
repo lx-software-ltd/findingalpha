@@ -55,12 +55,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Skip when the app does not exist yet
-        id: exists
-        run: test -f apps/admin_web/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
-
       - name: Set up Node.js
-        if: steps.exists.outputs.present == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: "lts/*"
@@ -68,12 +63,10 @@ jobs:
           cache-dependency-path: apps/admin_web/package-lock.json
 
       - name: Install dependencies
-        if: steps.exists.outputs.present == 'true'
         run: npm ci
         working-directory: apps/admin_web
 
       - name: Build admin website
-        if: steps.exists.outputs.present == 'true'
         run: npm run build
         working-directory: apps/admin_web
         env:
@@ -83,7 +76,6 @@ jobs:
           VITE_API_BASE_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
 
       - name: Test admin website
-        if: steps.exists.outputs.present == 'true'
         run: npm test
         working-directory: apps/admin_web
         env:
@@ -99,12 +91,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Skip when the app does not exist yet
-        id: exists
-        run: test -f apps/admin_web/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
-
       - name: Set up Node.js
-        if: steps.exists.outputs.present == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: "lts/*"
@@ -112,17 +99,14 @@ jobs:
           cache-dependency-path: apps/admin_web/package-lock.json
 
       - name: Install dependencies
-        if: steps.exists.outputs.present == 'true'
         run: npm ci
         working-directory: apps/admin_web
 
       - name: Install Playwright Chromium
-        if: steps.exists.outputs.present == 'true'
         run: npx playwright install --with-deps chromium
         working-directory: apps/admin_web
 
       - name: Run viewport smoke tests
-        if: steps.exists.outputs.present == 'true'
         run: npm run test:e2e
         working-directory: apps/admin_web
 

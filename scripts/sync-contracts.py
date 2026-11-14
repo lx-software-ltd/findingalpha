@@ -66,13 +66,26 @@ def sync(root: Path) -> list[str]:
         )
     elif not shared.parent.exists():
         notes.append(f"skip {shared}: parent folder does not exist")
+    else:
+        notes.append(f"skip {shared}: admin-domains.json is missing")
 
     ts_path = root / "apps" / "admin_web" / "src" / "lib" / "contracts" / "generated.ts"
     if ts_path.parent.exists():
         payloads = []
         for path in files:
             payloads.append((path.name, json.loads(path.read_text(encoding="utf-8"))))
-        ts_path.write_text(_typescript(payloads), encoding="utf-8")
+        text = _typescript(payloads)
+        aliases = []
+        if "export const roadmap " in text:
+            aliases.append("export const ROADMAP = roadmap;")
+        if "export const adminDomains " in text:
+            aliases.append("export const ADMIN_DOMAINS = adminDomains;")
+            aliases.append("export const storageKeyPrefix = adminDomains.storageKeyPrefix;")
+        if "export const jobs " in text:
+            aliases.append("export const JOBS = jobs;")
+        if aliases:
+            text = text.rstrip() + "\n\n" + "\n".join(aliases) + "\n"
+        ts_path.write_text(text, encoding="utf-8")
     else:
         notes.append(f"skip {ts_path}: parent folder does not exist")
     return notes

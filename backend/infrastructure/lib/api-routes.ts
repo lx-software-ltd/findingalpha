@@ -11,4 +11,9 @@ export interface AdminApiRoute {
 export const ROUTES: AdminApiRoute[] = [
   { path: "/health", methods: [Method.GET], auth: "none" },
   { path: "/me", methods: [Method.GET], auth: "jwt" },
+  { path: "/owner-tasks", methods: [Method.GET], auth: "jwt" },
+  { path: "/owner-tasks/{taskId}", methods: [Method.PUT], auth: "jwt" },
+  { path: "/settings", methods: [Method.GET, Method.PUT], auth: "jwt" },
+  { path: "/jobs/runs", methods: [Method.GET], auth: "jwt" },
+  { path: "/system/status", methods: [Method.GET], auth: "jwt" },
 ];

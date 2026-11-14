@@ -5,7 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from http_common import _claims, _json_response, _require_admin, _route, not_found
+from owner_tasks import list_tasks, put_task
 from router import Route, route_matches
+from settings import get_settings, put_settings
+from system_status import list_runs, status
 
 
 def _health(_event: dict[str, Any]) -> dict[str, Any]:
@@ -27,6 +30,12 @@ def _me(event: dict[str, Any]) -> dict[str, Any]:
 ROUTES = (
     Route("GET", "/health", _health, "none"),
     Route("GET", "/me", _me, "jwt"),
+    Route("GET", "/owner-tasks", list_tasks, "jwt"),
+    Route("PUT", "/owner-tasks/", put_task, "jwt", kind="prefix"),
+    Route("GET", "/settings", get_settings, "jwt"),
+    Route("PUT", "/settings", put_settings, "jwt"),
+    Route("GET", "/jobs/runs", list_runs, "jwt"),
+    Route("GET", "/system/status", status, "jwt"),
 )
 
 

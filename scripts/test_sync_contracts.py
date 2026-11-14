@@ -32,6 +32,7 @@ class SyncContractsTest(unittest.TestCase):
             notes = sync.sync(root)
             self.assertTrue(any("engine" in note for note in notes))
             self.assertTrue(any("generated.ts" in note for note in notes))
+            self.assertTrue(any("shared-contracts.ts" in note for note in notes))
             self.assertFalse((root / "backend").exists())
 
     def test_copies_json_except_the_roadmap_and_writes_typescript(self) -> None:
@@ -41,7 +42,12 @@ class SyncContractsTest(unittest.TestCase):
             (root / "contracts" / "roadmap.json").write_text('{"version": 1}\n', encoding="utf-8")
             (root / "contracts" / "jobs.json").write_text('{"jobs": []}\n', encoding="utf-8")
             (root / "backend" / "lambda" / "engine").mkdir(parents=True)
+            (root / "backend" / "infrastructure" / "lib").mkdir(parents=True)
             (root / "apps" / "admin_web" / "src" / "lib" / "contracts").mkdir(parents=True)
+            (root / "contracts" / "admin-domains.json").write_text(
+                '{"storageKeyPrefix": "fa_admin", "cognitoDomainPrefix": "findingalpha-admin-auth"}\n',
+                encoding="utf-8",
+            )
             notes = sync.sync(root)
             self.assertEqual(notes, [])
             copied = root / "backend" / "lambda" / "engine" / "contracts"
@@ -50,6 +56,11 @@ class SyncContractsTest(unittest.TestCase):
             text = (root / "apps" / "admin_web" / "src" / "lib" / "contracts" / "generated.ts").read_text()
             self.assertIn("export const jobs", text)
             self.assertIn("export const roadmap", text)
+            shared = (root / "backend" / "infrastructure" / "lib" / "shared-contracts.ts").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn('export const storageKeyPrefix = "fa_admin"', shared)
+            self.assertIn('export const cognitoDomainPrefix = "findingalpha-admin-auth"', shared)
 
     def test_repository_roadmap_is_valid(self) -> None:
         errors = check.validate_roadmap(check.ROOT / "contracts" / "roadmap.json")

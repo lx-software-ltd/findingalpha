@@ -1,32 +1,51 @@
 # Security
 
-Sign-in is a Cognito user pool. Self sign-up is off. MFA is required
-(TOTP). The app client has no secret and uses the authorization code
-grant. Google is a federated identity provider. The pre sign-up and
-pre token triggers refuse any email that is not on the allow-list,
-except the bootstrap user who is already in the `admin` group.
+The rules in [`overview.md`](overview.md) are the product rules. This
+page is how the skeleton enforces them.
 
-The HTTP API authorizes with the Cognito ID token. The audience is the
-app client id. `/health` is the only route without that authorizer.
-CORS allows the dashboard origin only. Stage throttle is 50 requests
-per second with a burst of 100. Access logs go to an encrypted log
-group. One API Gateway invoke permission covers every route.
+## Secrets and personal data
 
-`AdminApiFn` cannot read the broker or model secrets. `EngineFn` can.
-Both secrets are created empty and retained. Their names are literals
-in the function environment, not values.
+Nothing in git identifies the owner: no account id, certificate ARN,
+email or domain. The dashboard hostname is the parameter
+`AdminWebDomainName`, written in docs as `admin.<domain>`.
 
-Kill-switch parameters default to `false`. The engine also requires the
-same flag on the settings row. Either side missing means the switch is
-off.
+`GoogleClientSecret` and `AdminBootstrapTempPassword` are CloudFormation
+parameters with `noEcho: true`. Broker and model keys are Secrets
+Manager secrets named `findingalpha/alpaca-paper` and
+`findingalpha/openrouter`, encrypted with the shared key and retained.
+The Lambda environment receives those names as string literals. A secret
+that lacks the JSON fields the engine expects counts as not configured.
 
-Buckets block public access, require TLS, and are versioned. Tables,
-the key, the buckets, the user pool and the secrets are retained on
-stack delete.
+`AdminApiFn` cannot read either secret. `EngineFn` can read both.
 
-The dashboard is a private S3 bucket behind CloudFront. The bucket
-policy is the one CDK creates for the origin: a TLS deny and one
-CloudFront read grant. The response headers policy sets a content
-security policy that allows the API origin and the Cognito origin.
-Viewer requests redirect to HTTPS. A web ACL is attached only when its
-ARN parameter is set.
+## Sign-in
+
+The user pool does not allow self sign-up. MFA is required, TOTP only.
+The same Lambda is the Pre Sign-up and Pre Token Generation trigger. An
+email that is not on the allow-list and is not already in the `admin`
+group receives no token. The app client has no secret, uses the
+authorization-code grant, and builds its callback from
+`AdminWebDomainName`.
+
+## Data
+
+Buckets are private (`BLOCK_ALL`), TLS-only, versioned and `RETAIN`.
+Tables are `RETAIN`, encrypted with the customer-managed key, and have
+point-in-time recovery. The key rotates and is retained. Schedules are
+EventBridge Scheduler with an IAM-role target. There is no
+`AWS::Events::Rule`. A failed async invoke of `EngineFn` is not retried.
+
+Kill switches are strings `true` or `false` and default to `false`.
+`BrokerMode` allows only `paper`.
+
+## Edge
+
+The HTTP API allows one browser origin, `https://` plus
+`AdminWebDomainName`. Credentials are not allowed on CORS. The stage
+throttles at 50 requests a second with a burst of 100. API Gateway has
+one invoke permission on `AdminApiFn`.
+
+The dashboard distribution redirects viewers to HTTPS. Its
+content-security policy allows the API origin and the Cognito origin
+passed in `CspCognitoConnectOrigin`. A web ACL is attached only when
+`WafWebAclArn` is set.

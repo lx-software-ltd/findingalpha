@@ -8,6 +8,10 @@ on:
       - "scripts/deploy/deploy-admin-www.sh"
       - "contracts/roadmap.json"
   workflow_dispatch:
+  # A backend deploy can replace the Cognito client or the HTTP API. Rebuild
+  # the SPA from current main so it picks up those outputs. Only a successful
+  # Deploy Backend on main qualifies. The SPA is added in M03; until then the
+  # job skips the build.
   workflow_run:
     workflows: ["Deploy Backend"]
     types: [completed]
@@ -28,43 +32,46 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Wait until the dashboard app exists
-        id: app
-        run: |
-          if [ -f apps/admin_web/package.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "The admin app is added in a later milestone. Nothing to publish."
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Skip when the app does not exist yet
+        id: exists
+        run: test -f apps/admin_web/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v7
-        if: steps.app.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true'
         with:
           node-version: "lts/*"
           cache: "npm"
           cache-dependency-path: apps/admin_web/package-lock.json
 
       - run: npm ci
-        if: steps.app.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true'
         working-directory: apps/admin_web
 
       - uses: aws-actions/configure-aws-credentials@v6
-        if: steps.app.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true'
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Read admin SPA settings from the findingalpha stack
         id: admin_spa
-        if: steps.app.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true'
         env:
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ vars.AWS_REGION }}
         run: |
           set -euo pipefail
           stack=findingalpha
-          json="$(aws cloudformation describe-stacks --stack-name "$stack" --output json)"
+          err="$(mktemp)"
+          if ! json="$(aws cloudformation describe-stacks --stack-name "$stack" --output json 2>"$err")"; then
+            if grep -q 'AccessDenied' "$err"; then
+              echo "::error::GitHubActionsRole needs cloudformation:DescribeStacks on arn:aws:cloudformation:${AWS_REGION}:${AWS_ACCOUNT_ID}:stack/${stack}/*"
+            fi
+            cat "$err" >&2
+            rm -f "$err"
+            exit 1
+          fi
+          rm -f "$err"
           read_output() {
             jq -r --arg key "$1" '
               (.Stacks[0].Outputs // [])[] | select(.OutputKey == $key) | .OutputValue
@@ -77,6 +84,20 @@ jobs:
             echo "::error::Stack $stack is missing UserPoolClientId, CognitoDomain, or AdminApiBaseUrl"
             exit 1
           fi
+          case "$domain" in
+            https://*) ;;
+            *)
+              echo "::error::CognitoDomain on $stack must be an https origin"
+              exit 1
+              ;;
+          esac
+          case "$api_url" in
+            https://*) ;;
+            *)
+              echo "::error::AdminApiBaseUrl on $stack must be an https origin"
+              exit 1
+              ;;
+          esac
           {
             echo "client_id=$client_id"
             echo "domain=$domain"
@@ -84,7 +105,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - run: npm run build
-        if: steps.app.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true'
         working-directory: apps/admin_web
         env:
           VITE_COGNITO_CLIENT_ID: ${{ steps.admin_spa.outputs.client_id }}
@@ -93,5 +114,8 @@ jobs:
           VITE_COGNITO_LOGOUT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/
           VITE_API_BASE_URL: ${{ steps.admin_spa.outputs.api_url }}
 
-      - run: bash scripts/deploy/deploy-admin-www.sh
-        if: steps.app.outputs.present == 'true'
+      - name: Upload the admin site
+        if: steps.exists.outputs.present == 'true'
+        run: bash scripts/deploy/deploy-admin-www.sh
+        env:
+          ADMIN_WEB_STACK_NAME: findingalpha-admin-web

@@ -1,6 +1,9 @@
 # Checkov configuration for the findingalpha CDK app.
-# Global skips are only for checks the whole stack cannot satisfy.
-# Per-resource skips live in lib/constructs/checkov-suppressions.ts.
+# https://www.checkov.io/2.Basics/CLI%20Command%20Reference.html
+#
+# Global skips live here. Per-resource skips are metadata from
+# lib/constructs/checkov-suppressions.ts. The security workflow drops
+# SARIF findings whose only suppression is kind == "inSource".
 
 framework:
   - cloudformation
@@ -10,7 +13,7 @@ compact: true
 download-external-modules: false
 
 skip-check:
-  # The access-log buckets are the destination. Logging them to themselves loops.
+  # Access-log destination buckets cannot log to themselves.
   - CKV_AWS_18
-  # WAF is optional. The web stack attaches one when WafWebAclArn is set.
+  # WAF is optional. WafWebAclArn attaches an existing web ACL when set.
   - CKV_AWS_68
