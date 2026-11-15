@@ -1,6 +1,6 @@
 # Plan: M04 plumbing
 
-**Status**: In review
+**Status**: Done. Merged in pull request 8. Follow-ups are in `m04-t02-followups.md`.
 **Zone**: yellow. One red line: `EngineFn` may invoke itself so a
 stalled chunked job can be started again.
 

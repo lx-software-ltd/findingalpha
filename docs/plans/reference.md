@@ -83,12 +83,13 @@ come from the GitHub `production` environment, not from the file.
 | `BriefEmailEnabled` | params file | `false` | Kill switch |
 | `BrokerMode` | params file | `paper` | `allowedValues: ["paper"]` until M12 |
 | `PublicApiWritesEnabled` | params file | `false` | Kill switch for writes by API key (M03A) |
-| `ApiCustomDomainName` | GitHub var `API_CUSTOM_DOMAIN_NAME` | empty | `api.<domain>`. Empty: no custom hostname (M03A) |
-| `ApiCustomDomainCertificateArn` | GitHub var `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | ACM, **stack region**, ISSUED (M03A) |
 | `CommitteeAnalystModel` | params file | set in M08 | OpenRouter slug |
 | `CommitteeChairModel` | params file | set in M08 | OpenRouter slug |
 | `KbMaxRawBytes` | params file | `2147483648` | 2 GB cap |
 | `KbMaxRetrievalsPerMonth` | params file | `5000` | |
+
+`ApiCustomDomainName` and `ApiCustomDomainCertificateArn` are not in the
+template yet. M03A adds them with the hostname.
 
 ### `findingalpha-admin-web`
 

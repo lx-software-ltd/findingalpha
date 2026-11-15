@@ -35,8 +35,7 @@ def read_json_secret(
     """Return the secret JSON. Cache a valid payload for five minutes."""
     current = now()
     cached = _cache.get(secret_id)
-    if cached is not None and current - cached[0] < _TTL_SECONDS:
-        _require(secret_id, cached[1], required_keys)
+    if cached is not None and current - cached[0] < _TTL_SECONDS and _satisfied(cached[1], required_keys):
         return cached[1]
     payload = _load(secret_id, client)
     _require(secret_id, payload, required_keys)
@@ -61,8 +60,10 @@ def _load(secret_id: str, client: Any) -> dict[str, Any]:
     return parsed
 
 
+def _satisfied(payload: dict[str, Any], required_keys: tuple[str, ...] | list[str]) -> bool:
+    return all(isinstance(payload.get(key), str) and str(payload.get(key)).strip() for key in required_keys)
+
+
 def _require(secret_id: str, payload: dict[str, Any], required_keys: tuple[str, ...] | list[str]) -> None:
-    for key in required_keys:
-        value = payload.get(key)
-        if not isinstance(value, str) or not value.strip():
-            raise NotConfigured(secret_id)
+    if not _satisfied(payload, required_keys):
+        raise NotConfigured(secret_id)

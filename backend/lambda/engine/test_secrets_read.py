@@ -56,6 +56,21 @@ class SecretsReadTest(unittest.TestCase):
         secrets_read.read_json_secret("findingalpha/alpaca-paper", ("keyId",), client=client, now=lambda: 0.0)
         self.assertEqual(client.calls, 2)
 
+    def test_a_new_required_key_reads_the_secret_again(self) -> None:
+        client = _Client('{"keyId":"k"}')
+        secrets_read.read_json_secret("findingalpha/alpaca-paper", ("keyId",), client=client, now=lambda: 0.0)
+        client.payload = '{"keyId":"k","secret":"super-secret-value"}'
+        payload = secrets_read.read_json_secret(
+            "findingalpha/alpaca-paper",
+            ("keyId", "secret"),
+            client=client,
+            now=lambda: 1.0,
+        )
+        self.assertEqual(payload["secret"], "super-secret-value")
+        self.assertEqual(client.calls, 2)
+        secrets_read.read_json_secret("findingalpha/alpaca-paper", ("keyId",), client=client, now=lambda: 2.0)
+        self.assertEqual(client.calls, 2)
+
     def test_a_failed_read_is_not_cached(self) -> None:
         client = _Client("{}", fail=True)
         with self.assertRaises(secrets_read.NotConfigured) as raised:

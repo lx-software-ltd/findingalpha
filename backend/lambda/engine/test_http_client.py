@@ -70,6 +70,21 @@ class HttpClientTest(unittest.TestCase):
         http_client.get_text("https://example.com/x", opener=opener, sleep=slept.append)
         self.assertEqual(slept, [3.0])
 
+    def test_a_long_retry_after_is_a_failure(self) -> None:
+        calls = {"n": 0}
+        slept: list[float] = []
+
+        def opener(_request: object, timeout: float) -> _Response:
+            del timeout
+            calls["n"] += 1
+            raise _http_error(429, b"later", retry_after="30")
+
+        with self.assertRaises(http_client.HttpStatusError) as raised:
+            http_client.get_text("https://example.com/x", opener=opener, sleep=slept.append)
+        self.assertEqual(calls["n"], 1)
+        self.assertEqual(slept, [])
+        self.assertEqual(raised.exception.status, 429)
+
     def test_client_error_is_not_retried_and_the_body_is_closed(self) -> None:
         body = io.BytesIO(b"missing")
         headers = Message()
