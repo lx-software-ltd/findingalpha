@@ -1,6 +1,6 @@
 # Plan: M03A external API with keys and scopes
 
-**Status**: In review. T01 through T07 are in this change. T08 waits on the owner: the passphrase secret, the certificate, and the DNS record. Writes stay off.
+**Status**: Done. The live checks passed: health, a system key's route list, a refused write, and the dashboard. The `api` record is DNS only. Writes stay off.
 **Zone**: red (authorizer Lambda, CDK routes and IAM, a contract, a
 workflow)
 

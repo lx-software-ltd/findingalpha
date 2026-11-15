@@ -5,6 +5,83 @@ export const adminDomains = {
   "cognitoDomainPrefix": "findingalpha-admin-auth"
 } as const;
 
+export const fundamentals = {
+  "version": 1,
+  "flows": {
+    "revenue": [
+      "Revenues",
+      "RevenueFromContractWithCustomerExcludingAssessedTax",
+      "SalesRevenueNet"
+    ],
+    "costOfRevenue": [
+      "CostOfRevenue",
+      "CostOfGoodsAndServicesSold"
+    ],
+    "grossProfit": [
+      "GrossProfit"
+    ],
+    "operatingIncome": [
+      "OperatingIncomeLoss"
+    ],
+    "netIncome": [
+      "NetIncomeLoss"
+    ],
+    "incomeTax": [
+      "IncomeTaxExpenseBenefit"
+    ],
+    "pretaxIncome": [
+      "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"
+    ],
+    "interestExpense": [
+      "InterestExpense",
+      "InterestExpenseDebt"
+    ],
+    "depreciationAmortization": [
+      "DepreciationDepletionAndAmortization",
+      "DepreciationAndAmortization"
+    ],
+    "operatingCashFlow": [
+      "NetCashProvidedByUsedInOperatingActivities"
+    ],
+    "capex": [
+      "PaymentsToAcquirePropertyPlantAndEquipment"
+    ]
+  },
+  "stocks": {
+    "totalAssets": [
+      "Assets"
+    ],
+    "currentAssets": [
+      "AssetsCurrent"
+    ],
+    "currentLiabilities": [
+      "LiabilitiesCurrent"
+    ],
+    "totalLiabilities": [
+      "Liabilities"
+    ],
+    "equity": [
+      "StockholdersEquity"
+    ],
+    "cash": [
+      "CashAndCashEquivalentsAtCarryingValue"
+    ],
+    "longTermDebt": [
+      "LongTermDebtNoncurrent",
+      "LongTermDebt"
+    ],
+    "shortTermDebt": [
+      "LongTermDebtCurrent",
+      "DebtCurrent",
+      "ShortTermBorrowings"
+    ],
+    "sharesOutstanding": [
+      "dei:EntityCommonStockSharesOutstanding",
+      "CommonStockSharesOutstanding"
+    ]
+  }
+} as const;
+
 export const jobs = {
   "jobs": [
     {
@@ -513,7 +590,7 @@ export const roadmap = {
       "title": "External API with keys and scopes",
       "plan": "docs/plans/03a-external-api.md",
       "zone": "red",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "M03"
       ],
@@ -559,7 +636,7 @@ export const roadmap = {
         {
           "id": "M03A-T08",
           "title": "Deploy and test",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
@@ -595,12 +672,12 @@ export const roadmap = {
         {
           "id": "M04-T04",
           "title": "SEC client",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T05",
           "title": "Point-in-time fundamentals",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T06",

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from fundamentals_pit import as_of, average_stock, latest_stock, ttm
+from fundamentals_pit import as_of, average_stock, latest_stock, load_tag_maps, normalise, ttm
 
 
 def _flow(field: str, start: str, end: str, value: float, filed: str, form: str = "10-Q") -> dict:
@@ -95,6 +95,70 @@ class PointInTimeTest(unittest.TestCase):
         self.assertEqual(latest_stock(visible, "totalAssets"), 120)
         self.assertEqual(average_stock(visible, "totalAssets"), 100)
         self.assertIsNone(average_stock(as_of(rows, "2024-03-01"), "totalAssets"))
+
+
+def _fact(end: str, value: float, filed: str, form: str = "10-K", start: str | None = None) -> dict:
+    row = {"end": end, "val": value, "filed": filed, "form": form, "fy": 2024, "fp": "FY"}
+    if start is not None:
+        row["start"] = start
+    return row
+
+
+class NormaliseTest(unittest.TestCase):
+    def test_the_contract_prefers_the_planned_tags(self) -> None:
+        maps = load_tag_maps()
+        self.assertEqual(maps["flows"]["revenue"][0], "Revenues")
+        self.assertEqual(maps["stocks"]["sharesOutstanding"][0], "dei:EntityCommonStockSharesOutstanding")
+        self.assertIn("currentAssets", maps["stocks"])
+
+    def test_the_first_tag_with_a_row_wins(self) -> None:
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {"units": {"USD": [_fact("2024-12-31", 10, "2025-02-01", start="2024-01-01")]}},
+                    "SalesRevenueNet": {"units": {"USD": [_fact("2024-12-31", 99, "2025-02-01", start="2024-01-01")]}},
+                    "AssetsCurrent": {"units": {"USD": [_fact("2024-12-31", 40, "2025-02-01")]}},
+                },
+                "dei": {
+                    "EntityCommonStockSharesOutstanding": {
+                        "units": {"shares": [_fact("2024-12-31", 1000, "2025-02-01")]}
+                    }
+                },
+            }
+        }
+        maps = {
+            "flows": {"revenue": ["Revenues", "SalesRevenueNet"]},
+            "stocks": {
+                "currentAssets": ["AssetsCurrent"],
+                "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
+            },
+        }
+        rows = normalise(facts, maps)
+        revenue = [row for row in rows if row["field"] == "revenue"]
+        self.assertEqual([row["value"] for row in revenue], [10])
+        assets = next(row for row in rows if row["field"] == "currentAssets")
+        self.assertEqual(assets["kind"], "stock")
+        shares = next(row for row in rows if row["field"] == "sharesOutstanding")
+        self.assertEqual(shares["value"], 1000)
+
+    def test_other_units_forms_and_lengths_are_dropped(self) -> None:
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "units": {
+                            "EUR": [_fact("2024-12-31", 5, "2025-02-01", start="2024-01-01")],
+                            "USD": [
+                                _fact("2024-12-31", 8, "2025-02-01", "8-K", start="2024-01-01"),
+                                _fact("2024-02-01", 3, "2025-02-01", start="2024-01-01"),
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+        rows = normalise(facts, {"flows": {"revenue": ["Revenues"]}, "stocks": {"cash": ["Cash"]}})
+        self.assertEqual(rows, [])
 
 
 if __name__ == "__main__":

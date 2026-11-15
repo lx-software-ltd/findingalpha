@@ -1,6 +1,6 @@
 # Plan: M04 data ingest
 
-**Status**: Plumbing (T02) is on main. Follow-up fixes are in review. The live Alpaca spike (T01) is still blocked on the paper key.
+**Status**: T02 and its follow-ups are on main. T04 (SEC client) and T05 (point-in-time fundamentals) are in this change. T01 and T03 stay blocked on the Alpaca paper key. The live coverage report stays in T07.
 **Zone**: yellow. Red parts: new schedules and routes in CDK, and the
 first version of `contracts/methodology.json` (universe section).
 
