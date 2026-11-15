@@ -276,7 +276,9 @@ the domain is regional with TLS 1.2.
    - `resolve(method, path)`: strips `/public`, returns the matching
      `Route` or `None`.
    - `deny_reason(method, route, key_ctx)`: `not_mirrored`, `scope`,
-     `writes_disabled`, `key_read_only`, `owner_only`, or `None`.
+     `writes_disabled`, `key_read_only`, `owner_only`, or `None`. A
+     PUT, POST or DELETE on a route that is not `key_write` is
+     `owner_only` even when the key holds that route's scope.
    - `settings_body_allowed(body)`: true only when every value is
      `false`.
    - `route_index(key_ctx)`: the mirrored routes the key may call,
@@ -286,10 +288,11 @@ the domain is regional with TLS 1.2.
    path never looks at the key context. Responses as in the sibling: a
    denied read returns 404, a denied write returns 403 with
    `{"message": "Forbidden", "reason": "<reason>"}`.
-4. Handlers receive an `actor`: `user:<sub>` from the dashboard,
-   `apikey:<keyId>` from a key. `audit.write` uses it.
+4. Handlers receive an `actor`: the Cognito `sub` from the dashboard,
+   `apikey:<keyId>` from a key. `audit.write` uses it. The dashboard
+   partition key stays `USER#<sub>`.
 5. `GET /public` returns `route_index`.
-6. `GET /api-keys` (Cognito only): scan for `APIKEY#` rows and return
+6. `GET /api-keys` (Cognito only): query `gsi1pk = APIKEYS` and return
    `keyId`, `label`, `tier`, `scopes`, `allowWrite`, `revoked`,
    `createdAt`, `expiresAt`, `lastUsedAt`, `allowedCidrs`. Never the
    digest.

@@ -16,8 +16,15 @@ const KILL_SWITCHES = [
 type CfnResource = {
   DeletionPolicy?: string;
   Condition?: string;
+  DependsOn?: string | string[];
   Properties: Record<string, unknown>;
 };
+
+function dependencyList(resource: CfnResource): string[] {
+  const depends = resource.DependsOn;
+  if (Array.isArray(depends)) return depends;
+  return depends ? [depends] : [];
+}
 
 let synthesized: Template;
 
@@ -288,6 +295,22 @@ describe("findingalpha stack", () => {
     expect(settings["GET /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 });
     expect(settings["PUT /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
     expect(settings["POST /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
+  });
+
+  test("the stage and the domain mapping wait for the resources they name", () => {
+    const stages = resources("AWS::ApiGatewayV2::Stage");
+    const stageId = Object.keys(stages)[0];
+    const stageDepends = dependencyList(stages[stageId]);
+    for (const routeId of Object.keys(resources("AWS::ApiGatewayV2::Route"))) {
+      expect(stageDepends).toContain(routeId);
+    }
+    const mapping = Object.values(resources("AWS::ApiGatewayV2::ApiMapping"))[0];
+    expect(dependencyList(mapping)).toContain(stageId);
+  });
+
+  test("the key authorizer has an error alarm", () => {
+    const alarms = Object.values(resources("AWS::CloudWatch::Alarm")).map((alarm) => JSON.stringify(alarm.Properties));
+    expect(alarms.some((alarm) => alarm.includes("PublicApiKeyAuthorizerFn"))).toBe(true);
   });
 
   test("EngineFn can invoke itself so a stalled job can start again", () => {

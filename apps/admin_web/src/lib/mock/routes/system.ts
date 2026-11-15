@@ -39,6 +39,7 @@ export function handleSystem(ctx: MockCtx): Json | null {
   if (ctx.method === "GET" && ctx.path === "/api-keys") {
     const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     return json(200, {
+      writesEnabled: false,
       keys: [
         {
           keyId: "active1",

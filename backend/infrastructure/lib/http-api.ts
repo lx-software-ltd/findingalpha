@@ -35,7 +35,7 @@ export function defineHttpApi(
   const jwtAuthorizer = new HttpJwtAuthorizer("cognito-jwt", issuer, {
     jwtAudience: [input.userPoolClientId],
   });
-  const keyAuthorizer = defineKeyAuthorizer(scope, input);
+  const { authorizer: keyAuthorizer, fn: keyAuthorizerFn } = defineKeyAuthorizer(scope, input);
   const integration = new SharedPermissionLambdaIntegration("AdminIntegration", input.adminFn);
   const httpApi = new apigwv2.HttpApi(scope, "HttpApi", {
     apiName: "findingalpha-admin-api",
@@ -88,14 +88,17 @@ export function defineHttpApi(
   );
   defaultStage.defaultRouteSettings = { throttlingRateLimit: 50, throttlingBurstLimit: 100 };
   const routeSettings: Record<string, { ThrottlingRateLimit: number; ThrottlingBurstLimit: number }> = {};
+  const addedRoutes: apigwv2.HttpRoute[] = [];
   for (const route of ROUTES) {
     const authorizer = route.auth === "jwt" ? jwtAuthorizer : route.auth === "key" ? keyAuthorizer : undefined;
-    httpApi.addRoutes({
-      path: route.path,
-      methods: [...route.methods],
-      integration,
-      ...(authorizer ? { authorizer } : {}),
-    });
+    addedRoutes.push(
+      ...httpApi.addRoutes({
+        path: route.path,
+        methods: [...route.methods],
+        integration,
+        ...(authorizer ? { authorizer } : {}),
+      }),
+    );
     if (route.throttle) {
       for (const method of route.methods) {
         routeSettings[`${method} ${route.path}`] = {
@@ -105,15 +108,21 @@ export function defineHttpApi(
       }
     }
   }
+  // RouteSettings names routes by key and does not reference them, so CloudFormation
+  // will update this existing stage before the new routes exist unless it waits.
+  for (const route of addedRoutes) {
+    defaultStage.node.addDependency(route);
+  }
   // The L2 map keeps the inner names in camel case, which CloudFormation ignores.
   defaultStage.addPropertyOverride("RouteSettings", routeSettings);
-  defineApiDomain(scope, httpApi, input.apiCustomDomainName, input.apiCustomDomainCertificateArn);
-  return { httpApi, jwtAuthorizer };
+  defineApiDomain(scope, httpApi, defaultStage, input.apiCustomDomainName, input.apiCustomDomainCertificateArn);
+  return { httpApi, jwtAuthorizer, keyAuthorizerFn };
 }
 
 function defineApiDomain(
   scope: cdk.Stack,
   httpApi: apigwv2.HttpApi,
+  stage: apigwv2.CfnStage,
   name: cdk.CfnParameter,
   certificateArn: cdk.CfnParameter,
 ) {
@@ -140,6 +149,8 @@ function defineApiDomain(
     stage: "$default",
   });
   mapping.cfnOptions.condition = useDomain;
+  // The mapping names the stage as "$default" and does not reference the stage resource.
+  mapping.node.addDependency(stage);
   new cdk.CfnOutput(scope, "ApiCustomDomainTarget", {
     value: domain.attrRegionalDomainName,
     condition: useDomain,

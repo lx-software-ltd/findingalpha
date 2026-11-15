@@ -3,6 +3,7 @@ import { AdminCell, AdminDataTable, type AdminDataTableColumn } from "../compone
 import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
 import { useApiKeys, useJobRuns, useSystemStatus, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
+import { accessLabel } from "../lib/apiKeyDisplay";
 
 type SwitchName = keyof Settings;
 
@@ -95,7 +96,7 @@ export function SystemPage() {
               <td>{row.label}</td>
               <td>{row.tier}</td>
               <td>{row.scopes.join(", ")}</td>
-              <td>{row.allowWrite ? "write" : "read"}</td>
+              <td>{accessLabel(row.allowWrite, keys.data?.writesEnabled === true)}</td>
               <td><DateTimeDisplay iso={row.createdAt} /></td>
               <td>{row.expiresAt ? <DateTimeDisplay iso={row.expiresAt} /> : "never"}</td>
               <td>{row.lastUsedAt ? <DateTimeDisplay iso={row.lastUsedAt} /> : "never"}</td>

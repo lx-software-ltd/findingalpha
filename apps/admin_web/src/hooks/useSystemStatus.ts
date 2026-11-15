@@ -38,9 +38,10 @@ export function useApiKeys() {
   return useQuery({
     queryKey: queryKeys.apiKeys,
     queryFn: async () => {
-      const data = await adminFetchJson<{ keys: ApiKeyRow[] }>("/api-keys");
+      const data = await adminFetchJson<{ keys: ApiKeyRow[]; writesEnabled?: boolean }>("/api-keys");
       const now = Date.now();
       return {
+        writesEnabled: data.writesEnabled === true,
         keys: data.keys.map((row) => ({
           ...row,
           state: apiKeyState(row, now),

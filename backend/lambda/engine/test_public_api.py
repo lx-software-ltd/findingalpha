@@ -54,8 +54,12 @@ class _Store:
     def put(self, item: dict[str, Any]) -> None:
         self.rows[(item["pk"], item["sk"])] = dict(item)
 
-    def scan_pk_prefix(self, prefix: str) -> list[dict[str, Any]]:
-        return [item for (pk, _sk), item in self.rows.items() if pk.startswith(prefix)]
+    def query_gsi1(self, gsi1pk: str, prefix: str = "") -> list[dict[str, Any]]:
+        return [
+            item
+            for item in self.rows.values()
+            if item.get("gsi1pk") == gsi1pk and str(item.get("gsi1sk") or "").startswith(prefix)
+        ]
 
 
 # A route added without an entry here has not decided whether a key may call it.
@@ -78,7 +82,7 @@ class PublicApiTest(unittest.TestCase):
         self.audit = patch("audit.write").start()
         patch("store.get", self.store.get).start()
         patch("store.put", self.store.put).start()
-        patch("store.scan_pk_prefix", self.store.scan_pk_prefix).start()
+        patch("store.query_gsi1", self.store.query_gsi1).start()
         self.writes = patch.dict("os.environ", {"PUBLIC_API_WRITES_ENABLED": "true"}).start()
 
     def tearDown(self) -> None:
@@ -91,6 +95,8 @@ class PublicApiTest(unittest.TestCase):
             self.assertIn(key, DECISIONS)
             self.assertEqual(route.key_scope, DECISIONS[key])
             if route.key_scope == "operate":
+                self.assertTrue(route.key_write)
+            if route.method in {"PUT", "POST", "DELETE"} and route.key_scope is not None:
                 self.assertTrue(route.key_write)
             seen.add(key)
         self.assertEqual(seen, set(DECISIONS))
@@ -159,19 +165,38 @@ class PublicApiTest(unittest.TestCase):
                 "allowWrite": False,
                 "revoked": False,
                 "createdAt": "2026-01-01T00:00:00+00:00",
+                "gsi1pk": "APIKEYS",
+                "gsi1sk": "2026-01-01T00:00:00+00:00#abc123",
             }
         )
+        self.store.put({"pk": "APIKEY#hidden", "sk": "META", "keyId": "hidden", "label": "not indexed"})
         response = api_handler.lambda_handler(_event("GET", "/api-keys", admin=True), None)
         text = response["body"]
+        body = json.loads(text)
         self.assertNotIn("APIKEY#", text)
         self.assertNotIn("digestvalue", text)
-        self.assertEqual(json.loads(text)["keys"][0]["keyId"], "abc123")
+        self.assertEqual([row["keyId"] for row in body["keys"]], ["abc123"])
+        self.assertTrue(body["writesEnabled"])
 
     def test_an_unmirrored_write_is_forbidden_and_a_read_is_not_found(self) -> None:
         denied = api_handler.lambda_handler(_event("PUT", "/public/owner-tasks/O04", {"done": True}, key=_key()), None)
         self.assertEqual(json.loads(denied["body"])["reason"], "not_mirrored")
         missing = api_handler.lambda_handler(_event("GET", "/public/me", key=_key()), None)
         self.assertEqual(missing["statusCode"], 404)
+
+    def test_a_write_without_the_write_flag_is_owner_only(self) -> None:
+        from public_api import deny_reason
+        from router import Route
+
+        route = Route("POST", "/jobs/tick/run", lambda _event: None, "jwt", key_scope="system")
+        self.assertEqual(deny_reason("POST", route, _key(scopes="system", write="1"), {}), "owner_only")
+        self.assertEqual(deny_reason("POST", route, _key(scopes="research", write="1"), {}), "scope")
+        self.assertIsNone(deny_reason("GET", route, _key(scopes="system", write="0"), {}))
+
+    def test_a_dashboard_settings_write_keeps_the_bare_subject(self) -> None:
+        response = api_handler.lambda_handler(_event("PUT", "/settings", {"ingestEnabled": False}, admin=True), None)
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(self.audit.call_args.args[0], "user-1")
 
     def test_only_tick_is_key_runnable(self) -> None:
         payload = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "jobs.json").read_text())

@@ -50,7 +50,7 @@ export class FindingalphaStack extends cdk.Stack {
       kbBucket,
     });
     grantEngineSecrets(engineFn, secrets);
-    const { httpApi } = defineHttpApi(this, {
+    const { httpApi, keyAuthorizerFn } = defineHttpApi(this, {
       adminFn,
       userPoolId: auth.userPool.userPoolId,
       userPoolClientId: auth.userPoolClient.userPoolClientId,
@@ -63,7 +63,7 @@ export class FindingalphaStack extends cdk.Stack {
     });
     this.httpApiEndpoint = httpApi.apiEndpoint;
     defineSchedules(this, engineFn);
-    defineAlarms(this, [adminFn, engineFn, auth.preTokenFn], lambdaDeadLetterQueue);
+    defineAlarms(this, [adminFn, engineFn, auth.preTokenFn, keyAuthorizerFn], lambdaDeadLetterQueue);
     defineOutputs(this, {
       userPoolId: auth.userPool.userPoolId,
       userPoolClientId: auth.userPoolClient.userPoolClientId,

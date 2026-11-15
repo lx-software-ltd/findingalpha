@@ -18,6 +18,11 @@ export function apiKeyState(row: Pick<ApiKeyRow, "revoked" | "expiresAt">, now: 
   return "active";
 }
 
+export function accessLabel(allowWrite: boolean, writesEnabled: boolean): "write" | "read" | "write blocked" {
+  if (!allowWrite) return "read";
+  return writesEnabled ? "write" : "write blocked";
+}
+
 export function expiresSoon(row: Pick<ApiKeyRow, "revoked" | "expiresAt">, now: number): boolean {
   if (apiKeyState(row, now) !== "active" || !row.expiresAt) return false;
   const remaining = Date.parse(row.expiresAt) - now;

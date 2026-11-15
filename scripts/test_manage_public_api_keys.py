@@ -75,6 +75,8 @@ class ManageKeysTest(unittest.TestCase):
                 self.assertEqual(target.read_text(encoding="utf-8"), "fapk_short\n")
                 self.assertNotIn("fapk_short", printed.getvalue())
         self.assertEqual(stored["tier"], "admin")
+        self.assertEqual(stored["gsi1pk"], "APIKEYS")
+        self.assertTrue(str(stored["gsi1sk"]).endswith("#abc123abc123"))
         self.assertNotIn("scope", stored)
         self.assertTrue(stored["pk"].startswith("APIKEY#"))
         self.assertNotIn("fapk_short", stored["pk"])

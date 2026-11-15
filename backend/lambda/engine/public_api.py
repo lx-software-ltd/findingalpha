@@ -14,6 +14,8 @@ from router import Route, route_matches
 
 _WRITE_METHODS = {"PUT", "POST", "DELETE"}
 _PUBLIC = "/public"
+# Key rows are listed through this index. A table scan would read every record.
+API_KEYS_GSI_PK = "APIKEYS"
 
 
 def key_context(event: dict[str, Any]) -> dict[str, Any]:
@@ -74,15 +76,21 @@ def deny_reason(
     key_ctx: dict[str, Any],
     body: dict[str, Any],
 ) -> str | None:
-    """``None`` means the key may call the route. ``method`` is part of the write check."""
-    del method
+    """``None`` means the key may call the route.
+
+    A PUT, POST or DELETE that is not marked ``key_write`` is owner-only.
+    The method is what makes it a write. ``key_write`` only means a key
+    may make that write.
+    """
     if route is None or route.key_scope is None:
         return "not_mirrored"
     scopes = scopes_from_key_context(key_ctx)
     if route.key_scope not in scopes:
         return "scope"
-    if not route.key_write:
+    if method not in _WRITE_METHODS and not route.key_write:
         return None
+    if not route.key_write:
+        return "owner_only"
     if not writes_enabled():
         return "writes_disabled"
     if not key_context_allows_write(key_ctx):
@@ -146,12 +154,12 @@ def list_keys() -> dict[str, Any]:
         "lastUsedAt",
         "allowedCidrs",
     )
-    for item in store.scan_pk_prefix("APIKEY#"):
+    for item in store.query_gsi1(API_KEYS_GSI_PK):
         if item.get("sk") not in (None, "META"):
             continue
         rows.append({field: item.get(field) for field in fields if field in item})
     rows.sort(key=lambda row: str(row.get("createdAt") or ""))
-    return _json_response(200, {"keys": rows})
+    return _json_response(200, {"keys": rows, "writesEnabled": writes_enabled()})
 
 
 def handle(event: dict[str, Any]) -> dict[str, Any]:

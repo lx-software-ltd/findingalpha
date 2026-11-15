@@ -155,7 +155,7 @@ point-in-time recovery on, encrypted with the shared key, `RETAIN`.
 | Runtime settings | `SETTINGS#global` | `META` | | M03 |
 | Owner task | `OWNER_TASK#<id>` | `META` | | M03 |
 | Job run | `JOB#<job>` | `RUN#<startIso>` | `JOBRUNS` / `<startIso>` | M03 |
-| API key | `APIKEY#<scrypt digest>` | `META` | | M03A |
+| API key | `APIKEY#<scrypt digest>` | `META` | `APIKEYS` / `<createdAt>#<keyId>` | M03A |
 | Job cursor | `JOB#<job>` | `STATE` | | M04 |
 | Universe | `UNIVERSE#<date>` | `META` | `UNIVERSE` / `<date>` | M04 |
 | Screen run | `SCREEN#<date>` | `META` | `SCREENS` / `<date>` | M06 |
@@ -187,7 +187,9 @@ two never mix. Job runs and usage rows expire after 400 days through
 
 Audit table: `pk = USER#<sub>`, `sk = <epochMillis>#<action>`,
 attributes `target`, `requestId`. Written on every state-changing API
-call. A write made with an API key uses `pk = USER#apikey:<keyId>`.
+call. A dashboard write keeps the Cognito `sub`, so older rows and new
+rows share one partition key. A write made with an API key uses
+`pk = USER#apikey:<keyId>`.
 
 ## 6. S3 data bucket layout
 

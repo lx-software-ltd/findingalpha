@@ -10,8 +10,9 @@ New keys expire in 90 days unless ``--expires-at`` is set. Scopes default
 to ``system``. Writes need ``allowWrite`` on the row and the stack
 parameter ``PublicApiWritesEnabled``.
 
-Requires GetItem, PutItem, UpdateItem, and Scan on the records table, plus
-kms Decrypt and GenerateDataKey on the shared key.
+Requires GetItem, PutItem, UpdateItem, and Query on the records table
+and its ``gsi1`` index, plus kms Decrypt and GenerateDataKey on the
+shared key.
 
 Usage:
   python3 scripts/manage-public-api-keys.py create --label monitor [--tier admin]
@@ -41,6 +42,7 @@ from api_key_scopes import ALL_SCOPES, key_allows_write  # noqa: E402
 from public_api_scopes_generated import SCOPE_SYSTEM  # noqa: E402
 
 API_KEY_PK_PREFIX = "APIKEY#"
+API_KEYS_GSI_PK = "APIKEYS"
 KEY_PLAINTEXT_PREFIX = "fapk_"
 DEFAULT_TABLE = "findingalpha-records"
 DEFAULT_REGION = "ap-southeast-1"
@@ -109,16 +111,19 @@ def cmd_create(args: argparse.Namespace) -> None:
     plaintext = KEY_PLAINTEXT_PREFIX + secrets.token_urlsafe(36)
     digest = hash_api_key(plaintext)
     key_id = uuid.uuid4().hex[:12]
+    created_at = datetime.now(timezone.utc).isoformat()
     item = {
         "pk": f"{API_KEY_PK_PREFIX}{digest}",
         "sk": "META",
+        "gsi1pk": API_KEYS_GSI_PK,
+        "gsi1sk": f"{created_at}#{key_id}",
         "keyId": key_id,
         "label": args.label,
         "tier": tier,
         "scopes": scopes,
         "allowWrite": bool(args.allow_write),
         "revoked": False,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "createdAt": created_at,
         "expiresAt": expires_at,
     }
     if cidrs:
@@ -152,15 +157,16 @@ def cmd_create(args: argparse.Namespace) -> None:
     print(f'  curl -H "x-api-key: {plaintext}" https://api.<domain>/public/system/status')
 
 
-def _scan_keys(args: argparse.Namespace) -> list[dict]:
+def _query_keys(args: argparse.Namespace) -> list[dict]:
     table = _table(args)
     items: list[dict] = []
     kwargs: dict = {
-        "FilterExpression": "begins_with(pk, :p)",
-        "ExpressionAttributeValues": {":p": API_KEY_PK_PREFIX},
+        "IndexName": "gsi1",
+        "KeyConditionExpression": "gsi1pk = :pk",
+        "ExpressionAttributeValues": {":pk": API_KEYS_GSI_PK},
     }
     while True:
-        res = table.scan(**kwargs)
+        res = table.query(**kwargs)
         items.extend(res.get("Items", []))
         last = res.get("LastEvaluatedKey")
         if not last:
@@ -169,7 +175,7 @@ def _scan_keys(args: argparse.Namespace) -> list[dict]:
 
 
 def cmd_list(args: argparse.Namespace) -> None:
-    items = _scan_keys(args)
+    items = _query_keys(args)
     if not items:
         print("no API keys found")
         return
@@ -187,7 +193,7 @@ def cmd_list(args: argparse.Namespace) -> None:
 
 
 def _matches(args: argparse.Namespace) -> list[dict]:
-    matches = [item for item in _scan_keys(args) if item.get("keyId") == args.key_id]
+    matches = [item for item in _query_keys(args) if item.get("keyId") == args.key_id]
     if not matches:
         sys.exit(f"error: no API key with keyId {args.key_id!r}")
     return matches

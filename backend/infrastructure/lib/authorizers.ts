@@ -48,9 +48,10 @@ export function defineKeyAuthorizer(
       ],
     });
   }
-  return new HttpLambdaAuthorizer("public-api-key", fn, {
+  const authorizer = new HttpLambdaAuthorizer("public-api-key", fn, {
     responseTypes: [HttpLambdaResponseType.SIMPLE],
     identitySource: ["$request.header.x-api-key", "$context.identity.sourceIp"],
     resultsCacheTtl: cdk.Duration.seconds(60),
   });
+  return { authorizer, fn };
 }
