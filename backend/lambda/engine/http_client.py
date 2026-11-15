@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 _ATTEMPTS = 4
 _BACKOFF_SECONDS = 0.5
+_MAX_RETRY_AFTER = 5.0
 
 Opener = Callable[..., Any]
 Sleeper = Callable[[float], None]
@@ -83,9 +84,12 @@ def get_text(
         except _Retry as exc:
             last = exc
             logger.info("http retry status=%s attempt=%s", exc.status, attempt)
+            if exc.delay is not None and exc.delay > _MAX_RETRY_AFTER:
+                break
             if attempt == _ATTEMPTS:
                 break
-            sleep(exc.delay if exc.delay is not None else delay)
+            wait = delay if exc.delay is None or exc.delay < 0 else exc.delay
+            sleep(wait)
             delay *= 2
     assert last is not None
     raise HttpStatusError(last.status, last.body)

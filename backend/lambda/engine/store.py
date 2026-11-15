@@ -104,6 +104,10 @@ def update(pk: str, sk: str, expression: str, values: dict[str, Any], names: dic
     _table().update_item(**kwargs)
 
 
+class ConditionNotMet(Exception):
+    """The conditional update lost the race."""
+
+
 def update_conditional(
     pk: str,
     sk: str,
@@ -111,21 +115,27 @@ def update_conditional(
     values: dict[str, Any],
     condition: str,
     names: dict[str, str] | None = None,
-) -> bool:
-    """Apply an update only when ``condition`` holds. False means the condition lost."""
+) -> dict[str, Any] | None:
+    """Apply an update only when ``condition`` holds.
+
+    Returns the item as it was before the update, or None when the item
+    did not exist. Raises ``ConditionNotMet`` when the condition lost.
+    """
     kwargs: dict[str, Any] = {
         "Key": {"pk": pk, "sk": sk},
         "UpdateExpression": expression,
         "ExpressionAttributeValues": values,
         "ConditionExpression": condition,
+        "ReturnValues": "ALL_OLD",
     }
     if names:
         kwargs["ExpressionAttributeNames"] = names
     try:
-        _table().update_item(**kwargs)
+        response = _table().update_item(**kwargs)
     except ClientError as exc:
         code = exc.response.get("Error", {}).get("Code")
         if code == "ConditionalCheckFailedException":
-            return False
+            raise ConditionNotMet(pk) from None
         raise
-    return True
+    item = response.get("Attributes")
+    return item if isinstance(item, dict) else None

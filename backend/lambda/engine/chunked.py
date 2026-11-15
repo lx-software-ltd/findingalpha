@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timedelta
 from typing import Any, Callable
@@ -9,9 +10,12 @@ from typing import Any, Callable
 import store
 import timeutil
 
+logger = logging.getLogger(__name__)
+
 LEASE = timedelta(minutes=16)
 _STOP_WITH_MS_LEFT = 120_000
 _STATE_SK = "STATE"
+_GSI_PK = "JOBSTATE"
 
 Process = Callable[[Any], None]
 Clock = Callable[[], datetime]
@@ -32,8 +36,8 @@ def _claim(job: str, now: datetime) -> bool:
     return store.update_conditional(
         _pk(job),
         _STATE_SK,
-        "SET #status = :running, leaseUntil = :lease, updatedAt = :now",
-        {":running": "running", ":lease": lease, ":now": now_s},
+        "SET #status = :running, leaseUntil = :lease, updatedAt = :now, gsi1pk = :gsi1pk, gsi1sk = :gsi1sk",
+        {":running": "running", ":lease": lease, ":now": now_s, ":gsi1pk": _GSI_PK, ":gsi1sk": job},
         "attribute_not_exists(leaseUntil) OR leaseUntil < :now",
         {"#status": "status"},
     )
@@ -47,6 +51,8 @@ def _save(job: str, status: str, cursor: int, total: int, now: datetime, lease: 
         "cursor": cursor,
         "total": total,
         "updatedAt": timeutil.format_iso_millis(now),
+        "gsi1pk": _GSI_PK,
+        "gsi1sk": job,
     }
     if lease is not None:
         item["leaseUntil"] = timeutil.format_iso_millis(lease)
@@ -63,10 +69,11 @@ def run(
 ) -> dict[str, Any]:
     """Claim the job, process from the cursor, and stop with two minutes left."""
     moment = now()
-    state = store.get(_pk(job), _STATE_SK) or {}
-    if not _claim(job, moment):
-        raise Busy(job)
-    cursor = 0 if state.get("status") == "done" else int(state.get("cursor") or 0)
+    try:
+        previous = _claim(job, moment) or {}
+    except store.ConditionNotMet:
+        raise Busy(job) from None
+    cursor = 0 if previous.get("status") == "done" else int(previous.get("cursor") or 0)
     total = len(items)
     lease = moment + LEASE
     try:
@@ -94,16 +101,20 @@ def resume_stalled(
     moment = timeutil.format_iso_millis(now())
     send = invoke or _invoke_self
     started: list[str] = []
-    for item in store.scan_pk_prefix("JOB#"):
+    for item in store.query_gsi1(_GSI_PK):
         if item.get("sk") != _STATE_SK or item.get("status") != "running":
             continue
         lease = str(item.get("leaseUntil") or "")
         if lease and lease >= moment:
             continue
-        job = str(item.get("pk") or "")[len("JOB#") :]
+        job = str(item.get("gsi1sk") or "")
         if not job:
             continue
-        send(job)
+        try:
+            send(job)
+        except Exception as exc:
+            logger.info("resume invoke failed job=%s error=%s", job, type(exc).__name__)
+            continue
         started.append(job)
     return started
 

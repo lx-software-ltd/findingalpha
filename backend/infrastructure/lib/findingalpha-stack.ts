@@ -15,6 +15,13 @@ export class FindingalphaStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+    // CDK reports this on the stack, and an acknowledgement here also covers
+    // the conditional domain resource. The empty defaults are unused.
+    cdk.Validations.of(this).acknowledge({
+      id: "CloudFormation-Validate::W1030",
+      reason:
+        "Optional Cognito custom domain. Empty defaults fail the length and ARN checks, and the resource is created only when both parameters are set.",
+    });
     const parameters = defineParameters(this);
     const { sharedEncryptionKey, lambdaDeadLetterQueue } = defineSharedEncryption(this);
     const auth = new AuthConstruct(this, "Auth", {

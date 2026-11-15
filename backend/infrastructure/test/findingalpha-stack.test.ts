@@ -169,6 +169,8 @@ describe("findingalpha stack", () => {
     synthesized.hasParameter("GoogleClientSecret", { NoEcho: true });
     expect(synthesized.findParameters("AdminBootstrapEmail")).toEqual({});
     expect(synthesized.findParameters("AdminBootstrapTempPassword")).toEqual({});
+    expect(synthesized.findParameters("ApiCustomDomainName")).toEqual({});
+    expect(synthesized.findParameters("ApiCustomDomainCertificateArn")).toEqual({});
     for (const name of KILL_SWITCHES) {
       synthesized.hasParameter(name, {
         Type: "String",
