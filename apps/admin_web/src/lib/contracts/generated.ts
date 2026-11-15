@@ -517,7 +517,9 @@ export const roadmap = {
       "dependsOn": [
         "M03"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/10"
+      ],
       "steps": [
         {
           "id": "M03A-T01",
