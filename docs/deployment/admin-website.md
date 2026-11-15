@@ -15,17 +15,18 @@ written in this repository.
 `contracts/roadmap.json` alone. It can also be started with **Run
 workflow**.
 
-1. **GitHub environment** — `AWS_ACCOUNT_ID`, `AWS_REGION`,
+1. **GitHub environment** — variables `AWS_REGION`,
    `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`,
    `ADMIN_WEB_DOMAIN_NAME`, `ADMIN_WEB_CERTIFICATE_ARN`,
-   `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_FEDERATED_EMAIL_ALLOWLIST`
-   (comma-separated lower-case emails that receive `admin` — every
-   Google admin and the bootstrap email), `ADMIN_BOOTSTRAP_EMAIL`,
-   `ADMIN_COGNITO_ORIGIN`, and optionally `ADMIN_WAF_WEB_ACL_ARN`.
-   Secrets `ADMIN_GOOGLE_CLIENT_SECRET` and
+   `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_COGNITO_ORIGIN`, and optionally
+   `ADMIN_WAF_WEB_ACL_ARN`. Repository secret `AWS_ACCOUNT_ID`.
+   Environment secrets `ADMIN_GOOGLE_CLIENT_SECRET`,
    `ADMIN_BOOTSTRAP_TEMP_PASSWORD` (14 or more characters, mixed
-   classes, or user creation fails). The workflow stops immediately
-   when `ADMIN_WEB_DOMAIN_NAME` or `ADMIN_WEB_CERTIFICATE_ARN` is empty.
+   classes, or user creation fails), `ADMIN_FEDERATED_EMAIL_ALLOWLIST`
+   (comma-separated lower-case emails that receive `admin` — every
+   Google admin and the bootstrap email), and `ADMIN_BOOTSTRAP_EMAIL`.
+   The workflow stops immediately when the domain, the certificate,
+   the account id, the allow-list, or the bootstrap email is empty.
    **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
    `AdminApiBaseUrl` from the `findingalpha` stack.
 2. **Region** — `AWS_REGION` must be the region where the `siutindei`
@@ -156,8 +157,8 @@ fields @timestamp, email, username, trigger_source, decision, matched_admin,
 (native bootstrap administrator), `deny_token`, `deny_sign_up`,
 `allow_sign_up` or `allow_admin_create_user`. A `matched_admin: true`
 line for an address you did not expect means that address is in
-`ADMIN_FEDERATED_EMAIL_ALLOWLIST`. Remove it from the GitHub environment
-variable and run **Deploy Backend**. The next token refresh for that
+`ADMIN_FEDERATED_EMAIL_ALLOWLIST`. Remove it from that production
+secret and run **Deploy Backend**. The next token refresh for that
 account is refused.
 
 ## Local UI without a stack
