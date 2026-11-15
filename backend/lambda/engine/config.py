@@ -31,6 +31,10 @@ def audit_table_name() -> str:
     return _required("AUDIT_LOG_TABLE_NAME")
 
 
+def data_bucket_name() -> str:
+    return _required("DATA_BUCKET_NAME")
+
+
 def flag_value(raw: object, default: bool = False) -> bool:
     """Parse one boolean token. A blank or unknown token returns ``default``."""
     if isinstance(raw, bool):

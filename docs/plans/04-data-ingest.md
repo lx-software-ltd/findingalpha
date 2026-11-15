@@ -1,6 +1,6 @@
 # Plan: M04 data ingest
 
-**Status**: Draft
+**Status**: Plumbing (T02) is in review. The live Alpaca spike (T01) is still blocked on the paper key.
 **Zone**: yellow. Red parts: new schedules and routes in CDK, and the
 first version of `contracts/methodology.json` (universe section).
 

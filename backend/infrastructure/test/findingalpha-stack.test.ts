@@ -225,6 +225,12 @@ describe("findingalpha stack", () => {
     expect(JSON.stringify(apiGateway[0].Properties.FunctionName)).toContain("AdminApiFn");
   });
 
+  test("EngineFn can invoke itself so a stalled job can start again", () => {
+    const engine = policyTextForRole(roleIdForHandler("jobs_handler.lambda_handler"));
+    expect(engine).toContain("lambda:InvokeFunction");
+    expect(engine).toContain("EngineFn");
+  });
+
   test("the only schedule is EventBridge Scheduler and a failed engine invoke does not retry", () => {
     synthesized.resourceCountIs("AWS::Events::Rule", 0);
     synthesized.resourceCountIs("AWS::Scheduler::Schedule", 1);

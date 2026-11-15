@@ -16,6 +16,9 @@ def _noop(_event: dict[str, Any], _run: job_runs.JobRun) -> dict[str, Any]:
 
 
 def _tick(_event: dict[str, Any], _run: job_runs.JobRun) -> dict[str, Any]:
+    import chunked
+
+    chunked.resume_stalled()
     return {"ok": True}
 
 

@@ -522,7 +522,7 @@ export const roadmap = {
       "title": "Data ingest",
       "plan": "docs/plans/04-data-ingest.md",
       "zone": "yellow",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M03"
       ],
@@ -536,7 +536,7 @@ export const roadmap = {
         {
           "id": "M04-T02",
           "title": "Plumbing",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T03",

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import runtime
+from botocore.exceptions import ClientError
 from config import records_table_name
 
 
@@ -53,11 +54,18 @@ def query_gsi1(gsi1pk: str, prefix: str = "") -> list[dict[str, Any]]:
 
 
 def scan_pk_prefix(prefix: str) -> list[dict[str, Any]]:
-    page = _table().scan(
-        FilterExpression="begins_with(pk, :pk)",
-        ExpressionAttributeValues={":pk": prefix},
-    )
-    return list(page.get("Items") or [])
+    kwargs: dict[str, Any] = {
+        "FilterExpression": "begins_with(pk, :pk)",
+        "ExpressionAttributeValues": {":pk": prefix},
+    }
+    items: list[dict[str, Any]] = []
+    while True:
+        page = _table().scan(**kwargs)
+        items.extend(page.get("Items") or [])
+        token = page.get("LastEvaluatedKey")
+        if not token:
+            return items
+        kwargs["ExclusiveStartKey"] = token
 
 
 def delete(pk: str, sk: str) -> None:
@@ -94,3 +102,30 @@ def update(pk: str, sk: str, expression: str, values: dict[str, Any], names: dic
     if names:
         kwargs["ExpressionAttributeNames"] = names
     _table().update_item(**kwargs)
+
+
+def update_conditional(
+    pk: str,
+    sk: str,
+    expression: str,
+    values: dict[str, Any],
+    condition: str,
+    names: dict[str, str] | None = None,
+) -> bool:
+    """Apply an update only when ``condition`` holds. False means the condition lost."""
+    kwargs: dict[str, Any] = {
+        "Key": {"pk": pk, "sk": sk},
+        "UpdateExpression": expression,
+        "ExpressionAttributeValues": values,
+        "ConditionExpression": condition,
+    }
+    if names:
+        kwargs["ExpressionAttributeNames"] = names
+    try:
+        _table().update_item(**kwargs)
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code")
+        if code == "ConditionalCheckFailedException":
+            return False
+        raise
+    return True
