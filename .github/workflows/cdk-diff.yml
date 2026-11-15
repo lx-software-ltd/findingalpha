@@ -27,20 +27,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Require the AWS account variables
+        run: |
+          if [ -z "${AWS_ACCOUNT_ID}" ] || [ -z "${AWS_REGION}" ]; then
+            echo "::error::AWS_ACCOUNT_ID and AWS_REGION must both be set. cdk diff did not run."
+            {
+              echo "### CDK diff did not run"
+              echo ""
+              echo "Set the repository variables \`AWS_ACCOUNT_ID\` and \`AWS_REGION\`."
+              echo "This check fails until both are set, so a green result means the account was compared."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Comparing the deployed stacks in ${AWS_ACCOUNT_ID} (${AWS_REGION})." >> "$GITHUB_STEP_SUMMARY"
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+
       - name: Set up Node.js
-        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
         uses: actions/setup-node@v7
         with:
           node-version: "lts/*"
           cache: "npm"
           cache-dependency-path: backend/infrastructure/package-lock.json
 
-      - name: AWS account is not configured
-        if: ${{ vars.AWS_ACCOUNT_ID == '' || vars.AWS_REGION == '' }}
-        run: echo "::warning::AWS_ACCOUNT_ID or AWS_REGION is unset, so cdk diff did not run. Set both repository variables to diff the account."
-
       - name: Configure AWS credentials
-        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
@@ -48,7 +59,6 @@ jobs:
           role-session-name: GitHubActions-${{ github.run_id }}
 
       - name: Install CDK dependencies
-        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
         run: |
           if [ -f "backend/infrastructure/package.json" ]; then
             cd backend/infrastructure
@@ -60,13 +70,11 @@ jobs:
       # `cdk diff` synthesizes with asset bundling. The arm64 image needs
       # QEMU on an x86-64 runner.
       - name: Set up QEMU for arm64 Lambda bundling
-        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
         uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
 
       - name: Check CDK Bootstrap status
-        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
         run: |
           QUALIFIER="${CDK_BOOTSTRAP_QUALIFIER:-hnb659fds}"
           SSM_PARAM="/cdk-bootstrap/${QUALIFIER}/version"
@@ -94,7 +102,6 @@ jobs:
           CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
 
       - name: Run CDK diff
-        if: ${{ vars.AWS_ACCOUNT_ID != '' && vars.AWS_REGION != '' }}
         run: |
           if [ -f "backend/infrastructure/package.json" ]; then
             cd backend/infrastructure
