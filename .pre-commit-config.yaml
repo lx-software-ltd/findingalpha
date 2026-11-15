@@ -1,0 +1,72 @@
+# Pre-commit hooks configuration
+# Install: brew install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+        exclude: '\.md$'
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: local
+    hooks:
+      - id: check-pii
+        name: Check hashed PII denylist
+        entry: bash scripts/check-pii.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: validate-agent-rules
+        name: Validate agent rules
+        entry: python3 scripts/validate_agent_rules.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: check-file-length
+        name: Check file length
+        entry: python3 scripts/check_file_length.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: check-test-focus
+        name: Check focused or skipped tests
+        entry: python3 scripts/check_test_focus.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: ruff
+        name: Ruff
+        entry: python3 -m ruff check backend/lambda scripts .cursor/hooks
+        language: system
+        pass_filenames: false
+        files: \.py$
+
+  # TypeScript/JavaScript linting
+  - repo: local
+    hooks:
+      - id: eslint-admin-web
+        name: ESLint Admin Web
+        entry: "bash -c 'test -x apps/admin_web/node_modules/.bin/eslint || { echo \"apps/admin_web: run npm ci before committing\"; exit 1; }; cd apps/admin_web && npm run lint'"
+        language: system
+        files: ^apps/admin_web/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+# Configuration for specific tools
+ci:
+  autofix_commit_msg: "style: auto-fix by pre-commit hooks"
+  autoupdate_commit_msg: "chore: update pre-commit hooks"

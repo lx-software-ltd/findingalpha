@@ -1,0 +1,4 @@
+# Legacy pointer
+
+Cursor rules live in `.cursor/rules/` and `AGENTS.md`.
+Do not add rules to this file.

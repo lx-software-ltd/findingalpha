@@ -1,0 +1,3 @@
+# SHA-256 digests of personal-data values that must not appear in source.
+# Store digests only. The checker reports a path and line, never the match.
+# The owner adds digests. Do not put the plain values in git.

@@ -1,0 +1,302 @@
+import {
+  Children,
+  createContext,
+  isValidElement,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  type ReactNode,
+  type RefObject,
+  type TdHTMLAttributes,
+} from "react";
+import {
+  adminColumnClass,
+  type AdminTableColumnPriority,
+} from "../../lib/adminTablePriority";
+
+function mergeCellClass(
+  ...parts: readonly (string | undefined)[]
+): string | undefined {
+  const merged = parts.filter((part) => part && part.length > 0).join(" ");
+  return merged.length > 0 ? merged : undefined;
+}
+
+export type AdminDataTableColumn = {
+  readonly key: string;
+  readonly header: ReactNode;
+  readonly className?: string;
+  readonly headerClassName?: string;
+  /**
+   * Mobile-first visibility. `primary` always shows; `secondary` from `md`;
+   * `tertiary` from `lg`. Pair hidden values with `AdminDataTableCellMeta`.
+   * The operations header is omitted on phones so the remaining header can
+   * span the table; the kebab stays in the row. Later primary columns also
+   * hide unless the table opts out with `admin-table-keep-cols`. Warnings
+   * (stale badges, expiry) and the table's main metric must stay reachable
+   * on phones: repeat them in the meta line.
+   */
+  readonly priority?: AdminTableColumnPriority;
+  /** For sortable tables: maps to `<th aria-sort="…">` when set. */
+  readonly thAriaSort?: "ascending" | "descending" | "none" | "other";
+};
+
+export type AdminDataTableProps = {
+  readonly columns: readonly AdminDataTableColumn[];
+  readonly filterValue?: string;
+  readonly onFilterChange?: (value: string) => void;
+  readonly filterPlaceholder?: string;
+  /**
+   * Table markup only. The card and filter live on `AdminRecordTable` /
+   * `AdminFilterBar` for record screens.
+   */
+  readonly bare?: boolean;
+  readonly children: ReactNode;
+  /**
+   * When true, omit the outer card (for nesting inside `AdminEditorSection` or similar).
+   * Uses slightly roomier table density than the standalone card.
+   */
+  readonly embedded?: boolean;
+  /**
+   * Extra classes on the `<table>`. Use `admin-table-keep-cols` when a phone
+   * must keep more than one primary column (for example a mapping control).
+   */
+  readonly tableClassName?: string;
+};
+
+const ColumnsContext = createContext<readonly AdminDataTableColumn[] | null>(null);
+
+function isRecordGroup(child: ReactNode): boolean {
+  return (
+    isValidElement(child) &&
+    (child.type as { recordGroup?: boolean }).recordGroup === true
+  );
+}
+
+/** Expandable records render their own `<tbody>`. Plain rows stay in one body. */
+function renderTableBody(children: ReactNode): ReactNode {
+  const items = Children.toArray(children);
+  if (!items.some(isRecordGroup)) return <tbody>{children}</tbody>;
+  return items.map((child, index) =>
+    isRecordGroup(child) ? (
+      child
+    ) : (
+      <tbody className="admin-record-group" key={`plain-row-${index}`}>
+        {child}
+      </tbody>
+    ),
+  );
+}
+
+/**
+ * Standard admin table: filter field, plain rows, last column reserved for operations.
+ * Pass table body rows as `children` (typically `<tr>` elements). Use
+ * `AdminCell` for body cells so column priority is applied from the column
+ * definition instead of being repeated per cell.
+ */
+export function AdminDataTable({
+  columns,
+  filterValue = "",
+  onFilterChange,
+  filterPlaceholder = "Filter rows…",
+  children,
+  embedded = false,
+  bare = false,
+  tableClassName,
+}: AdminDataTableProps) {
+  const filterId = useId();
+  const tableRef = useRef<HTMLTableElement>(null);
+  useColumnAlignmentCheck(tableRef, columns);
+
+  const filterBlock = (
+    <div className={embedded ? "pb-3 border-bottom" : "card-body py-2 border-bottom"}>
+      <div className="admin-table-filter">
+        <label className="visually-hidden" htmlFor={filterId}>
+          Filter table
+        </label>
+        <input
+          id={filterId}
+          type="search"
+          className="form-control form-control-sm"
+          placeholder={filterPlaceholder}
+          autoComplete="off"
+          value={filterValue}
+          onChange={(ev) => onFilterChange?.(ev.target.value)}
+        />
+      </div>
+    </div>
+  );
+
+  const tableBlock = (
+    <div className={embedded ? "table-responsive pt-3" : "table-responsive"}>
+      <table
+        ref={tableRef}
+        className={`table table-hover mb-0 align-middle admin-data-table ${embedded ? "" : "table-sm"} ${tableClassName ?? ""}`.trim()}
+      >
+        <thead>
+          <tr>
+            {columns.map((col) => (
+              <th
+                key={col.key}
+                scope="col"
+                className={mergeCellClass(
+                  adminColumnClass(col),
+                  col.headerClassName ?? col.className,
+                )}
+                aria-sort={col.thAriaSort}
+              >
+                {col.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <ColumnsContext.Provider value={columns}>{renderTableBody(children)}</ColumnsContext.Provider>
+      </table>
+    </div>
+  );
+
+  if (bare) {
+    return tableBlock;
+  }
+
+  if (embedded) {
+    return (
+      <>
+        {onFilterChange ? filterBlock : null}
+        {tableBlock}
+      </>
+    );
+  }
+
+  return (
+    <div className="card shadow-sm">
+      {filterBlock}
+      {tableBlock}
+    </div>
+  );
+}
+
+export type AdminCellProps = Omit<TdHTMLAttributes<HTMLTableCellElement>, "className"> & {
+  /** Key of the column this cell belongs to (from the table's `columns`). */
+  readonly column: string;
+  readonly className?: string;
+};
+
+/**
+ * Body cell bound to a column key. Applies that column's priority class so
+ * headers and cells always hide together; add layout classes via `className`.
+ */
+export function AdminCell({ column, className, children, ...rest }: AdminCellProps) {
+  const columns = useContext(ColumnsContext);
+  const def = columns?.find((c) => c.key === column);
+  if (import.meta.env.DEV && columns && !def) {
+    console.warn(`AdminCell: unknown column "${column}"`);
+  }
+  return (
+    <td
+      className={mergeCellClass(
+        adminColumnClass({ key: column, priority: def?.priority }),
+        className,
+      )}
+      data-column={column}
+      {...rest}
+    >
+      {children}
+    </td>
+  );
+}
+
+/**
+ * Dev-only invariant: every body row must have one cell per column (counting
+ * colSpan), and each cell's priority class must match its column. Catches the
+ * "header hidden, cell visible" drift that is invisible in code review.
+ */
+function useColumnAlignmentCheck(
+  tableRef: RefObject<HTMLTableElement | null>,
+  columns: readonly AdminDataTableColumn[],
+) {
+  const reported = useRef(new Set<string>());
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const table = tableRef.current;
+    if (!table) return;
+    const rows = table.querySelectorAll<HTMLTableRowElement>("tbody > tr");
+    rows.forEach((row) => {
+      const cells = Array.from(row.children).filter(
+        (el): el is HTMLTableCellElement => el.tagName === "TD" || el.tagName === "TH",
+      );
+      let index = 0;
+      const problems: string[] = [];
+      for (const cell of cells) {
+        const span = cell.colSpan || 1;
+        const col = columns[index];
+        if (col && span === 1) {
+          const expected = adminColumnClass(col);
+          const hasOps = cell.classList.contains("admin-col-ops");
+          const hasSecondary = cell.classList.contains("admin-col-secondary");
+          const hasTertiary = cell.classList.contains("admin-col-tertiary");
+          const actual = hasOps
+            ? "admin-col-ops"
+            : hasSecondary
+              ? "admin-col-secondary"
+              : hasTertiary
+                ? "admin-col-tertiary"
+                : "";
+          if (actual !== expected) {
+            problems.push(
+              `cell ${index} ("${col.key}") has priority class "${actual || "primary"}" but column is "${expected || "primary"}"`,
+            );
+          }
+        }
+        index += span;
+      }
+      if (index !== columns.length) {
+        problems.push(`row spans ${index} columns but the table defines ${columns.length}`);
+      }
+      if (problems.length > 0) {
+        const signature = problems.join("|");
+        if (!reported.current.has(signature)) {
+          reported.current.add(signature);
+          console.warn(`AdminDataTable column mismatch: ${problems.join("; ")}`, row);
+        }
+      }
+    });
+  });
+}
+
+export type AdminDataTableEmptyProps = {
+  readonly colSpan: number;
+  readonly message: string;
+};
+
+export function AdminDataTableEmptyRow({ colSpan, message }: AdminDataTableEmptyProps) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className="text-center py-5 admin-empty">
+        <div className="admin-empty-title">{message}</div>
+      </td>
+    </tr>
+  );
+}
+
+export type AdminDataTableCellMetaProps = {
+  readonly children: ReactNode;
+  /** Breakpoint at which the dedicated column takes over. */
+  readonly until?: Exclude<AdminTableColumnPriority, "primary">;
+};
+
+/** Secondary line under a primary cell, shown only while its column is hidden. */
+export function AdminDataTableCellMeta({
+  children,
+  until = "secondary",
+}: AdminDataTableCellMetaProps) {
+  return (
+    <span
+      className={`admin-table-cell-meta d-block small text-muted ${
+        until === "secondary" ? "d-md-none" : "d-lg-none"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}

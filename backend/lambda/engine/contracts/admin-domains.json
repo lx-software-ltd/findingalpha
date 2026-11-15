@@ -1,0 +1,4 @@
+{
+  "storageKeyPrefix": "fa_admin",
+  "cognitoDomainPrefix": "findingalpha-admin-auth"
+}

@@ -1,0 +1,51 @@
+# Security
+
+The rules in [`overview.md`](overview.md) are the product rules. This
+page is how the skeleton enforces them.
+
+## Secrets and personal data
+
+Nothing in git identifies the owner: no account id, certificate ARN,
+email or domain. The dashboard hostname is the parameter
+`AdminWebDomainName`, written in docs as `admin.<domain>`.
+
+`GoogleClientSecret` and `AdminBootstrapTempPassword` are CloudFormation
+parameters with `noEcho: true`. Broker and model keys are Secrets
+Manager secrets named `findingalpha/alpaca-paper` and
+`findingalpha/openrouter`, encrypted with the shared key and retained.
+The Lambda environment receives those names as string literals. A secret
+that lacks the JSON fields the engine expects counts as not configured.
+
+`AdminApiFn` cannot read either secret. `EngineFn` can read both.
+
+## Sign-in
+
+The user pool does not allow self sign-up. MFA is required, TOTP only.
+The same Lambda is the Pre Sign-up and Pre Token Generation trigger. An
+email that is not on the allow-list and is not already in the `admin`
+group receives no token. The app client has no secret, uses the
+authorization-code grant, and builds its callback from
+`AdminWebDomainName`.
+
+## Data
+
+Buckets are private (`BLOCK_ALL`), TLS-only, versioned and `RETAIN`.
+Tables are `RETAIN`, encrypted with the customer-managed key, and have
+point-in-time recovery. The key rotates and is retained. Schedules are
+EventBridge Scheduler with an IAM-role target. There is no
+`AWS::Events::Rule`. A failed async invoke of `EngineFn` is not retried.
+
+Kill switches are strings `true` or `false` and default to `false`.
+`BrokerMode` allows only `paper`.
+
+## Edge
+
+The HTTP API allows one browser origin, `https://` plus
+`AdminWebDomainName`. Credentials are not allowed on CORS. The stage
+throttles at 50 requests a second with a burst of 100. API Gateway has
+one invoke permission on `AdminApiFn`.
+
+The dashboard distribution redirects viewers to HTTPS. Its
+content-security policy allows the API origin and the Cognito origin
+passed in `CspCognitoConnectOrigin`. A web ACL is attached only when
+`WafWebAclArn` is set.

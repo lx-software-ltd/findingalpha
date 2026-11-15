@@ -1,0 +1,439 @@
+/*
+ * AdminDataTable — mobile-first column visibility.
+ * Breakpoints: see base.css. Priority classes come from adminTablePriority.ts.
+ */
+
+.admin-data-table th,
+.admin-data-table td {
+  overflow-wrap: break-word;
+}
+
+.admin-data-table thead {
+  background: var(--admin-hover);
+}
+
+.admin-data-table th.admin-col-ops,
+.admin-data-table td.admin-col-ops {
+  width: 1%;
+  white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+  .admin-data-table th,
+  .admin-data-table td {
+    overflow-wrap: anywhere;
+  }
+
+  /*
+   * Phones show one identifying column. The kebab stays in the row, but its
+   * header is omitted so the remaining header can span the table — clipping
+   * the last <th> left a blank band over the operations column.
+   */
+  .admin-data-table thead tr {
+    display: flex;
+    width: 100%;
+  }
+
+  .admin-data-table thead th:not(.admin-col-secondary):not(.admin-col-tertiary):not(.admin-col-ops) {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .admin-data-table thead th.admin-col-ops {
+    display: none;
+  }
+}
+
+/* Identifiers and hashes have no natural break points. */
+.admin-data-table .font-monospace,
+.admin-data-table .admin-table-cell-meta {
+  overflow-wrap: anywhere;
+}
+
+.admin-data-table .admin-table-cell-meta {
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.admin-data-table .admin-table-cell-meta .badge {
+  vertical-align: baseline;
+}
+
+.admin-table-total-note {
+  line-height: 1.3;
+}
+
+.admin-table-total-ccy {
+  min-width: 5.5rem;
+}
+
+@media (max-width: 767.98px) {
+  .admin-data-table .admin-col-secondary,
+  .admin-data-table .admin-col-tertiary {
+    display: none;
+  }
+
+  /*
+   * After secondary/tertiary are gone, only the first remaining data column
+   * stays visible. Later primaries (usually the metric) hide so the table is
+   * one column plus the kebab; repeat those values with AdminDataTableCellMeta.
+   */
+  .admin-data-table:not(.admin-table-keep-cols) thead th:not(.admin-col-secondary):not(.admin-col-tertiary):not(.admin-col-ops) ~ th:not(.admin-col-secondary):not(.admin-col-tertiary):not(.admin-col-ops),
+  .admin-data-table:not(.admin-table-keep-cols) tbody td:not(.admin-col-secondary):not(.admin-col-tertiary):not(.admin-col-ops) ~ td:not(.admin-col-secondary):not(.admin-col-tertiary):not(.admin-col-ops) {
+    display: none;
+  }
+
+  .admin-table-filter {
+    flex-basis: 100%;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .admin-data-table .admin-col-tertiary {
+    display: none;
+  }
+}
+
+.admin-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.admin-filter-create {
+  order: 2;
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.admin-filter-fields {
+  order: 1;
+}
+
+.admin-filter-field {
+  min-width: 10rem;
+  flex: 1 1 12rem;
+}
+
+.admin-filter-fields,
+.admin-filter-trailing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  flex: 1 1 auto;
+}
+
+.admin-filter-field input[type="search"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242 1.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.65rem center;
+  padding-left: 2rem;
+}
+
+.admin-empty-title {
+  color: var(--admin-text-2);
+  font-weight: 500;
+}
+
+.admin-create-btn {
+  min-height: calc(1.5em + 0.5rem + 2px);
+}
+
+.admin-field {
+  flex: 0 0 100%;
+  max-width: 100%;
+}
+
+/* A hint after a text control keeps mb-0 (no paragraph gap). The field grid
+   already supplies g-2 (0.5rem); padding doubles that space before the next field. */
+input.form-control:not([type="checkbox"]):not([type="radio"]):not([type="file"]) + .form-text,
+textarea.form-control + .form-text {
+  padding-bottom: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .admin-field-grid-2 .admin-field-span-1 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+
+  .admin-field-grid-2 .admin-field-span-2,
+  .admin-field-grid-4 .admin-field-span-4 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .admin-field-grid-4 .admin-field-span-1 {
+    flex: 0 0 25%;
+    max-width: 25%;
+  }
+
+  .admin-field-grid-4 .admin-field-span-2 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+}
+
+.admin-disclosure > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.admin-disclosure-body {
+  padding-top: 0.75rem;
+}
+
+.admin-expand-summary {
+  cursor: pointer;
+}
+
+.admin-expand-summary:hover > * {
+  --bs-table-bg-type: var(--admin-hover);
+}
+
+.admin-expand-summary:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: -2px;
+}
+
+/*
+ * List tables share one header and one cell size (Evolve Sprouts admin tables).
+ * Dashboard cards keep their own compact tables via .admin-dashboard.
+ * .admin-table-compact opts a dense grid (the content calendar) out of the padding.
+ */
+.admin-data-table,
+.admin-content:not(:has(.admin-dashboard)) .table {
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.admin-data-table > :not(caption) > * > *,
+.admin-content:not(:has(.admin-dashboard)) .table:not(.admin-table-compact) > :not(caption) > * > * {
+  padding: var(--admin-row-py) var(--admin-cell-px);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-data-table thead th,
+.admin-content:not(:has(.admin-dashboard)) .table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--admin-text-2);
+  background: var(--admin-hover);
+  border-bottom-width: 1px;
+}
+
+.admin-data-table thead .admin-sort-header,
+.admin-data-table thead .admin-sort-header:hover,
+.admin-data-table thead .admin-sort-header:focus {
+  color: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.admin-content:not(:has(.admin-dashboard)) .table tr.table-secondary > * {
+  --bs-table-bg: var(--admin-hover);
+  --bs-table-color: var(--admin-text);
+  color: var(--admin-text);
+  font-weight: 600;
+}
+
+.admin-content:not(:has(.admin-dashboard)) .table-bordered,
+.admin-content:not(:has(.admin-dashboard)) .table-bordered > :not(caption) > * > * {
+  border-color: var(--admin-line);
+}
+
+.admin-row-framed > td {
+  background: var(--admin-accent-soft);
+  box-shadow: none;
+}
+
+.admin-row-framed > td:first-child {
+  box-shadow: inset 3px 0 0 var(--admin-accent);
+}
+
+.admin-row-detail-framed > td {
+  box-shadow: none;
+  background: var(--admin-surface);
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-star {
+  appearance: none;
+  display: inline-block;
+  padding: 0;
+  border: 0;
+  margin: 0 0.3em 0 0;
+  background: transparent;
+  color: var(--admin-text-2);
+  font: inherit;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+.admin-star:hover {
+  color: #e6b800;
+}
+
+.admin-star.is-on {
+  color: #f5c518;
+}
+
+.admin-star i {
+  font-size: 1em;
+  line-height: 1;
+}
+
+/* Bootstrap Icons drop glyphs 0.125em for centring; on the baseline the star points meet the letter bottoms. */
+.admin-star i::before {
+  vertical-align: 0;
+}
+
+.admin-kebab {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--admin-text-2);
+}
+
+.admin-kebab:hover,
+.admin-expand-summary:hover .admin-kebab,
+.admin-expand-summary:focus-within .admin-kebab {
+  border-color: var(--admin-line-strong);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-row-actions {
+    opacity: 0;
+  }
+
+  .admin-expand-summary:hover .admin-row-actions,
+  .admin-expand-summary:focus-within .admin-row-actions {
+    opacity: 1;
+  }
+
+  /* Plain AdminDataTable rows (Progress candidates) are not .admin-expand-summary,
+     so the hover rule above would leave the kebab invisible on a desktop pointer. */
+  .admin-data-table .admin-row-actions {
+    opacity: 1;
+  }
+}
+
+.admin-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  grid-template-columns: minmax(0, 1fr);
+  transition: grid-template-rows 180ms ease;
+}
+
+.admin-expand.is-open {
+  grid-template-rows: 1fr;
+}
+
+.admin-expand-inner {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.admin-row-menu {
+  margin: 0;
+  padding: 0.25rem;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius-sm);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  min-width: 12rem;
+}
+
+.admin-row-menu:is(:popover-open, .\:popover-open) {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+}
+
+.admin-row-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.admin-row-menu-item:hover {
+  background: var(--admin-hover);
+  color: var(--admin-text);
+}
+
+.admin-confirm-dialog {
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  padding: 1.25rem;
+  max-width: 28rem;
+}
+
+.admin-confirm-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.admin-skeleton-bar {
+  display: block;
+  height: 0.75rem;
+  border-radius: 0.25rem;
+  background: var(--admin-line);
+}
+
+@media (max-width: 767.98px) {
+  .admin-filter-create,
+  .admin-filter-create .btn,
+  .admin-filter-trailing,
+  .admin-filter-trailing .btn {
+    flex: 1 1 100%;
+    width: 100%;
+    order: 0;
+    margin-left: 0;
+  }
+
+  .admin-filter-fields {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-expand {
+    transition: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .admin-table-icon-btn {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .admin-table-icon-btn {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+  }
+}

@@ -1,0 +1,905 @@
+{
+  "version": 1,
+  "milestones": [
+    {
+      "id": "M01",
+      "title": "Agent harness and repository skeleton",
+      "plan": "docs/plans/01-agent-harness.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M01-T01",
+          "title": "Fix `.gitignore`",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T02",
+          "title": "Zones",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T03",
+          "title": "`AGENTS.md`, `.cursorrules`, `BUGBOT.md`, `SECURITY.md`",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T04",
+          "title": "Rules",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T05",
+          "title": "Skills",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T06",
+          "title": "Check scripts",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T07",
+          "title": "Hooks",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T08",
+          "title": "Contracts skeleton",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T09",
+          "title": "Python and pre-commit config",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T10",
+          "title": "CI workflows",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T11",
+          "title": "Cloud agent environment",
+          "status": "todo"
+        },
+        {
+          "id": "M01-T12",
+          "title": "Research templates and README",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M02",
+      "title": "Infrastructure skeleton",
+      "plan": "docs/plans/02-infrastructure-skeleton.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M01"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M02-T01",
+          "title": "CDK app scaffold",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T02",
+          "title": "Shared constructs",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T03",
+          "title": "Parameters",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T04",
+          "title": "Encryption, tables, buckets",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T05",
+          "title": "Sign-in gate Lambda",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T06",
+          "title": "Auth construct",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T07",
+          "title": "Engine Lambda skeleton",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T08",
+          "title": "Secrets and functions",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T09",
+          "title": "HTTP API",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T10",
+          "title": "Schedules and alarms",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T11",
+          "title": "Outputs",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T12",
+          "title": "Stacks",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T13",
+          "title": "Stack tests",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T14",
+          "title": "Parameter file and helper",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T15",
+          "title": "Workflows",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T16",
+          "title": "Documents",
+          "status": "todo"
+        },
+        {
+          "id": "M02-T17",
+          "title": "First deploy and smoke test",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M03",
+      "title": "Admin dashboard v1",
+      "plan": "docs/plans/03-admin-dashboard.md",
+      "zone": "yellow",
+      "status": "not_started",
+      "dependsOn": [
+        "M02"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M03-T01",
+          "title": "Scaffold the app",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T02",
+          "title": "Auth and API client",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T03",
+          "title": "Shell and navigation",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T04",
+          "title": "Roadmap data",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T05",
+          "title": "Engine routes for the dashboard",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T06",
+          "title": "Roadmap page",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T07",
+          "title": "System page",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T08",
+          "title": "Mock mode and smoke test",
+          "status": "todo"
+        },
+        {
+          "id": "M03-T09",
+          "title": "Deploy and sign-in test",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M03A",
+      "title": "External API with keys and scopes",
+      "plan": "docs/plans/03a-external-api.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M03"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M03A-T01",
+          "title": "Contract",
+          "status": "todo"
+        },
+        {
+          "id": "M03A-T02",
+          "title": "Authorizer Lambda",
+          "status": "todo"
+        },
+        {
+          "id": "M03A-T03",
+          "title": "Infrastructure (red: ask first)",
+          "status": "todo"
+        },
+        {
+          "id": "M03A-T04",
+          "title": "Engine",
+          "status": "todo"
+        },
+        {
+          "id": "M03A-T05",
+          "title": "Key management",
+          "status": "todo"
+        },
+        {
+          "id": "M03A-T06",
+          "title": "Dashboard",
+          "status": "todo"
+        },
+        {
+          "id": "M03A-T07",
+          "title": "Documents",
+          "status": "todo"
+        },
+        {
+          "id": "M03A-T08",
+          "title": "Deploy and test",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M04",
+      "title": "Data ingest",
+      "plan": "docs/plans/04-data-ingest.md",
+      "zone": "yellow",
+      "status": "not_started",
+      "dependsOn": [
+        "M03"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M04-T01",
+          "title": "Spike and memo (no product code)",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T02",
+          "title": "Plumbing",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T03",
+          "title": "Alpaca data client",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T04",
+          "title": "SEC client",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T05",
+          "title": "Point-in-time fundamentals",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T06",
+          "title": "Price ingest",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T07",
+          "title": "Fundamentals, filings, news ingest",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T08",
+          "title": "Universe",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T09",
+          "title": "Jobs, schedules, routes",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T10",
+          "title": "Dashboard: data status",
+          "status": "todo"
+        },
+        {
+          "id": "M04-T11",
+          "title": "First run",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M05",
+      "title": "Methodology register and factor library",
+      "plan": "docs/plans/05-methodology-and-factors.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M04"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M05-T01",
+          "title": "Owner review memo",
+          "status": "todo"
+        },
+        {
+          "id": "M05-T02",
+          "title": "Register file and loader",
+          "status": "todo"
+        },
+        {
+          "id": "M05-T03",
+          "title": "Company snapshot",
+          "status": "todo"
+        },
+        {
+          "id": "M05-T04",
+          "title": "Factor functions",
+          "status": "todo"
+        },
+        {
+          "id": "M05-T05",
+          "title": "Registry test",
+          "status": "todo"
+        },
+        {
+          "id": "M05-T06",
+          "title": "Composite",
+          "status": "todo"
+        },
+        {
+          "id": "M05-T07",
+          "title": "API and dashboard page",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M06",
+      "title": "Screen and backtest",
+      "plan": "docs/plans/06-screen-and-backtest.md",
+      "zone": "yellow",
+      "status": "not_started",
+      "dependsOn": [
+        "M05"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M06-T01",
+          "title": "Screen",
+          "status": "todo"
+        },
+        {
+          "id": "M06-T02",
+          "title": "Monthly statistics table",
+          "status": "todo"
+        },
+        {
+          "id": "M06-T03",
+          "title": "Backtest engine",
+          "status": "todo"
+        },
+        {
+          "id": "M06-T04",
+          "title": "Metrics",
+          "status": "todo"
+        },
+        {
+          "id": "M06-T05",
+          "title": "Runs and memo",
+          "status": "todo"
+        },
+        {
+          "id": "M06-T06",
+          "title": "API and dashboard",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M07",
+      "title": "Knowledge base",
+      "plan": "docs/plans/07-knowledge-base.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M02"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M07-T01",
+          "title": "Spike and memo",
+          "status": "todo"
+        },
+        {
+          "id": "M07-T02",
+          "title": "CDK resources",
+          "status": "todo"
+        },
+        {
+          "id": "M07-T03",
+          "title": "Sync",
+          "status": "todo"
+        },
+        {
+          "id": "M07-T04",
+          "title": "Retrieval client",
+          "status": "todo"
+        },
+        {
+          "id": "M07-T05",
+          "title": "Evaluation",
+          "status": "todo"
+        },
+        {
+          "id": "M07-T06",
+          "title": "Cite the register",
+          "status": "todo"
+        },
+        {
+          "id": "M07-T07",
+          "title": "MCP server",
+          "status": "todo"
+        },
+        {
+          "id": "M07-T08",
+          "title": "API and dashboard",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M08",
+      "title": "Investment committee",
+      "plan": "docs/plans/08-investment-committee.md",
+      "zone": "yellow",
+      "status": "not_started",
+      "dependsOn": [
+        "M06",
+        "M07"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M08-T01",
+          "title": "Choose models (memo)",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T02",
+          "title": "OpenRouter client",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T03",
+          "title": "Budget guard",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T04",
+          "title": "Committee contract",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T05",
+          "title": "Fact sheet and doctrine pack",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T06",
+          "title": "Prompts",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T07",
+          "title": "Output schema and validation",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T08",
+          "title": "Orchestration",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T09",
+          "title": "Committee evaluation",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T10",
+          "title": "Monthly review",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T11",
+          "title": "API and dashboard",
+          "status": "todo"
+        },
+        {
+          "id": "M08-T12",
+          "title": "First real run",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M09",
+      "title": "Portfolio, ledger, paper broker",
+      "plan": "docs/plans/09-portfolio-ledger-broker.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M08"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M09-T01",
+          "title": "Spike and memo",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T02",
+          "title": "Limits (write this first)",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T03",
+          "title": "Leverage rule",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T04",
+          "title": "Portfolio construction",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T05",
+          "title": "Orders",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T06",
+          "title": "Broker adapter",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T07",
+          "title": "Ledger",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T08",
+          "title": "Tax provision and benchmark",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T09",
+          "title": "Reconcile",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T10",
+          "title": "Jobs, API, dashboard",
+          "status": "todo"
+        },
+        {
+          "id": "M09-T11",
+          "title": "First run on paper",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M10",
+      "title": "Daily cycle",
+      "plan": "docs/plans/10-daily-cycle.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M09"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M10-T01",
+          "title": "Holds",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T02",
+          "title": "Daily check",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T03",
+          "title": "Monthly rebalance, complete",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T04",
+          "title": "Execution",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T05",
+          "title": "Brief",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T06",
+          "title": "Infrastructure (red: ask first)",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T07",
+          "title": "Dashboard",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T08",
+          "title": "Runbook",
+          "status": "todo"
+        },
+        {
+          "id": "M10-T09",
+          "title": "Go live on paper",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M11",
+      "title": "Safety and go-live gate",
+      "plan": "docs/plans/11-safety-and-go-live-gate.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M10"
+      ],
+      "pullRequests": [],
+      "steps": [
+        {
+          "id": "M11-T01",
+          "title": "Breaker module",
+          "status": "todo"
+        },
+        {
+          "id": "M11-T02",
+          "title": "Wire the breakers in",
+          "status": "todo"
+        },
+        {
+          "id": "M11-T03",
+          "title": "Alerts",
+          "status": "todo"
+        },
+        {
+          "id": "M11-T04",
+          "title": "API and dashboard",
+          "status": "todo"
+        },
+        {
+          "id": "M11-T05",
+          "title": "Drill (with the owner, O17)",
+          "status": "todo"
+        },
+        {
+          "id": "M11-T06",
+          "title": "Gate contract",
+          "status": "todo"
+        },
+        {
+          "id": "M11-T07",
+          "title": "Gate module",
+          "status": "todo"
+        },
+        {
+          "id": "M11-T08",
+          "title": "Gate report",
+          "status": "todo"
+        }
+      ]
+    },
+    {
+      "id": "M12",
+      "title": "Real money",
+      "plan": "docs/plans/11-safety-and-go-live-gate.md",
+      "zone": "red",
+      "status": "not_started",
+      "dependsOn": [
+        "M11"
+      ],
+      "pullRequests": [],
+      "steps": []
+    }
+  ],
+  "ownerTasks": [
+    {
+      "id": "O01",
+      "title": "Choose and register the new domain. Add it to Cloudflare DNS. Done",
+      "blocks": [
+        "M02",
+        "M10"
+      ]
+    },
+    {
+      "id": "O02",
+      "title": "Protect `main`: pull request required, required checks `lint` and `test`, no force-push",
+      "blocks": [
+        "M01"
+      ]
+    },
+    {
+      "id": "O03",
+      "title": "Produce the PII denylist hashes (step in M01) and hand over the hash file",
+      "blocks": [
+        "M01"
+      ]
+    },
+    {
+      "id": "O04",
+      "title": "Create the GitHub variables, the environment `production` and its secrets (list below)",
+      "blocks": [
+        "M02"
+      ]
+    },
+    {
+      "id": "O05",
+      "title": "Confirm AWS access for GitHub Actions (details below)",
+      "blocks": [
+        "M02"
+      ]
+    },
+    {
+      "id": "O06",
+      "title": "Request an ACM certificate for `admin.<domain>` in `us-east-1` with DNS validation. Give the validation record to the developer, who adds it in Cloudflare (see DNS below). Wait for ISSUED",
+      "blocks": [
+        "M02"
+      ]
+    },
+    {
+      "id": "O07",
+      "title": "Create a Google OAuth client (type Web application). Authorised redirect URI: `https://<cognito-domain>/oauth2/idpresponse`",
+      "blocks": [
+        "M02"
+      ]
+    },
+    {
+      "id": "O08",
+      "title": "After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare",
+      "blocks": [
+        "M03"
+      ]
+    },
+    {
+      "id": "O09",
+      "title": "Sign in once with the bootstrap user, set a new password, enrol TOTP",
+      "blocks": [
+        "M03"
+      ]
+    },
+    {
+      "id": "O10",
+      "title": "Open a free Alpaca paper account. Set the paper balance to the planned capital in US dollars. Store the paper API key in the secret `findingalpha/alpaca-paper`",
+      "blocks": [
+        "M04"
+      ]
+    },
+    {
+      "id": "O11",
+      "title": "Review the provisional formulas listed in M05 and say which to keep",
+      "blocks": [
+        "M05"
+      ]
+    },
+    {
+      "id": "O12",
+      "title": "Upload the PDFs to the knowledge base bucket under `theory/`. Split any file over 50 MB",
+      "blocks": [
+        "M07"
+      ]
+    },
+    {
+      "id": "O13",
+      "title": "Write 20 questions whose answers are formulas in the PDFs, with the book and page. Upload as `eval/questions.json`",
+      "blocks": [
+        "M07"
+      ]
+    },
+    {
+      "id": "O14",
+      "title": "Add `findingalpha` to `contracts/openrouter-apps.json` in `lx-software` (red zone there), mint the key, store it in the secret `findingalpha/openrouter`",
+      "blocks": [
+        "M08"
+      ]
+    },
+    {
+      "id": "O15",
+      "title": "Confirm the tax figures in M09 with an adviser (dividend withholding rate, estate-tax schedule)",
+      "blocks": [
+        "M09"
+      ]
+    },
+    {
+      "id": "O16",
+      "title": "Create the sending-domain identity in SES and give the three DKIM records to the developer, who adds them in Cloudflare. Verify the recipient address",
+      "blocks": [
+        "M10"
+      ]
+    },
+    {
+      "id": "O17",
+      "title": "Run the kill-switch and breaker drill with the developer",
+      "blocks": [
+        "M11"
+      ]
+    },
+    {
+      "id": "O18",
+      "title": "Decide on real money after the gate report is green",
+      "blocks": [
+        "M12"
+      ]
+    },
+    {
+      "id": "O19",
+      "title": "Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`, then mint the first admin API key with the Manage Public API Keys workflow",
+      "blocks": [
+        "M03A"
+      ]
+    },
+    {
+      "id": "O20",
+      "title": "Request an ACM certificate for `api.<domain>` in `ap-southeast-1` (the stack's region, not `us-east-1`) with DNS validation. Give the validation record to the developer. When ISSUED, set the two `API_CUSTOM_DOMAIN_*` variables",
+      "blocks": [
+        "M03A"
+      ]
+    }
+  ]
+}

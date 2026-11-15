@@ -1,0 +1,134 @@
+name: Lint
+
+on:
+  workflow_dispatch:
+  # No path filter. The `lint` job is a required check, and a skipped
+  # required check leaves the pull request blocked.
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/admin_web/**"
+      - "backend/infrastructure/**"
+      - "backend/lambda/**"
+      - "scripts/**"
+      - "pyproject.toml"
+
+jobs:
+  lint-admin-web:
+    name: Lint Admin Web
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: apps/admin_web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/admin_web
+
+      - name: Run lint
+        run: npm run lint --if-present
+        working-directory: apps/admin_web
+
+  build-cdk:
+    name: Build CDK
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: npm
+          cache-dependency-path: backend/infrastructure/package-lock.json
+
+      - name: Install CDK dependencies
+        working-directory: backend/infrastructure
+        run: npm ci
+
+      - name: Build CDK
+        working-directory: backend/infrastructure
+        run: npm run build
+
+  lint-python:
+    name: Lint Python
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: python3 -m pip install ruff
+
+      - name: Ruff
+        run: python3 -m ruff check backend/lambda scripts .cursor/hooks
+
+  validate-agent-harness:
+    name: Validate agent harness
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Run harness checks
+        run: |
+          python3 scripts/validate_agent_rules.py
+          python3 scripts/check_file_length.py
+          python3 scripts/check_test_focus.py
+          python3 -m unittest scripts/test_agent_hooks.py scripts/test_harness_ratchets.py -v
+
+  lint:
+    name: lint
+    runs-on: ubuntu-26.04
+    needs:
+      - lint-admin-web
+      - build-cdk
+      - lint-python
+      - validate-agent-harness
+    if: always()
+    steps:
+      - name: Require every lint job
+        env:
+          LINT_ADMIN_WEB: ${{ needs.lint-admin-web.result }}
+          BUILD_CDK: ${{ needs.build-cdk.result }}
+          LINT_PYTHON: ${{ needs.lint-python.result }}
+          VALIDATE_AGENT_HARNESS: ${{ needs.validate-agent-harness.result }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import sys
+
+          jobs = {
+              "lint-admin-web": os.environ["LINT_ADMIN_WEB"],
+              "build-cdk": os.environ["BUILD_CDK"],
+              "lint-python": os.environ["LINT_PYTHON"],
+              "validate-agent-harness": os.environ["VALIDATE_AGENT_HARNESS"],
+          }
+          failed = [f"{name}={result}" for name, result in jobs.items() if result != "success"]
+          if failed:
+              print("Lint jobs did not all succeed: " + ", ".join(failed))
+              sys.exit(1)
+          print("All lint jobs succeeded.")
+          PY

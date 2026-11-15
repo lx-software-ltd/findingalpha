@@ -1,0 +1,10 @@
+{
+  "name": "findingalpha",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "admin_web",
+      "command": "cd apps/admin_web && npm run dev:mock -- --host --port 5174"
+    }
+  ]
+}
