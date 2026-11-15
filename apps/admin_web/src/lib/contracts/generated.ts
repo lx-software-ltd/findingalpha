@@ -651,7 +651,8 @@ export const roadmap = {
       ],
       "pullRequests": [
         "https://github.com/lx-software-ltd/findingalpha/pull/8",
-        "https://github.com/lx-software-ltd/findingalpha/pull/9"
+        "https://github.com/lx-software-ltd/findingalpha/pull/9",
+        "https://github.com/lx-software-ltd/findingalpha/pull/11"
       ],
       "steps": [
         {
