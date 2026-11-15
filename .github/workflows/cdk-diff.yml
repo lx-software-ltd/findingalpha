@@ -39,7 +39,7 @@ jobs:
             {
               echo "### CDK diff did not run"
               echo ""
-              echo "Set the repository variable \`AWS_ACCOUNT_ID\` and the repository variable \`AWS_REGION\`."
+              echo "Set the repository variables \`AWS_ACCOUNT_ID\` and \`AWS_REGION\`."
               echo "A green result before both are set means the account was not compared."
             } >> "$GITHUB_STEP_SUMMARY"
           else

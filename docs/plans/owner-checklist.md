@@ -18,7 +18,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O06 | Request an ACM certificate for `admin.<domain>` in `us-east-1` with DNS validation. Give the validation record to the developer, who adds it in Cloudflare (see DNS below). Wait for ISSUED | First deploy (M02) |
 | O07 | Create a Google OAuth client (type Web application). Authorised redirect URI: `https://<cognito-domain>/oauth2/idpresponse` | First sign-in (M02) |
 | O08 | After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare | Dashboard reachable (M03) |
-| O09 | Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment | Cleanup |
+| O09 | Sign in once with the bootstrap user, set a new password, enrol TOTP | Dashboard use (M03) |
 | O10 | Open a free Alpaca paper account. Set the paper balance to the planned capital in US dollars. Store the paper API key in the secret `findingalpha/alpaca-paper` | M04 |
 | O11 | Review the provisional formulas listed in M05 and say which to keep | M05 merge |
 | O12 | Upload the PDFs to the knowledge base bucket under `theory/`. Split any file over 50 MB | M07 |
@@ -30,6 +30,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O18 | Decide on real money after the gate report is green | M12 |
 | O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
 | O20 | Request an ACM certificate for `api.<domain>` in `ap-southeast-1` (the stack's region, not `us-east-1`) with DNS validation. Give the validation record to the developer. When ISSUED, set the two `API_CUSTOM_DOMAIN_*` variables | API hostname (M03A) |
+| O21 | Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment | After Google sign-in |
 
 ## Details
 

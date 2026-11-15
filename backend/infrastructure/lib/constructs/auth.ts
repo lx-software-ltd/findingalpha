@@ -268,27 +268,15 @@ export class AuthConstruct extends Construct {
       removeCognitoPrefixDomainCustomResource.node.defaultChild as cdk.CfnResource;
     removeCognitoPrefixDomainResource.cfnOptions.condition = useCustomDomain;
 
-    // The resource is created only when both values are set. Wrap each
-    // property so an empty default is AWS::NoValue instead of a value that
-    // fails the ARN and length checks.
-    const whenCustomDomain = (value: string) =>
-      cdk.Fn.conditionIf(
-        useCustomDomain.logicalId,
-        value,
-        cdk.Aws.NO_VALUE
-      ) as unknown as string;
     this.cognitoCustomHostedDomain = new cognito.CfnUserPoolDomain(
       this,
       "HostedUICustomDomain",
       {
         userPoolId: this.userPool.userPoolId,
-        domain: whenCustomDomain(
-          props.cognitoCustomDomainNameParameter.valueAsString
-        ),
+        domain: props.cognitoCustomDomainNameParameter.valueAsString,
         customDomainConfig: {
-          certificateArn: whenCustomDomain(
-            props.cognitoCustomDomainCertificateArnParameter.valueAsString
-          ),
+          certificateArn:
+            props.cognitoCustomDomainCertificateArnParameter.valueAsString,
         },
       }
     );

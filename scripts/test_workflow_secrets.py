@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Public workflows must not print the account id or owner emails."""
+"""Public workflows must not print owner emails.
+
+The account id is a repository variable. A secret of the same name
+still wins when it is set. Either way it is masked after the first
+settings block, and the job does not warn about it.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Printed in a public Actions log when stored as variables.
+# Read as a secret, or as `secrets.NAME || vars.NAME`. Never the variable alone.
 SECRET_NAMES = (
     "AWS_ACCOUNT_ID",
     "ADMIN_FEDERATED_EMAIL_ALLOWLIST",
@@ -30,7 +35,7 @@ def _expressions(text: str) -> set[str]:
 
 
 def _accepts_secret_or_variable(expressions: set[str], name: str) -> bool:
-    """A secret wins. The variable is only the fallback, never the only source."""
+    """A secret wins when set. The variable may be the value in use, but never the only expression."""
     allowed = {
         f"secrets.{name}",
         f"secrets.{name} || vars.{name}",

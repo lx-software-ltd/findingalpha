@@ -409,7 +409,7 @@ export const roadmap = {
       "title": "Admin dashboard v1",
       "plan": "docs/plans/03-admin-dashboard.md",
       "zone": "yellow",
-      "status": "done",
+      "status": "in_progress",
       "dependsOn": [
         "M02"
       ],
@@ -460,7 +460,7 @@ export const roadmap = {
         {
           "id": "M03-T09",
           "title": "Deploy and sign-in test",
-          "status": "done"
+          "status": "todo"
         }
       ]
     },
@@ -1055,8 +1055,10 @@ export const roadmap = {
     },
     {
       "id": "O09",
-      "title": "Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment",
-      "blocks": []
+      "title": "Sign in once with the bootstrap user, set a new password, enrol TOTP",
+      "blocks": [
+        "M03"
+      ]
     },
     {
       "id": "O10",
@@ -1134,6 +1136,11 @@ export const roadmap = {
       "blocks": [
         "M03A"
       ]
+    },
+    {
+      "id": "O21",
+      "title": "Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment",
+      "blocks": []
     }
   ]
 } as const;
