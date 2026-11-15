@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { AdminCell, AdminDataTable, type AdminDataTableColumn } from "../components/ui/AdminDataTable";
 import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
-import { useJobRuns, useSystemStatus, type JobRun } from "../hooks/useSystemStatus";
+import { useApiKeys, useJobRuns, useSystemStatus, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
+import { accessLabel } from "../lib/apiKeyDisplay";
 
 type SwitchName = keyof Settings;
 
 export function SystemPage() {
   const status = useSystemStatus();
   const runs = useJobRuns();
+  const keys = useApiKeys();
   const put = usePutSettings();
   const [pending, setPending] = useState<{ name: SwitchName; next: boolean } | null>(null);
   const jobs = [...(status.data?.jobs ?? [])].sort((left, right) => Number(right.lastRun?.status === "failed") - Number(left.lastRun?.status === "failed"));
@@ -81,6 +83,29 @@ export function SystemPage() {
           ))}
         </tbody>
       </table>
+      <h2 className="h5">API keys</h2>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Label</th><th>Tier</th><th>Scopes</th><th>Access</th><th>Created</th><th>Expires</th><th>Last used</th><th>State</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(keys.data?.keys ?? []).map((row) => (
+            <tr key={row.keyId} className={row.soon ? "table-warning" : undefined}>
+              <td>{row.label}</td>
+              <td>{row.tier}</td>
+              <td>{row.scopes.join(", ")}</td>
+              <td>{accessLabel(row.allowWrite, keys.data?.writesEnabled === true)}</td>
+              <td><DateTimeDisplay iso={row.createdAt} /></td>
+              <td>{row.expiresAt ? <DateTimeDisplay iso={row.expiresAt} /> : "never"}</td>
+              <td>{row.lastUsedAt ? <DateTimeDisplay iso={row.lastUsedAt} /> : "never"}</td>
+              <td>{row.state}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="small text-body-secondary">Keys are created and revoked with the Manage Public API Keys workflow.</p>
       <ConfirmDialog
         open={pending !== null}
         title="Change setting"

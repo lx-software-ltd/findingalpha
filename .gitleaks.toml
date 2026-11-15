@@ -1,0 +1,10 @@
+title = "findingalpha"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "findingalpha-public-api-key"
+description = "A findingalpha public API key"
+regex = '''fapk_[A-Za-z0-9_\-]{30,}'''
+keywords = ["fapk_"]

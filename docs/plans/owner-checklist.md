@@ -28,7 +28,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O16 | Create the sending-domain identity in SES and give the three DKIM records to the developer, who adds them in Cloudflare. Verify the recipient address | M10 |
 | O17 | Run the kill-switch and breaker drill with the developer | M11 |
 | O18 | Decide on real money after the gate report is green | M12 |
-| O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
+| O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`. Confirm the key-workflow permissions in O05 item 5, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
 | O20 | Request an ACM certificate for `api.<domain>` in `ap-southeast-1` (the stack's region, not `us-east-1`) with DNS validation. Give the validation record to the developer. When ISSUED, set the two `API_CUSTOM_DOMAIN_*` variables | API hostname (M03A) |
 | O21 | Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment | After Google sign-in |
 
@@ -167,8 +167,10 @@ Confirm these in the AWS account. None of them needs a value in git.
    role's policy needs the `findingalpha*` names added. That is a
    change in the account, done by the owner.
 5. For the key workflow (M03A): `GetItem`, `PutItem`, `UpdateItem` and
-   `Scan` on the table `findingalpha-records`, and `kms:Decrypt` and
-   `kms:GenerateDataKey` on the shared key.
+   `Query` on the table `findingalpha-records` and on its `gsi1` index,
+   and `kms:Decrypt` and `kms:GenerateDataKey` on the shared key. The
+   first **Manage Public API Keys** run fails with AccessDenied until
+   these are on `GitHubActionsRole`.
 
 The developer's own AWS user is read-only and narrow. It could not
 read the bootstrap parameter, the role, the stacks or the

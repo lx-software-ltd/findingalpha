@@ -28,9 +28,31 @@ MILESTONE_STATUS = {"not_started", "in_progress", "blocked", "done"}
 STEP_STATUS = {"todo", "doing", "done"}
 GENERATED = [
     Path("backend/lambda/engine/contracts"),
+    Path("backend/lambda/engine/contract_constants.py"),
+    Path("backend/lambda/public_api_authorizer/public_api_scopes_generated.py"),
     Path("apps/admin_web/src/lib/contracts/generated.ts"),
     Path("backend/infrastructure/lib/shared-contracts.ts"),
 ]
+
+
+def validate_scopes(path: Path) -> list[str]:
+    """Every tier scope is a known scope, and a read-only tier has no operate."""
+    if not path.is_file():
+        return [f"missing {path}"]
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return [f"scopes json: {exc}"]
+    known = {item["value"] for item in doc.get("scopes", [])}
+    errors: list[str] = []
+    for tier in doc.get("tiers", []):
+        name = tier.get("value", "?")
+        for scope in tier.get("scopes", []):
+            if scope not in known:
+                errors.append(f"tier {name} lists unknown scope {scope}")
+        if not tier.get("mayWrite") and "operate" in tier.get("scopes", []):
+            errors.append(f"tier {name} may not write and must not list operate")
+    return errors
 
 
 def validate_roadmap(path: Path) -> list[str]:
@@ -128,6 +150,7 @@ def check_generated() -> list[str]:
 
 def main() -> int:
     errors = validate_roadmap(ROOT / "contracts" / "roadmap.json")
+    errors.extend(validate_scopes(ROOT / "contracts" / "public-api-scopes.json"))
     errors.extend(check_generated())
     if errors:
         print("Contract check failed:", file=sys.stderr)

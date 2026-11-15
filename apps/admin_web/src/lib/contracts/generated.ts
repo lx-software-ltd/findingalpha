@@ -113,7 +113,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "screen",
@@ -222,6 +222,50 @@ export const jobs = {
       "killSwitch": "",
       "manualRun": true,
       "keyRun": false
+    }
+  ]
+} as const;
+
+export const publicApiScopes = {
+  "scopes": [
+    {
+      "name": "SCOPE_SYSTEM",
+      "value": "system"
+    },
+    {
+      "name": "SCOPE_RESEARCH",
+      "value": "research"
+    },
+    {
+      "name": "SCOPE_PORTFOLIO",
+      "value": "portfolio"
+    },
+    {
+      "name": "SCOPE_OPERATE",
+      "value": "operate"
+    }
+  ],
+  "tiers": [
+    {
+      "name": "TIER_ADMIN",
+      "value": "admin",
+      "enabled": true,
+      "scopes": [
+        "system",
+        "research",
+        "portfolio",
+        "operate"
+      ],
+      "mayWrite": true
+    },
+    {
+      "name": "TIER_USER",
+      "value": "user",
+      "enabled": false,
+      "scopes": [
+        "research"
+      ],
+      "mayWrite": false
     }
   ]
 } as const;
@@ -409,7 +453,7 @@ export const roadmap = {
       "title": "Admin dashboard v1",
       "plan": "docs/plans/03-admin-dashboard.md",
       "zone": "yellow",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "M02"
       ],
@@ -460,7 +504,7 @@ export const roadmap = {
         {
           "id": "M03-T09",
           "title": "Deploy and sign-in test",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
@@ -469,46 +513,48 @@ export const roadmap = {
       "title": "External API with keys and scopes",
       "plan": "docs/plans/03a-external-api.md",
       "zone": "red",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M03"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/10"
+      ],
       "steps": [
         {
           "id": "M03A-T01",
           "title": "Contract",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03A-T02",
           "title": "Authorizer Lambda",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03A-T03",
           "title": "Infrastructure (red: ask first)",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03A-T04",
           "title": "Engine",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03A-T05",
           "title": "Key management",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03A-T06",
           "title": "Dashboard",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03A-T07",
           "title": "Documents",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03A-T08",

@@ -69,6 +69,15 @@ export function defineParameters(scope: cdk.Stack) {
       default: "5000",
     }),
     publicApiWritesEnabled: flag(scope, "PublicApiWritesEnabled", "Kill switch for writes by API key."),
+    apiCustomDomainName: text(scope, "ApiCustomDomainName", "Optional api.<domain>. Empty skips the custom domain.", {
+      default: "",
+    }),
+    apiCustomDomainCertificateArn: text(
+      scope,
+      "ApiCustomDomainCertificateArn",
+      "Optional certificate in this region for the API hostname. Empty skips the custom domain.",
+      { default: "" },
+    ),
   };
 }
 

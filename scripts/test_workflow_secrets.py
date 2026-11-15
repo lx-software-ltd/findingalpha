@@ -55,7 +55,7 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
 
     def test_other_workflows_prefer_the_account_secret(self) -> None:
-        for filename in ("deploy-admin-web.yml", "cdk-diff.yml"):
+        for filename in ("deploy-admin-web.yml", "cdk-diff.yml", "manage-api-keys.yml"):
             text = _workflow(filename)
             expressions = _expressions(text)
             self.assertTrue(_accepts_secret_or_variable(expressions, "AWS_ACCOUNT_ID"), filename)
