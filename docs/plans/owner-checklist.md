@@ -57,7 +57,8 @@ reads as empty, which is what "optional" means below.
 
 **Repository variables** (Settings, Secrets and variables, Actions,
 Variables). They are at repository level so that the `cdk-diff` check
-on pull requests can read them:
+on pull requests can read them. That check fails until
+`AWS_ACCOUNT_ID` and `AWS_REGION` are both set:
 
 | Variable | Value |
 | --- | --- |

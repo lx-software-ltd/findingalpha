@@ -39,7 +39,6 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-          echo "Comparing the deployed stacks in ${AWS_ACCOUNT_ID} (${AWS_REGION})." >> "$GITHUB_STEP_SUMMARY"
         env:
           AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ vars.AWS_REGION }}
@@ -147,11 +146,21 @@ jobs:
                 fi
               done
             fi
-            if [ ${#STACK_ARGS[@]} -gt 0 ]; then
-              npx cdk diff --no-color "${PARAM_ARGS[@]}" "${STACK_ARGS[@]}"
-            else
-              npx cdk diff --no-color "${PARAM_ARGS[@]}" findingalpha findingalpha-admin-web
+            if [ ${#STACK_ARGS[@]} -eq 0 ]; then
+              STACK_ARGS=(findingalpha findingalpha-admin-web)
             fi
+            set +e
+            npx cdk diff --no-color "${PARAM_ARGS[@]}" "${STACK_ARGS[@]}" 2>&1 | tee "$RUNNER_TEMP/cdk-diff.txt"
+            diff_status="${PIPESTATUS[0]}"
+            set -e
+            {
+              echo "### CDK diff"
+              echo ""
+              echo '```'
+              cat "$RUNNER_TEMP/cdk-diff.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$diff_status"
           else
             echo "Missing backend/infrastructure/package.json"
           fi

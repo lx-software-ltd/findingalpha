@@ -106,7 +106,8 @@ come from the GitHub `production` environment, not from the file.
 Repository variables (read by `cdk-diff` on pull requests as well):
 `AWS_ACCOUNT_ID`, `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER`
 (`siutindei`), `CDK_PARAM_FILE`
-(`backend/infrastructure/params/production.json`).
+(`backend/infrastructure/params/production.json`). `cdk-diff` fails
+until `AWS_ACCOUNT_ID` and `AWS_REGION` are set.
 
 Environment `production`: every "GitHub var" above as a variable. The
 two "GitHub secret" rows and `PUBLIC_API_KEY_GPG_PASSPHRASE` (M03A) as
