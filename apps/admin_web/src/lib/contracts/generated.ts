@@ -522,11 +522,13 @@ export const roadmap = {
       "title": "Data ingest",
       "plan": "docs/plans/04-data-ingest.md",
       "zone": "yellow",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M03"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/8"
+      ],
       "steps": [
         {
           "id": "M04-T01",
@@ -536,7 +538,7 @@ export const roadmap = {
         {
           "id": "M04-T02",
           "title": "Plumbing",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T03",

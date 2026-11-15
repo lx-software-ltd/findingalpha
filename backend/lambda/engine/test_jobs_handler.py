@@ -14,8 +14,10 @@ class JobsHandlerTest(unittest.TestCase):
         self.assertFalse(result["ok"])
 
     def test_tick_records_a_run(self) -> None:
-        with patch("job_runs.record") as record:
-            record.return_value.__enter__.return_value = type("Run", (), {"status": "running", "skip": lambda self: None})()
+        with patch("job_runs.record") as record, patch("chunked.resume_stalled", return_value=[]):
+            record.return_value.__enter__.return_value = type(
+                "Run", (), {"status": "running", "skip": lambda self: None}
+            )()
             result = jobs_handler.lambda_handler({"job": "tick"}, None)
         self.assertTrue(result["ok"])
         record.assert_called_once_with("tick")

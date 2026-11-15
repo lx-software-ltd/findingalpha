@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import * as cdk from "aws-cdk-lib";
+import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import type * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import type * as kms from "aws-cdk-lib/aws-kms";
@@ -80,6 +81,20 @@ export function defineFunctions(
   input.dataBucket.grantReadWrite(engineFn);
   input.kbBucket.grantReadWrite(engineFn);
   engineFn.grantInvoke(adminFn);
+  // A separate policy, not the function's default policy: the default policy
+  // is a dependency of the function, so a self-ARN there is a cycle.
+  const engineRole = engineFn.role;
+  if (engineRole) {
+    new iam.Policy(scope, "EngineSelfInvoke", {
+      roles: [engineRole],
+      statements: [
+        new iam.PolicyStatement({
+          actions: ["lambda:InvokeFunction"],
+          resources: [engineFn.functionArn],
+        }),
+      ],
+    });
+  }
   adminFn.addEnvironment("ENGINE_FUNCTION_NAME", engineFn.functionName);
   new lambda.EventInvokeConfig(scope, "EngineFnInvokeConfig", {
     function: engineFn,
