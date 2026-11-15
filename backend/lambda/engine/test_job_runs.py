@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 import job_runs
+from botocore.exceptions import BotoCoreError
 
 
 class _Table:
@@ -35,6 +36,11 @@ class JobRunsTest(unittest.TestCase):
         self.assertEqual(table.items[-1]["status"], "failed")
         self.assertEqual(table.items[-1]["errorClass"], "RuntimeError")
         self.assertNotIn("Traceback", table.items[-1]["errorMessage"])
+
+    def test_a_client_side_write_error_does_not_fail_the_job(self) -> None:
+        with patch("store.put", side_effect=BotoCoreError()):
+            with job_runs.record("tick") as run:
+                self.assertEqual(run.status, "running")
 
     def test_skip_is_recorded(self) -> None:
         table = _Table()

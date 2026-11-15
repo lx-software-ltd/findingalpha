@@ -16,10 +16,11 @@ _ddb: Any = None
 
 
 def ddb() -> Any:
-    """Return the DynamoDB resource, creating it on first use.
+    """Return the DynamoDB resource, creating it on the first call.
 
-    Importing this module must not need an AWS region. Lambda sets
-    ``AWS_REGION`` before any call. Tests stub the table instead.
+    Importing this module does not need an AWS region. Lambda sets
+    ``AWS_REGION`` before a handler runs. Tests patch ``store`` and do
+    not call this.
     """
     global _ddb
     if _ddb is None:

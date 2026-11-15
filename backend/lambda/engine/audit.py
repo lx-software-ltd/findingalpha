@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 import runtime
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from config import audit_table_name
 from http_common import _log_event, _request_id
 
@@ -26,10 +26,14 @@ def write(actor: str | None, action: str, target: str, event: dict[str, Any]) ->
                 "requestId": _request_id(event),
             }
         )
-    except ClientError as exc:
-        _log_event(
-            "warning",
-            tag="audit_write_failed",
-            action=action,
-            error=exc.response.get("Error", {}).get("Code", "ClientError"),
-        )
+    except (ClientError, BotoCoreError) as exc:
+        _log_event("warning", tag="audit_write_failed", action=action, error=_error_code(exc))
+
+
+def _error_code(exc: BaseException) -> str:
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        code = response.get("Error", {}).get("Code")
+        if code:
+            return str(code)
+    return type(exc).__name__

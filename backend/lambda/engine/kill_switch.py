@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from config import env_flag
 from http_common import _log_event
 
@@ -47,5 +47,5 @@ def _read_settings() -> dict[str, Any] | None:
         import store
 
         return store.get(SETTINGS_PK, SETTINGS_SK)
-    except ClientError:
+    except (ClientError, BotoCoreError):
         return None

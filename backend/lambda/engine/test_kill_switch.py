@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import kill_switch
+from botocore.exceptions import BotoCoreError, ClientError
 
 
 class KillSwitchTest(unittest.TestCase):
@@ -27,8 +28,13 @@ class KillSwitchTest(unittest.TestCase):
 
     def test_read_error_is_false(self) -> None:
         os.environ["INGEST_ENABLED"] = "true"
-        with patch.object(kill_switch, "_read_settings", return_value=None):
-            self.assertFalse(kill_switch.is_enabled("ingestEnabled"))
+        errors = (
+            ClientError({"Error": {"Code": "InternalServerError"}}, "GetItem"),
+            BotoCoreError(),
+        )
+        for error in errors:
+            with patch("store.get", side_effect=error):
+                self.assertFalse(kill_switch.is_enabled("ingestEnabled"))
 
     def test_both_true_is_enabled(self) -> None:
         os.environ["INGEST_ENABLED"] = "true"
