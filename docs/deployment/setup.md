@@ -87,9 +87,10 @@ owner task. This repository does not request it.
 Repository variables, also read by **CDK Diff** on pull requests:
 `AWS_ACCOUNT_ID`, `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`),
 `CDK_PARAM_FILE` (`backend/infrastructure/params/production.json`).
-The `diff` check fails until `AWS_ACCOUNT_ID` and `AWS_REGION` are both
-set. Once they are, it writes the diff to the job summary. It is not a
-required check, so it does not block a merge.
+Until `AWS_ACCOUNT_ID` and `AWS_REGION` are both set, the `diff` check
+passes with a warning and does not compare the account. Once they are,
+it writes the diff to the job summary and fails on a real error. It is
+not a required check, so it does not block a merge.
 
 Environment `production` variables:
 

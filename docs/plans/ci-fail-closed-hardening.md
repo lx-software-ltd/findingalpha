@@ -14,9 +14,10 @@ which are yellow.
   table variable.
 - An audit write or a job-run write that fails for the same reasons
   logs a warning and does not fail the request or the job.
-- The `cdk-diff` check fails while the account variables are unset,
-  shows the diff in the job summary once they are set, and the setup
-  docs say so.
+- While the account variables are unset, `cdk-diff` passes with a
+  warning and does not compare the account. Once they are set, it
+  shows the diff in the job summary and fails on a real error. The
+  setup docs say so.
 
 ## Non-goals
 
@@ -39,7 +40,8 @@ which are yellow.
 - `.github/workflows/cdk-diff.yml`: no account id in the summary, the
   diff in the summary.
 - `docs/deployment/setup.md`, `docs/plans/owner-checklist.md`,
-  `docs/plans/reference.md`: the check fails until the variables exist.
+  `docs/plans/reference.md`: the check warns and skips the comparison
+  until the variables exist.
 
 ## Invariants this change preserves
 
@@ -58,8 +60,8 @@ which are yellow.
   returns false, and `audit.write` and `job_runs.record` do not raise.
 - `ruff check`, `ruff format --check`, `check_file_length.py`,
   `check_pii.py`, `check_test_focus.py` and `check-contracts.py` pass.
-- On the pull request, every check except `diff` passes. `diff` fails
-  with a message naming the two variables.
+- On the pull request, every check passes. While the account variables
+  are unset, `diff` passes with a warning that names them.
 
 ## Rollback
 
