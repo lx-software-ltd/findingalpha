@@ -11,9 +11,10 @@ written in this repository.
 ## Pre-deploy checklist
 
 **Deploy Backend** runs on `main` when `backend/infrastructure/**`,
-`backend/lambda/**` or `contracts/**` change, except
-`contracts/roadmap.json` alone. It can also be started with **Run
-workflow**.
+`backend/lambda/**`, `contracts/**`, or this workflow file change,
+except `contracts/roadmap.json` alone. It can also be started with
+**Run workflow**. Re-running a failed attempt uses the workflow from
+that attempt. A fix to the workflow needs a new run.
 
 1. **GitHub environment** — variables `AWS_REGION`,
    `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`,
@@ -25,8 +26,11 @@ workflow**.
    classes, or user creation fails), `ADMIN_FEDERATED_EMAIL_ALLOWLIST`
    (comma-separated lower-case emails that receive `admin` — every
    Google admin and the bootstrap email), and `ADMIN_BOOTSTRAP_EMAIL`.
-   The workflow stops immediately when the domain, the certificate,
-   the account id, the allow-list, or the bootstrap email is empty.
+   The workflow stops immediately when the domain or the certificate is
+   empty, or when the account id, the allow-list, or the bootstrap
+   email is empty as both a secret and a variable. A set secret is
+   used. The variable is the fallback. The first settings block shows
+   it and the job warns; later lines are masked.
    **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
    `AdminApiBaseUrl` from the `findingalpha` stack.
 2. **Region** — `AWS_REGION` must be the region where the `siutindei`
@@ -103,8 +107,10 @@ There is nothing to build until M03. **Deploy Admin Web** skips the
 build while `apps/admin_web/package.json` is absent.
 
 When the app exists, the workflow runs on `main` when `apps/admin_web/**`,
-`scripts/deploy/deploy-admin-www.sh` or `contracts/roadmap.json` change,
-after a successful **Deploy Backend** on `main`, or manually. It builds
+`scripts/deploy/deploy-admin-www.sh`, `contracts/roadmap.json`, or this
+workflow file change, after a successful **Deploy Backend** on `main`,
+or manually. Re-running a failed attempt uses the workflow from that
+attempt. It builds
 `apps/admin_web` with:
 
 - `VITE_COGNITO_REDIRECT_URI` = `https://admin.<domain>/auth/callback`

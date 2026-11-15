@@ -57,19 +57,22 @@ unset one reads as empty, which is what "optional" means below.
 
 The repository is public, and Actions prints every variable value in
 the job log. A value that identifies a person or the account is a
-secret, so the log shows `***` instead. Copy the current variable into
-the secret of the same name, then delete the variable. Do not paste
-the value in chat. Leave the variables in place until the workflow
-that reads the secrets is on `main`. The previous workflow still reads
-the variables, and an empty allow-list on a deploy would remove access.
+secret, so the log shows `***` instead. The deploy reads the secret,
+and the variable of the same name when the secret is empty. Copy the
+variable into the secret, then delete the variable. Do not paste the
+value in chat. While the variable is still set, the deploy runs and
+the log shows the value. An empty allow-list, with neither a secret
+nor a variable, fails the deploy and does not remove access.
 
 **Repository variables** (Settings, Secrets and variables, Actions,
 Variables). `cdk-diff` on a pull request from this repository can read
 these and the repository secret below. Until `AWS_ACCOUNT_ID` and
 `AWS_REGION` are both set, that check passes with a warning and does
-not compare the account. A Dependabot pull request receives Dependabot
-secrets, not Actions secrets. Add the same account id under Settings,
-Secrets and variables, Dependabot, or that diff check skips.
+not compare the account. The account id may be the secret or the
+variable of the same name. A Dependabot pull request receives
+Dependabot secrets, not Actions secrets, and it can read the variable.
+Add the same account id under Settings, Secrets and variables,
+Dependabot, before deleting the variable.
 
 | Variable | Value |
 | --- | --- |
@@ -116,8 +119,8 @@ Needed later, or optional:
 | --- | --- | --- |
 | `ADMIN_GOOGLE_CLIENT_SECRET` | From O07 | First deploy |
 | `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | 14 or more characters, upper and lower case, digit, symbol. Used once | First deploy |
-| `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | The Google account emails allowed to sign in, lower case, comma-separated. Deploy fails when this is empty | First deploy |
-| `ADMIN_BOOTSTRAP_EMAIL` | Email of the password-and-TOTP fallback user. Deploy fails when this is empty | First deploy |
+| `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | The Google account emails allowed to sign in, lower case, comma-separated. The variable is used until this secret exists | First deploy |
+| `ADMIN_BOOTSTRAP_EMAIL` | Email of the password-and-TOTP fallback user. The variable is used until this secret exists | First deploy |
 | `SEC_CONTACT_EMAIL` | Contact address sent to the SEC in the `User-Agent` | M04 |
 | `BRIEF_RECIPIENT_EMAIL` | Where the daily email goes | M10 |
 | `PUBLIC_API_KEY_GPG_PASSPHRASE` | A long random passphrase. Encrypts a newly minted API key in the public run summary | M03A |
