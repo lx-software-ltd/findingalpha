@@ -9,7 +9,7 @@ from config import records_table_name
 
 
 def _table() -> Any:
-    return runtime._ddb.Table(records_table_name())
+    return runtime.ddb().Table(records_table_name())
 
 
 def get(pk: str, sk: str) -> dict[str, Any] | None:

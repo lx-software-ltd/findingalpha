@@ -211,13 +211,9 @@ describe("findingalpha stack", () => {
 
   test("API Gateway has one invoke permission on AdminApiFn", () => {
     const permissions = Object.values(resources("AWS::Lambda::Permission"));
-    const apiGateway = permissions.filter((permission) => {
-      const principal = permission.Properties.Principal;
-      if (typeof principal === "string") {
-        return principal === "apigateway.amazonaws.com";
-      }
-      return (principal as { Service?: string }).Service === "apigateway.amazonaws.com";
-    });
+    const apiGateway = permissions.filter(
+      (permission) => permission.Properties.Principal === "apigateway.amazonaws.com",
+    );
     expect(apiGateway).toHaveLength(1);
     expect(JSON.stringify(apiGateway[0].Properties.FunctionName)).toContain("AdminApiFn");
   });

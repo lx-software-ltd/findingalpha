@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import os
+from typing import Any
 
 import boto3
 
@@ -12,8 +12,16 @@ ADMIN_GROUP = "admin"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Lambda always sets AWS_REGION. Tests and CI do not, and a recent botocore
-# refuses to build a client until a region exists. Do not override a real one.
-os.environ.setdefault("AWS_DEFAULT_REGION", "ap-southeast-1")
+_ddb: Any = None
 
-_ddb = boto3.resource("dynamodb")
+
+def ddb() -> Any:
+    """Return the DynamoDB resource, creating it on first use.
+
+    Importing this module must not need an AWS region. Lambda sets
+    ``AWS_REGION`` before any call. Tests stub the table instead.
+    """
+    global _ddb
+    if _ddb is None:
+        _ddb = boto3.resource("dynamodb")
+    return _ddb

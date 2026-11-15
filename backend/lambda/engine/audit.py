@@ -16,7 +16,7 @@ def write(actor: str | None, action: str, target: str, event: dict[str, Any]) ->
     if not actor:
         return
     try:
-        table = runtime._ddb.Table(audit_table_name())
+        table = runtime.ddb().Table(audit_table_name())
         stamp = int(time.time() * 1000)
         table.put_item(
             Item={
