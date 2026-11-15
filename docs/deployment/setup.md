@@ -92,8 +92,10 @@ public, and Actions prints variable values in the log. Until that
 secret and `AWS_REGION` are both set, the `diff` check passes with a
 warning and does not compare the account. Once they are, it writes the
 diff to the job summary and fails on a real error. It is not a required
-check, so it does not block a merge. A Dependabot pull request cannot
-read the secret, so its diff check skips the same way.
+check, so it does not block a merge. A Dependabot pull request receives
+Dependabot secrets, not Actions secrets. Add `AWS_ACCOUNT_ID` under
+Settings, Secrets and variables, Dependabot, with the same value, or
+that pull request's diff check skips.
 
 Environment `production` variables:
 
@@ -114,6 +116,7 @@ Secrets:
 | Secret | Where | Purpose |
 | --- | --- | --- |
 | `AWS_ACCOUNT_ID` | Repository | Target account. The deploy fails when this is empty. |
+| `AWS_ACCOUNT_ID` | Dependabot | The same value, so `cdk-diff` still runs on a Dependabot pull request. |
 | `ADMIN_GOOGLE_CLIENT_SECRET` | Environment `production` | Google OAuth client secret (`noEcho`). |
 | `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | Environment `production` | Bootstrap password, 14 or more characters (`noEcho`). |
 | `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | Environment `production` | Comma-separated lower-case emails that may sign in. The deploy fails when this is empty. |

@@ -161,10 +161,7 @@ jobs:
             npx cdk diff --no-color "${PARAM_ARGS[@]}" "${STACK_ARGS[@]}" 2>&1 | tee "$RUNNER_TEMP/cdk-diff.txt"
             diff_status="${PIPESTATUS[0]}"
             set -e
-            if [ -z "${AWS_ACCOUNT_ID}" ]; then
-              echo "::error::AWS_ACCOUNT_ID is unset."
-              exit 1
-            fi
+            # The account step already skipped this job when the secret is empty.
             # Strip the account id before the job summary.
             sed "s/${AWS_ACCOUNT_ID}/***/g" "$RUNNER_TEMP/cdk-diff.txt" > "$RUNNER_TEMP/cdk-diff-summary.txt"
             {

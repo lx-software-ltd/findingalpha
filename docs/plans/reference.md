@@ -108,13 +108,15 @@ Repository variables (read by `cdk-diff` on pull requests as well):
 (`backend/infrastructure/params/production.json`). The account id is
 the repository secret `AWS_ACCOUNT_ID`. Until that secret and
 `AWS_REGION` are set, `cdk-diff` passes with a warning and does not
-compare the account. Dependabot pull requests cannot read the secret,
-so their diff check skips the same way.
+compare the account. A Dependabot pull request receives Dependabot
+secrets, not Actions secrets, so `AWS_ACCOUNT_ID` also goes in that
+store or the diff check skips.
 
 Environment `production`: every "GitHub var" above as a variable. Every
 "GitHub secret" above, plus `PUBLIC_API_KEY_GPG_PASSPHRASE` (M03A), as
-secrets. `AWS_ACCOUNT_ID` is a repository secret, not an environment
-secret, so `cdk-diff` on a pull request can read it.
+secrets. `AWS_ACCOUNT_ID` is a repository secret, and the same value is
+a Dependabot secret. It is not an environment secret, so `cdk-diff` on
+a pull request from this repository can read it.
 
 The list with values and timing is in
 [`owner-checklist.md`](owner-checklist.md), under O04.

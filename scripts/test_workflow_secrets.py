@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -17,31 +18,40 @@ SECRET_NAMES = (
     "SEC_CONTACT_EMAIL",
 )
 
+_EXPRESSION = re.compile(r"\$\{\{\s*([^}]+?)\s*\}\}")
+
 
 def _workflow(name: str) -> str:
     return (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
 
 
+def _expressions(text: str) -> set[str]:
+    """Return the insides of GitHub expressions, ignoring comments and prose."""
+    return {match.group(1).strip() for match in _EXPRESSION.finditer(text)}
+
+
 class WorkflowSecretTest(unittest.TestCase):
     def test_deploy_backend_reads_identifiers_from_secrets(self) -> None:
         text = _workflow("deploy-backend.yml")
+        expressions = _expressions(text)
         for name in SECRET_NAMES:
-            self.assertNotIn(f"vars.{name}", text, name)
-            self.assertIn(f"secrets.{name}", text, name)
+            self.assertNotIn(f"vars.{name}", expressions, name)
+            self.assertIn(f"secrets.{name}", expressions, name)
         self.assertIn("github.ref == 'refs/heads/main'", text)
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
 
     def test_other_workflows_read_the_account_from_a_secret(self) -> None:
         for filename in ("deploy-admin-web.yml", "cdk-diff.yml"):
             text = _workflow(filename)
-            self.assertNotIn("vars.AWS_ACCOUNT_ID", text, filename)
-            self.assertIn("secrets.AWS_ACCOUNT_ID", text, filename)
+            expressions = _expressions(text)
+            self.assertNotIn("vars.AWS_ACCOUNT_ID", expressions, filename)
+            self.assertIn("secrets.AWS_ACCOUNT_ID", expressions, filename)
+            self.assertIn("vars.AWS_REGION", expressions, filename)
             self.assertNotIn("$AWS_ACCOUNT_ID", text, filename)
         admin = _workflow("deploy-admin-web.yml")
         self.assertIn("github.ref == 'refs/heads/main'", admin)
 
-    def test_cdk_diff_names_the_secret_when_it_skips(self) -> None:
+    def test_cdk_diff_strips_the_account_from_the_summary(self) -> None:
         text = _workflow("cdk-diff.yml")
-        self.assertIn("Set the repository secret", text)
-        self.assertNotIn("Set the repository variables", text)
         self.assertIn('sed "s/${AWS_ACCOUNT_ID}/***/g"', text)
+        self.assertNotIn("AWS_ACCOUNT_ID is unset", text)

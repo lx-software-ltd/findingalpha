@@ -17,7 +17,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O05 | Confirm AWS access for GitHub Actions (details below) | First deploy (M02) |
 | O06 | Request an ACM certificate for `admin.<domain>` in `us-east-1` with DNS validation. Give the validation record to the developer, who adds it in Cloudflare (see DNS below). Wait for ISSUED | First deploy (M02) |
 | O07 | Create a Google OAuth client (type Web application). Authorised redirect URI: `https://<cognito-domain>/oauth2/idpresponse` | First sign-in (M02) |
-| O08 | After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare. **Done** 15 Nov 2026: `admin` CNAME, DNS only, to `dxpr2ml81qmn3.cloudfront.net` | Dashboard reachable (M03) |
+| O08 | After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare | Dashboard reachable (M03) |
 | O09 | Sign in once with the bootstrap user, set a new password, enrol TOTP | Dashboard use (M03) |
 | O10 | Open a free Alpaca paper account. Set the paper balance to the planned capital in US dollars. Store the paper API key in the secret `findingalpha/alpaca-paper` | M04 |
 | O11 | Review the provisional formulas listed in M05 and say which to keep | M05 merge |
@@ -67,8 +67,9 @@ the variables, and an empty allow-list on a deploy would remove access.
 Variables). `cdk-diff` on a pull request from this repository can read
 these and the repository secret below. Until `AWS_ACCOUNT_ID` and
 `AWS_REGION` are both set, that check passes with a warning and does
-not compare the account. A Dependabot pull request cannot read the
-secret, so its diff check skips the same way:
+not compare the account. A Dependabot pull request receives Dependabot
+secrets, not Actions secrets. Add the same account id under Settings,
+Secrets and variables, Dependabot, or that diff check skips.
 
 | Variable | Value |
 | --- | --- |
@@ -81,6 +82,14 @@ secret, so its diff check skips the same way:
 | Secret | Value |
 | --- | --- |
 | `AWS_ACCOUNT_ID` | The 12-digit account id used by `lx-software` |
+
+**Dependabot secret** (Settings, Secrets and variables, Dependabot).
+The same value as the repository secret. A Dependabot pull request
+takes its secrets from this store:
+
+| Secret | Value |
+| --- | --- |
+| `AWS_ACCOUNT_ID` | The same account id |
 
 **Environment `production`, variables.** Needed for the first deploy:
 
@@ -135,11 +144,16 @@ through the Cloudflare API with a token from their environment. Rules:
 | Record | Type | Points at | When |
 | --- | --- | --- | --- |
 | ACM validation name for `admin.<domain>` | CNAME | The validation value ACM shows | Before the first deploy (O06) |
-| `admin` | CNAME | `dxpr2ml81qmn3.cloudfront.net` (the `AdminWebDistributionDomain` output). DNS only. Added 15 Nov 2026 | After the first deploy (O08). **Done** |
+| `admin` | CNAME | The `AdminWebDistributionDomain` output of the `findingalpha-admin-web` stack | After the first deploy (O08) |
 | ACM validation name for `api.<domain>` | CNAME | The validation value ACM shows | M03A (O20) |
 | `api` | CNAME | The `ApiCustomDomainTarget` output of the `findingalpha` stack | M03A, after the deploy that creates the domain |
 | Three SES DKIM names | CNAME | The three SES values | M10 (O16) |
 | `_dmarc` | TXT | A DMARC policy for the sending domain | M10 |
+
+The `admin` record was added on 15 Nov 2026, DNS only. Its target is
+the output named above. The hostname is not stored here, because a
+replaced distribution would make a stored name wrong. Tick O08 on the
+dashboard; this file does not change that tick.
 
 The ACM and SES values are not secret. The owner can paste them in
 chat.
