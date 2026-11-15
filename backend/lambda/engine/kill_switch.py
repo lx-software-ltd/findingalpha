@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from botocore.exceptions import BotoCoreError, ClientError
 from config import env_flag
 from http_common import _log_event
+from storage_errors import STORAGE_ERRORS
 
 SETTINGS_PK = "SETTINGS#global"
 SETTINGS_SK = "META"
@@ -47,5 +47,5 @@ def _read_settings() -> dict[str, Any] | None:
         import store
 
         return store.get(SETTINGS_PK, SETTINGS_SK)
-    except (ClientError, BotoCoreError):
+    except STORAGE_ERRORS:
         return None

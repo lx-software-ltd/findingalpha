@@ -7,8 +7,8 @@ from datetime import timedelta
 from typing import Any, Iterator
 
 import timeutil
-from botocore.exceptions import BotoCoreError, ClientError
 from http_common import _log_event
+from storage_errors import STORAGE_ERRORS, error_code
 
 RUN_TTL = timedelta(days=400)
 
@@ -55,8 +55,8 @@ def record(job: str) -> Iterator[JobRun]:
     run = JobRun(job, start)
     try:
         _write(run)
-    except (ClientError, BotoCoreError) as exc:
-        _log_event("warning", tag="job_run_write_failed", job=job, error=_error_code(exc))
+    except STORAGE_ERRORS as exc:
+        _log_event("warning", tag="job_run_write_failed", job=job, error=error_code(exc))
     try:
         yield run
     except Exception as exc:
@@ -74,14 +74,5 @@ def record(job: str) -> Iterator[JobRun]:
 def _safe_write(run: JobRun) -> None:
     try:
         _write(run)
-    except (ClientError, BotoCoreError) as exc:
-        _log_event("warning", tag="job_run_write_failed", job=run.job, error=_error_code(exc))
-
-
-def _error_code(exc: BaseException) -> str:
-    response = getattr(exc, "response", None)
-    if isinstance(response, dict):
-        code = response.get("Error", {}).get("Code")
-        if code:
-            return str(code)
-    return type(exc).__name__
+    except STORAGE_ERRORS as exc:
+        _log_event("warning", tag="job_run_write_failed", job=run.job, error=error_code(exc))

@@ -7,11 +7,15 @@ import unittest
 from unittest.mock import patch
 
 import kill_switch
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError, ClientError, NoRegionError
+from config import MissingSetting
 
 
 class KillSwitchTest(unittest.TestCase):
-    def tearDown(self) -> None:
+    def setUp(self) -> None:
+        patcher = patch.dict(os.environ, {})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         os.environ.pop("INGEST_ENABLED", None)
 
     def test_missing_environment_is_false(self) -> None:
@@ -31,10 +35,18 @@ class KillSwitchTest(unittest.TestCase):
         errors = (
             ClientError({"Error": {"Code": "InternalServerError"}}, "GetItem"),
             BotoCoreError(),
+            NoRegionError(),
+            MissingSetting("RECORDS_TABLE_NAME"),
         )
         for error in errors:
-            with patch("store.get", side_effect=error):
-                self.assertFalse(kill_switch.is_enabled("ingestEnabled"))
+            with self.subTest(error=type(error).__name__):
+                with patch("store.get", side_effect=error):
+                    self.assertFalse(kill_switch.is_enabled("ingestEnabled"))
+
+    def test_a_missing_table_variable_is_false(self) -> None:
+        os.environ["INGEST_ENABLED"] = "true"
+        os.environ.pop("RECORDS_TABLE_NAME", None)
+        self.assertFalse(kill_switch.is_enabled("ingestEnabled"))
 
     def test_both_true_is_enabled(self) -> None:
         os.environ["INGEST_ENABLED"] = "true"

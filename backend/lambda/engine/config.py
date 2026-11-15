@@ -12,12 +12,23 @@ _TRUTHY = frozenset({"1", "true", "yes", "on"})
 _FALSEY = frozenset({"0", "false", "no", "off"})
 
 
+class MissingSetting(KeyError):
+    """A required environment variable is unset."""
+
+
+def _required(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise MissingSetting(name)
+    return value
+
+
 def records_table_name() -> str:
-    return os.environ["RECORDS_TABLE_NAME"]
+    return _required("RECORDS_TABLE_NAME")
 
 
 def audit_table_name() -> str:
-    return os.environ["AUDIT_LOG_TABLE_NAME"]
+    return _required("AUDIT_LOG_TABLE_NAME")
 
 
 def flag_value(raw: object, default: bool = False) -> bool:
