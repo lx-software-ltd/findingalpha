@@ -30,13 +30,19 @@ def _expressions(text: str) -> set[str]:
     return {match.group(1).strip() for match in _EXPRESSION.finditer(text)}
 
 
+def _accepts_secret_or_variable(expressions: set[str], name: str) -> bool:
+    """A secret wins. The variable is only the fallback, never the only source."""
+    allowed = {f"secrets.{name}", f"secrets.{name} || vars.{name}"}
+    hits = [expr for expr in expressions if f"secrets.{name}" in expr or f"vars.{name}" in expr]
+    return bool(hits) and all(expr in allowed for expr in hits)
+
+
 class WorkflowSecretTest(unittest.TestCase):
     def test_deploy_backend_reads_identifiers_from_secrets(self) -> None:
         text = _workflow("deploy-backend.yml")
         expressions = _expressions(text)
         for name in SECRET_NAMES:
-            self.assertNotIn(f"vars.{name}", expressions, name)
-            self.assertIn(f"secrets.{name}", expressions, name)
+            self.assertTrue(_accepts_secret_or_variable(expressions, name), name)
         self.assertIn("github.ref == 'refs/heads/main'", text)
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
 
@@ -44,8 +50,7 @@ class WorkflowSecretTest(unittest.TestCase):
         for filename in ("deploy-admin-web.yml", "cdk-diff.yml"):
             text = _workflow(filename)
             expressions = _expressions(text)
-            self.assertNotIn("vars.AWS_ACCOUNT_ID", expressions, filename)
-            self.assertIn("secrets.AWS_ACCOUNT_ID", expressions, filename)
+            self.assertTrue(_accepts_secret_or_variable(expressions, "AWS_ACCOUNT_ID"), filename)
             self.assertIn("vars.AWS_REGION", expressions, filename)
             self.assertNotIn("$AWS_ACCOUNT_ID", text, filename)
         admin = _workflow("deploy-admin-web.yml")

@@ -10,7 +10,9 @@ deploy workflows are red. `cdk-diff.yml` is updated with them.
 ## Goal
 
 - The account id and the owner emails are GitHub secrets, so a public
-  Actions log shows `***` instead of the value.
+  Actions log shows `***` instead of the value. When the secret is
+  empty, the workflow uses the variable of the same name, the deploy
+  still runs, and the log shows that value.
 - `cdk-diff` still compares the account on a Dependabot pull request.
   That run receives Dependabot secrets, not Actions secrets, so
   `AWS_ACCOUNT_ID` is set in both stores.
@@ -23,8 +25,9 @@ deploy workflows are red. `cdk-diff.yml` is updated with them.
 ## Non-goals
 
 - No stack or Lambda change.
-- No change to which settings are required. An empty allow-list or
-  bootstrap email still fails the deploy.
+- No change to which settings are required. An allow-list or bootstrap
+  email that is empty as both a secret and a variable still fails the
+  deploy.
 - Branch protection, the `production` environment's branch limit, and
   deleting runs that already printed the values stay owner tasks.
 - The Google client id stays a variable. Sign-in shows it in the
