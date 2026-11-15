@@ -106,8 +106,10 @@ There is nothing to build until M03. **Deploy Admin Web** skips the
 build while `apps/admin_web/package.json` is absent.
 
 When the app exists, the workflow runs on `main` when `apps/admin_web/**`,
-`scripts/deploy/deploy-admin-www.sh` or `contracts/roadmap.json` change,
-after a successful **Deploy Backend** on `main`, or manually. It builds
+`scripts/deploy/deploy-admin-www.sh`, `contracts/roadmap.json`, or this
+workflow file change, after a successful **Deploy Backend** on `main`,
+or manually. Re-running a failed attempt uses the workflow from that
+attempt. It builds
 `apps/admin_web` with:
 
 - `VITE_COGNITO_REDIRECT_URI` = `https://admin.<domain>/auth/callback`

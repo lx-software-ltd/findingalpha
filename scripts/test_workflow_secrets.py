@@ -55,6 +55,7 @@ class WorkflowSecretTest(unittest.TestCase):
             self.assertNotIn("$AWS_ACCOUNT_ID", text, filename)
         admin = _workflow("deploy-admin-web.yml")
         self.assertIn("github.ref == 'refs/heads/main'", admin)
+        self.assertIn('".github/workflows/deploy-admin-web.yml"', admin)
 
     def test_cdk_diff_strips_the_account_from_the_summary(self) -> None:
         text = _workflow("cdk-diff.yml")
