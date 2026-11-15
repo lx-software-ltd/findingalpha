@@ -88,12 +88,14 @@ Repository variables, also read by **CDK Diff** on pull requests:
 `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`
 (`backend/infrastructure/params/production.json`). The account id is
 read from the secret `AWS_ACCOUNT_ID`, and from the variable of the
-same name when that secret is empty. A secret is masked in the log. A
-variable is printed, so replace it with the secret and then delete the
-variable. Until both the account id and `AWS_REGION` are unset, the
-`diff` check passes with a warning and does not compare the account.
-Once either source has the account id, it writes the diff to the job
-summary and fails on a real error. It is not a required check, so it
+same name when that secret is empty. A secret is masked in the log.
+While the variable is used, the first step's settings block shows the
+value and the job warns; later lines are masked. Set the secret and
+delete the variable. The `diff` check passes with a
+warning and does not compare the account until the account id, from
+either source, and `AWS_REGION` are both set. Once they are, it writes
+the diff to the job summary and fails on a real error. It is not a
+required check, so it
 does not block a merge. A Dependabot pull request receives Dependabot
 secrets, not Actions secrets. It can still read the variable. Add
 `AWS_ACCOUNT_ID` under Settings, Secrets and variables, Dependabot,
@@ -107,7 +109,7 @@ Environment `production` variables:
 | `CDK_BOOTSTRAP_QUALIFIER` | `siutindei`. |
 | `CDK_PARAM_FILE` | `backend/infrastructure/params/production.json`. |
 | `ADMIN_WEB_DOMAIN_NAME` | `admin.<domain>`. Required. The deploy fails when this is empty. |
-| `ADMIN_WEB_CERTIFICATE_ARN` | ACM certificate in us-east-1, status ISSUED. Required. The account id inside the ARN is masked in logs because `AWS_ACCOUNT_ID` is a secret. |
+| `ADMIN_WEB_CERTIFICATE_ARN` | ACM certificate in us-east-1, status ISSUED. Required. The account id inside this ARN shows in the first settings block while `AWS_ACCOUNT_ID` is a variable. Later lines are masked. |
 | `ADMIN_GOOGLE_CLIENT_ID` | Google OAuth client id. It also appears in the browser during sign-in. |
 | `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.<region>.amazoncognito.com`, or `https://auth.<domain>` when the custom Hosted UI domain is set. |
 | `ADMIN_WAF_WEB_ACL_ARN` | Optional. Empty leaves the web ACL off. |
@@ -117,7 +119,7 @@ Secrets:
 
 | Secret | Where | Purpose |
 | --- | --- | --- |
-| `AWS_ACCOUNT_ID` | Repository | Target account. Used when set. The variable of the same name is the fallback, and the log shows it. |
+| `AWS_ACCOUNT_ID` | Repository | Target account. Used when set. The variable of the same name is the fallback. The first settings block shows it and the job warns; later lines are masked. |
 | `AWS_ACCOUNT_ID` | Dependabot | The same value, so `cdk-diff` still runs on a Dependabot pull request. |
 | `ADMIN_GOOGLE_CLIENT_SECRET` | Environment `production` | Google OAuth client secret (`noEcho`). |
 | `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | Environment `production` | Bootstrap password, 14 or more characters (`noEcho`). |

@@ -29,7 +29,8 @@ that attempt. A fix to the workflow needs a new run.
    The workflow stops immediately when the domain or the certificate is
    empty, or when the account id, the allow-list, or the bootstrap
    email is empty as both a secret and a variable. A set secret is
-   used. The variable is the fallback, and the log shows it.
+   used. The variable is the fallback. The first settings block shows
+   it and the job warns; later lines are masked.
    **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
    `AdminApiBaseUrl` from the `findingalpha` stack.
 2. **Region** — `AWS_REGION` must be the region where the `siutindei`

@@ -11,8 +11,9 @@ deploy workflows are red. `cdk-diff.yml` is updated with them.
 
 - The account id and the owner emails are GitHub secrets, so a public
   Actions log shows `***` instead of the value. When the secret is
-  empty, the workflow uses the variable of the same name, the deploy
-  still runs, and the log shows that value.
+  empty, the workflow uses the variable of the same name and the
+  deploy still runs. The first step warns, its settings block shows
+  the value, and later lines are masked.
 - `cdk-diff` still compares the account on a Dependabot pull request.
   That run receives Dependabot secrets, not Actions secrets, so
   `AWS_ACCOUNT_ID` is set in both stores.

@@ -107,8 +107,9 @@ Repository variables (read by `cdk-diff` on pull requests as well):
 `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`
 (`backend/infrastructure/params/production.json`). The account id is
 the secret `AWS_ACCOUNT_ID`, or the variable of the same name when the
-secret is empty. Until both are unset, and `AWS_REGION` is unset,
-`cdk-diff` passes with a warning and does not compare the account. A
+secret is empty. `cdk-diff` passes with a warning and does not
+compare the account until that id, from either source, and
+`AWS_REGION` are both set. A
 Dependabot pull request receives Dependabot secrets, not Actions
 secrets. It can read the variable. Put `AWS_ACCOUNT_ID` in the
 Dependabot secret store before deleting the variable.
