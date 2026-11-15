@@ -27,12 +27,6 @@ export function defineParameters(scope: cdk.Stack) {
       "AdminFederatedEmailAllowlist",
       "Comma-separated emails allowed to sign in.",
     ),
-    adminBootstrapEmail: text(scope, "AdminBootstrapEmail", "Bootstrap user email."),
-    adminBootstrapTempPassword: secret(
-      scope,
-      "AdminBootstrapTempPassword",
-      "One-time bootstrap password, 14 or more characters.",
-    ),
     cognitoDomainPrefix: text(scope, "CognitoDomainPrefix", "Hosted UI prefix.", {
       default: cognitoDomainPrefix,
     }),

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Public workflows must not print the account id or owner emails."""
+"""Public workflows must not print owner emails.
+
+The account id is a repository variable. A secret of the same name
+still wins when it is set. Either way it is masked after the first
+settings block, and the job does not warn about it.
+"""
 
 from __future__ import annotations
 
@@ -9,11 +14,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Printed in a public Actions log when stored as variables.
+# Read as a secret, or as `secrets.NAME || vars.NAME`. Never the variable alone.
 SECRET_NAMES = (
     "AWS_ACCOUNT_ID",
     "ADMIN_FEDERATED_EMAIL_ALLOWLIST",
-    "ADMIN_BOOTSTRAP_EMAIL",
     "BRIEF_RECIPIENT_EMAIL",
     "SEC_CONTACT_EMAIL",
 )
@@ -31,7 +35,7 @@ def _expressions(text: str) -> set[str]:
 
 
 def _accepts_secret_or_variable(expressions: set[str], name: str) -> bool:
-    """A secret wins. The variable is only the fallback, never the only source."""
+    """A secret wins when set. The variable may be the value in use, but never the only expression."""
     allowed = {
         f"secrets.{name}",
         f"secrets.{name} || vars.{name}",
@@ -63,12 +67,19 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn("Require the account id", admin)
         self.assertNotIn("Require the account secret", admin)
 
-    def test_a_variable_fallback_warns_and_is_masked(self) -> None:
+    def test_account_id_is_masked_without_a_warning(self) -> None:
         for filename in ("deploy-backend.yml", "deploy-admin-web.yml", "cdk-diff.yml"):
             text = _workflow(filename)
             self.assertIn("::add-mask::", text, filename)
-            self.assertIn("is read from a variable, so this log shows it", text, filename)
-            self.assertIn("AWS_ACCOUNT_ID", text, filename)
+            self.assertNotIn("AWS_ACCOUNT_ID is read from a variable", text, filename)
+            self.assertNotIn("ACCOUNT_FROM_VARIABLE", text, filename)
+            self.assertNotIn("ADMIN_BOOTSTRAP_EMAIL", text, filename)
+        backend = _workflow("deploy-backend.yml")
+        self.assertIn("is read from a variable, so this log shows it", backend)
+        self.assertIn(
+            'warn_if_variable "${ALLOWLIST_FROM_VARIABLE}" "ADMIN_FEDERATED_EMAIL_ALLOWLIST"',
+            backend,
+        )
 
     def test_cdk_diff_strips_the_account_from_the_summary(self) -> None:
         text = _workflow("cdk-diff.yml")

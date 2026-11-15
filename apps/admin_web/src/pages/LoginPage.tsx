@@ -57,7 +57,7 @@ function consumeLoginDeniedFlash(): string | null {
 }
 
 export function LoginPage() {
-  const { loginWithGoogle, loginWithEmail } = useAuth();
+  const { loginWithGoogle } = useAuth();
   const [deniedMessage] = useState<string | null>(() =>
     consumeLoginDeniedFlash(),
   );
@@ -81,9 +81,6 @@ export function LoginPage() {
           >
             <span>Sign in with</span>
             <GoogleGLogo />
-          </button>
-          <button type="button" className="btn btn-outline-primary" onClick={() => void loginWithEmail()}>
-            Sign in with email
           </button>
         </div>
       </div>

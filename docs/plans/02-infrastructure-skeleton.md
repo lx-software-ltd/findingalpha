@@ -1,6 +1,6 @@
 # Plan: M02 infrastructure skeleton
 
-**Status**: Draft
+**Status**: Built. The password bootstrap user and TOTP enrolment described below were removed. Sign-in is Google only.
 **Zone**: red
 
 ## Goal

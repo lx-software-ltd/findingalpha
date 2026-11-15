@@ -133,10 +133,10 @@ describe("findingalpha stack", () => {
     }
   });
 
-  test("user pool requires MFA, refuses self sign-up, and sets both triggers", () => {
+  test("user pool does not require MFA, refuses self sign-up, and sets both triggers", () => {
     synthesized.hasResourceProperties("AWS::Cognito::UserPool", {
       UserPoolName: "findingalpha-admin-user-pool",
-      MfaConfiguration: "ON",
+      MfaConfiguration: "OFF",
       AdminCreateUserConfig: Match.objectLike({ AllowAdminCreateUserOnly: true }),
       LambdaConfig: Match.objectLike({
         PreSignUp: Match.anyValue(),
@@ -145,6 +145,7 @@ describe("findingalpha stack", () => {
     });
     const pool = Object.values(resources("AWS::Cognito::UserPool"))[0];
     expect(pool.DeletionPolicy).toBe("Retain");
+    expect(JSON.stringify(synthesized.toJSON())).not.toContain("adminCreateUser");
   });
 
   test("app client has no secret, uses the code grant, and builds the callback from the parameter", () => {
@@ -154,6 +155,11 @@ describe("findingalpha stack", () => {
     expect(client.GenerateSecret).toBeFalsy();
     expect(client.AllowedOAuthFlows).toEqual(["code"]);
     expect(client.ClientName).toBe("findingalpha-admin-spa-client");
+    expect(client.SupportedIdentityProviders).toHaveLength(1);
+    expect(JSON.stringify(client.SupportedIdentityProviders)).toContain("GoogleProvider");
+    expect(JSON.stringify(client.SupportedIdentityProviders)).not.toContain("COGNITO");
+    expect(JSON.stringify(client.ExplicitAuthFlows ?? [])).not.toContain("PASSWORD");
+    expect(JSON.stringify(client.ExplicitAuthFlows ?? [])).not.toContain("SRP");
     const callbacks = JSON.stringify(client.CallbackURLs);
     expect(callbacks).toContain("AdminWebDomainName");
     expect(callbacks).toContain("/auth/callback");
@@ -161,7 +167,8 @@ describe("findingalpha stack", () => {
 
   test("secret parameters are NoEcho and kill switches default off", () => {
     synthesized.hasParameter("GoogleClientSecret", { NoEcho: true });
-    synthesized.hasParameter("AdminBootstrapTempPassword", { NoEcho: true });
+    expect(synthesized.findParameters("AdminBootstrapEmail")).toEqual({});
+    expect(synthesized.findParameters("AdminBootstrapTempPassword")).toEqual({});
     for (const name of KILL_SWITCHES) {
       synthesized.hasParameter(name, {
         Type: "String",

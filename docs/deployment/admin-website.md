@@ -20,17 +20,15 @@ that attempt. A fix to the workflow needs a new run.
    `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`,
    `ADMIN_WEB_DOMAIN_NAME`, `ADMIN_WEB_CERTIFICATE_ARN`,
    `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_COGNITO_ORIGIN`, and optionally
-   `ADMIN_WAF_WEB_ACL_ARN`. Repository secret `AWS_ACCOUNT_ID`.
-   Environment secrets `ADMIN_GOOGLE_CLIENT_SECRET`,
-   `ADMIN_BOOTSTRAP_TEMP_PASSWORD` (14 or more characters, mixed
-   classes, or user creation fails), `ADMIN_FEDERATED_EMAIL_ALLOWLIST`
-   (comma-separated lower-case emails that receive `admin` — every
-   Google admin and the bootstrap email), and `ADMIN_BOOTSTRAP_EMAIL`.
-   The workflow stops immediately when the domain or the certificate is
-   empty, or when the account id, the allow-list, or the bootstrap
-   email is empty as both a secret and a variable. A set secret is
-   used. The variable is the fallback. The first settings block shows
-   it and the job warns; later lines are masked.
+   `ADMIN_WAF_WEB_ACL_ARN`. Repository variable `AWS_ACCOUNT_ID`.
+   Environment secrets `ADMIN_GOOGLE_CLIENT_SECRET` and
+   `ADMIN_FEDERATED_EMAIL_ALLOWLIST` (comma-separated lower-case emails
+   that receive `admin`). The workflow stops immediately when the
+   domain, the certificate, or the account id is empty, or when the
+   allow-list is empty as both a secret and a variable. A set secret is
+   used. The variable is the fallback. The account id is a variable on
+   purpose: the first settings block shows it and later lines are
+   masked, with no warning. An email read from a variable warns.
    **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
    `AdminApiBaseUrl` from the `findingalpha` stack.
 2. **Region** — `AWS_REGION` must be the region where the `siutindei`
@@ -137,8 +135,8 @@ Before the dashboard page exists (M03), check the API:
 When the page exists:
 
 1. Open `https://admin.<domain>`. The login screen appears.
-2. Sign in with Google (allow-listed email) or with the bootstrap email,
-   and complete Hosted UI and MFA.
+2. Sign in with Google using an allow-listed email. There is no
+   password sign-in and no authenticator-app enrolment.
 3. `GET /health` without auth returns 200. `GET /me` with
    `Authorization: Bearer <id_token>` returns 200.
 4. Sign out, reload, and land on the login screen again.
@@ -160,7 +158,7 @@ fields @timestamp, email, username, trigger_source, decision, matched_admin,
 ```
 
 `decision` is `grant_admin` (email on the allow-list), `keep_admin_group`
-(native bootstrap administrator), `deny_token`, `deny_sign_up`,
+(user already in the `admin` group), `deny_token`, `deny_sign_up`,
 `allow_sign_up` or `allow_admin_create_user`. A `matched_admin: true`
 line for an address you did not expect means that address is in
 `ADMIN_FEDERATED_EMAIL_ALLOWLIST`. Remove it from that production

@@ -6,69 +6,71 @@
       "title": "Agent harness and repository skeleton",
       "plan": "docs/plans/01-agent-harness.md",
       "zone": "red",
-      "status": "not_started",
+      "status": "done",
       "dependsOn": [],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/1"
+      ],
       "steps": [
         {
           "id": "M01-T01",
           "title": "Fix `.gitignore`",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T02",
           "title": "Zones",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T03",
           "title": "`AGENTS.md`, `.cursorrules`, `BUGBOT.md`, `SECURITY.md`",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T04",
           "title": "Rules",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T05",
           "title": "Skills",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T06",
           "title": "Check scripts",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T07",
           "title": "Hooks",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T08",
           "title": "Contracts skeleton",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T09",
           "title": "Python and pre-commit config",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T10",
           "title": "CI workflows",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T11",
           "title": "Cloud agent environment",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M01-T12",
           "title": "Research templates and README",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
@@ -77,96 +79,100 @@
       "title": "Infrastructure skeleton",
       "plan": "docs/plans/02-infrastructure-skeleton.md",
       "zone": "red",
-      "status": "not_started",
+      "status": "done",
       "dependsOn": [
         "M01"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/1",
+        "https://github.com/lx-software-ltd/findingalpha/pull/5",
+        "https://github.com/lx-software-ltd/findingalpha/pull/6"
+      ],
       "steps": [
         {
           "id": "M02-T01",
           "title": "CDK app scaffold",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T02",
           "title": "Shared constructs",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T03",
           "title": "Parameters",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T04",
           "title": "Encryption, tables, buckets",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T05",
           "title": "Sign-in gate Lambda",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T06",
           "title": "Auth construct",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T07",
           "title": "Engine Lambda skeleton",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T08",
           "title": "Secrets and functions",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T09",
           "title": "HTTP API",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T10",
           "title": "Schedules and alarms",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T11",
           "title": "Outputs",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T12",
           "title": "Stacks",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T13",
           "title": "Stack tests",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T14",
           "title": "Parameter file and helper",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T15",
           "title": "Workflows",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T16",
           "title": "Documents",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M02-T17",
           "title": "First deploy and smoke test",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
@@ -175,51 +181,53 @@
       "title": "Admin dashboard v1",
       "plan": "docs/plans/03-admin-dashboard.md",
       "zone": "yellow",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M02"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/1"
+      ],
       "steps": [
         {
           "id": "M03-T01",
           "title": "Scaffold the app",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T02",
           "title": "Auth and API client",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T03",
           "title": "Shell and navigation",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T04",
           "title": "Roadmap data",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T05",
           "title": "Engine routes for the dashboard",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T06",
           "title": "Roadmap page",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T07",
           "title": "System page",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T08",
           "title": "Mock mode and smoke test",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M03-T09",
@@ -900,6 +908,11 @@
       "blocks": [
         "M03A"
       ]
+    },
+    {
+      "id": "O21",
+      "title": "Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment",
+      "blocks": []
     }
   ]
 }

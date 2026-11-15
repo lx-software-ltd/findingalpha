@@ -33,16 +33,13 @@ jobs:
           if [ -n "${AWS_ACCOUNT_ID}" ]; then
             echo "::add-mask::${AWS_ACCOUNT_ID}"
           fi
-          if [ "${ACCOUNT_FROM_VARIABLE}" = "true" ]; then
-            echo "::warning::AWS_ACCOUNT_ID is read from a variable, so this log shows it. Set the secret and delete the variable."
-          fi
           if [ -z "${AWS_ACCOUNT_ID}" ] || [ -z "${AWS_REGION}" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::warning::AWS_ACCOUNT_ID or AWS_REGION is unset, so cdk diff did not run."
             {
               echo "### CDK diff did not run"
               echo ""
-              echo "Set the repository secret \`AWS_ACCOUNT_ID\` and the repository variable \`AWS_REGION\`."
+              echo "Set the repository variables \`AWS_ACCOUNT_ID\` and \`AWS_REGION\`."
               echo "A green result before both are set means the account was not compared."
             } >> "$GITHUB_STEP_SUMMARY"
           else
@@ -51,7 +48,6 @@ jobs:
         env:
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ vars.AWS_REGION }}
-          ACCOUNT_FROM_VARIABLE: ${{ secrets.AWS_ACCOUNT_ID == '' && vars.AWS_ACCOUNT_ID != '' }}
 
       - name: Set up Node.js
         if: steps.account.outputs.ready == 'true'
