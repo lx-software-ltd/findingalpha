@@ -68,16 +68,16 @@ come from the GitHub `production` environment, not from the file.
 | `AdminWebDomainName` | GitHub var `ADMIN_WEB_DOMAIN_NAME` | none | `admin.<domain>` |
 | `GoogleClientId` | GitHub var `ADMIN_GOOGLE_CLIENT_ID` | none | |
 | `GoogleClientSecret` | GitHub secret `ADMIN_GOOGLE_CLIENT_SECRET` | none | `noEcho` |
-| `AdminFederatedEmailAllowlist` | GitHub var `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | none | Comma-separated, lower case |
-| `AdminBootstrapEmail` | GitHub var `ADMIN_BOOTSTRAP_EMAIL` | none | |
+| `AdminFederatedEmailAllowlist` | GitHub secret `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | none | Comma-separated, lower case. Environment `production` |
+| `AdminBootstrapEmail` | GitHub secret `ADMIN_BOOTSTRAP_EMAIL` | none | Environment `production` |
 | `AdminBootstrapTempPassword` | GitHub secret `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | none | `noEcho`, 14+ characters |
 | `CognitoDomainPrefix` | params file | `findingalpha-admin-auth` | |
 | `CognitoCustomDomainName` | params file | empty | Optional `auth.<domain>` |
 | `CognitoCustomDomainCertificateArn` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | us-east-1 |
 | `MailSendingDomain` | GitHub var `MAIL_SENDING_DOMAIN` | empty | `<domain>`. Empty disables email |
 | `BriefFromLocalPart` | params file | `brief` | Sender is `brief@<domain>` |
-| `BriefRecipientEmail` | GitHub var `BRIEF_RECIPIENT_EMAIL` | empty | |
-| `SecContactEmail` | GitHub var `SEC_CONTACT_EMAIL` | empty | Goes in the SEC `User-Agent` |
+| `BriefRecipientEmail` | GitHub secret `BRIEF_RECIPIENT_EMAIL` | empty | Environment `production` |
+| `SecContactEmail` | GitHub secret `SEC_CONTACT_EMAIL` | empty | Goes in the SEC `User-Agent`. Environment `production` |
 | `IngestEnabled` | params file | `false` | Kill switch |
 | `CommitteeEnabled` | params file | `false` | Kill switch |
 | `TradingEnabled` | params file | `false` | Kill switch |
@@ -104,15 +104,17 @@ come from the GitHub `production` environment, not from the file.
 ### GitHub variables and secrets
 
 Repository variables (read by `cdk-diff` on pull requests as well):
-`AWS_ACCOUNT_ID`, `AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER`
-(`siutindei`), `CDK_PARAM_FILE`
-(`backend/infrastructure/params/production.json`). Until
-`AWS_ACCOUNT_ID` and `AWS_REGION` are set, `cdk-diff` passes with a
-warning and does not compare the account.
+`AWS_REGION`, `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`
+(`backend/infrastructure/params/production.json`). The account id is
+the repository secret `AWS_ACCOUNT_ID`. Until that secret and
+`AWS_REGION` are set, `cdk-diff` passes with a warning and does not
+compare the account. Dependabot pull requests cannot read the secret,
+so their diff check skips the same way.
 
-Environment `production`: every "GitHub var" above as a variable. The
-two "GitHub secret" rows and `PUBLIC_API_KEY_GPG_PASSPHRASE` (M03A) as
-secrets.
+Environment `production`: every "GitHub var" above as a variable. Every
+"GitHub secret" above, plus `PUBLIC_API_KEY_GPG_PASSPHRASE` (M03A), as
+secrets. `AWS_ACCOUNT_ID` is a repository secret, not an environment
+secret, so `cdk-diff` on a pull request can read it.
 
 The list with values and timing is in
 [`owner-checklist.md`](owner-checklist.md), under O04.

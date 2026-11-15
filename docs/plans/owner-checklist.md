@@ -4,9 +4,9 @@ Things only the owner can do. A developer or agent must not attempt
 them and must not ask for secret values in chat. Each item says what it
 blocks. The dashboard shows this list with tick boxes from M03.
 
-Values that identify a person or an account go into the GitHub
-`production` environment or AWS Secrets Manager. They never go into
-git, a pull request, or chat.
+Values that identify a person or an account go into GitHub Actions
+secrets (a repository secret or the `production` environment) or AWS
+Secrets Manager. They never go into git, a pull request, or chat.
 
 | Id | Task | Blocks |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ git, a pull request, or chat.
 | O05 | Confirm AWS access for GitHub Actions (details below) | First deploy (M02) |
 | O06 | Request an ACM certificate for `admin.<domain>` in `us-east-1` with DNS validation. Give the validation record to the developer, who adds it in Cloudflare (see DNS below). Wait for ISSUED | First deploy (M02) |
 | O07 | Create a Google OAuth client (type Web application). Authorised redirect URI: `https://<cognito-domain>/oauth2/idpresponse` | First sign-in (M02) |
-| O08 | After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare | Dashboard reachable (M03) |
+| O08 | After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare. **Done** 15 Nov 2026: `admin` CNAME, DNS only, to `dxpr2ml81qmn3.cloudfront.net` | Dashboard reachable (M03) |
 | O09 | Sign in once with the bootstrap user, set a new password, enrol TOTP | Dashboard use (M03) |
 | O10 | Open a free Alpaca paper account. Set the paper balance to the planned capital in US dollars. Store the paper API key in the secret `findingalpha/alpaca-paper` | M04 |
 | O11 | Review the provisional formulas listed in M05 and say which to keep | M05 merge |
@@ -52,21 +52,35 @@ separated by single spaces.
 ### O04 GitHub variables and secrets
 
 Nothing here is written in git. Values with `<...>` are the owner's.
-Do not create a variable whose value would be empty. An unset variable
-reads as empty, which is what "optional" means below.
+Do not create a variable or a secret whose value would be empty. An
+unset one reads as empty, which is what "optional" means below.
+
+The repository is public, and Actions prints every variable value in
+the job log. A value that identifies a person or the account is a
+secret, so the log shows `***` instead. Copy the current variable into
+the secret of the same name, then delete the variable. Do not paste
+the value in chat. Leave the variables in place until the workflow
+that reads the secrets is on `main`. The previous workflow still reads
+the variables, and an empty allow-list on a deploy would remove access.
 
 **Repository variables** (Settings, Secrets and variables, Actions,
-Variables). They are at repository level so that the `cdk-diff` check
-on pull requests can read them. Until `AWS_ACCOUNT_ID` and
+Variables). `cdk-diff` on a pull request from this repository can read
+these and the repository secret below. Until `AWS_ACCOUNT_ID` and
 `AWS_REGION` are both set, that check passes with a warning and does
-not compare the account:
+not compare the account. A Dependabot pull request cannot read the
+secret, so its diff check skips the same way:
 
 | Variable | Value |
 | --- | --- |
-| `AWS_ACCOUNT_ID` | The 12-digit account id used by `lx-software` |
 | `AWS_REGION` | `ap-southeast-1` |
 | `CDK_BOOTSTRAP_QUALIFIER` | `siutindei` |
 | `CDK_PARAM_FILE` | `backend/infrastructure/params/production.json` |
+
+**Repository secret** (same settings page, Secrets):
+
+| Secret | Value |
+| --- | --- |
+| `AWS_ACCOUNT_ID` | The 12-digit account id used by `lx-software` |
 
 **Environment `production`, variables.** Needed for the first deploy:
 
@@ -76,16 +90,12 @@ not compare the account:
 | `ADMIN_WEB_CERTIFICATE_ARN` | ARN of the issued certificate from O06 |
 | `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.ap-southeast-1.amazoncognito.com` |
 | `ADMIN_GOOGLE_CLIENT_ID` | From O07 |
-| `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | The Google account emails allowed to sign in, lower case, comma-separated |
-| `ADMIN_BOOTSTRAP_EMAIL` | Email of the password-and-TOTP fallback user |
 
 Needed later, or optional:
 
 | Variable | Value | When |
 | --- | --- | --- |
-| `SEC_CONTACT_EMAIL` | Contact address sent to the SEC in the `User-Agent` | M04 |
 | `MAIL_SENDING_DOMAIN` | `<domain>` | M10 |
-| `BRIEF_RECIPIENT_EMAIL` | Where the daily email goes | M10 |
 | `API_CUSTOM_DOMAIN_NAME` | `api.<domain>` | M03A |
 | `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | ARN of the issued certificate from O20, in `ap-southeast-1` | M03A |
 | `ADMIN_WAF_WEB_ACL_ARN` | ARN of an existing global web ACL | Optional |
@@ -97,9 +107,14 @@ Needed later, or optional:
 | --- | --- | --- |
 | `ADMIN_GOOGLE_CLIENT_SECRET` | From O07 | First deploy |
 | `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | 14 or more characters, upper and lower case, digit, symbol. Used once | First deploy |
+| `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | The Google account emails allowed to sign in, lower case, comma-separated. Deploy fails when this is empty | First deploy |
+| `ADMIN_BOOTSTRAP_EMAIL` | Email of the password-and-TOTP fallback user. Deploy fails when this is empty | First deploy |
+| `SEC_CONTACT_EMAIL` | Contact address sent to the SEC in the `User-Agent` | M04 |
+| `BRIEF_RECIPIENT_EMAIL` | Where the daily email goes | M10 |
 | `PUBLIC_API_KEY_GPG_PASSPHRASE` | A long random passphrase. Encrypts a newly minted API key in the public run summary | M03A |
 
-Environment settings: limit deployment branches to `main`.
+Environment settings: limit deployment branches to `main`. The deploy
+workflows also refuse any ref other than `main`.
 
 **Not on GitHub:** AWS access keys (the workflows use OIDC and
 `GitHubActionsRole`), the Alpaca keys and the OpenRouter key (Secrets
@@ -120,7 +135,7 @@ through the Cloudflare API with a token from their environment. Rules:
 | Record | Type | Points at | When |
 | --- | --- | --- | --- |
 | ACM validation name for `admin.<domain>` | CNAME | The validation value ACM shows | Before the first deploy (O06) |
-| `admin` | CNAME | The CloudFront domain from the `findingalpha-admin-web` output | After the first deploy (O08) |
+| `admin` | CNAME | `dxpr2ml81qmn3.cloudfront.net` (the `AdminWebDistributionDomain` output). DNS only. Added 15 Nov 2026 | After the first deploy (O08). **Done** |
 | ACM validation name for `api.<domain>` | CNAME | The validation value ACM shows | M03A (O20) |
 | `api` | CNAME | The `ApiCustomDomainTarget` output of the `findingalpha` stack | M03A, after the deploy that creates the domain |
 | Three SES DKIM names | CNAME | The three SES values | M10 (O16) |

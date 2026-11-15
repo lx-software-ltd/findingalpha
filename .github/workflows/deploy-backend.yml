@@ -20,16 +20,30 @@ concurrency:
 
 jobs:
   deploy:
+    # The production environment should also limit branches to main.
+    # This job refuses every other ref even if that setting is open.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     environment: production
     steps:
-      - name: Require admin domain and certificate
+      - name: Require deploy settings
         env:
           P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
           P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
+          P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
+          P_BOOTSTRAP_EMAIL: ${{ secrets.ADMIN_BOOTSTRAP_EMAIL }}
         run: |
           if [ -z "${P_ADMIN_DOMAIN}" ] || [ -z "${P_CERT_ARN}" ]; then
             echo "::error::Set ADMIN_WEB_DOMAIN_NAME and ADMIN_WEB_CERTIFICATE_ARN on the production environment before deploying."
+            exit 1
+          fi
+          if [ -z "${P_ACCOUNT_ID}" ]; then
+            echo "::error::Set the repository secret AWS_ACCOUNT_ID before deploying."
+            exit 1
+          fi
+          if [ -z "${P_EMAIL_ALLOWLIST}" ] || [ -z "${P_BOOTSTRAP_EMAIL}" ]; then
+            echo "::error::Set the production secrets ADMIN_FEDERATED_EMAIL_ALLOWLIST and ADMIN_BOOTSTRAP_EMAIL before deploying."
             exit 1
           fi
 
@@ -46,7 +60,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
           aws-region: ${{ vars.AWS_REGION }}
           role-session-name: GitHubActions-${{ github.run_id }}
 
@@ -73,14 +87,14 @@ jobs:
         run: |
           QUALIFIER="${CDK_BOOTSTRAP_QUALIFIER:-hnb659fds}"
           SSM_PARAM="/cdk-bootstrap/${QUALIFIER}/version"
-          echo "Checking for CDK Bootstrap in account $AWS_ACCOUNT_ID region $AWS_REGION (qualifier=$QUALIFIER)..."
+          echo "Checking for CDK Bootstrap in the configured account, region $AWS_REGION (qualifier=$QUALIFIER)..."
           if ! aws ssm get-parameter --name "$SSM_PARAM" --query "Parameter.Value" --output text 2>/dev/null; then
             echo ""
             echo "::error::CDK Bootstrap not found or not accessible."
             echo "::error::The SSM parameter '$SSM_PARAM' could not be read."
             echo ""
             echo "Possible causes:"
-            echo "  1. CDK Bootstrap missing: run 'npx cdk bootstrap aws://$AWS_ACCOUNT_ID/$AWS_REGION'"
+            echo "  1. CDK Bootstrap missing in this account and region for qualifier $QUALIFIER"
             echo "  2. Permission denied: GitHubActionsRole needs ssm:GetParameter on /cdk-bootstrap/*"
             echo "  3. Wrong region: Verify AWS_REGION matches the bootstrapped region"
             echo ""
@@ -88,14 +102,13 @@ jobs:
             echo "to match this repo's bin/app.ts / CDK CLI."
             echo ""
             echo "If CDK Bootstrap exists but this job still fails:"
-            echo "  - GitHubActionsRole needs sts:AssumeRole on arn:aws:iam::$AWS_ACCOUNT_ID:role/cdk-${QUALIFIER}-*-role-*"
+            echo "  - GitHubActionsRole needs sts:AssumeRole on the cdk-${QUALIFIER} roles in this account"
             echo "  - CDK deploy/file-publish roles must trust GitHubActionsRole (or your org's deploy principal)"
             echo ""
             exit 1
           fi
           echo "CDK Bootstrap found (version: $(aws ssm get-parameter --name "$SSM_PARAM" --query "Parameter.Value" --output text)). Proceeding with deployment..."
         env:
-          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
 
@@ -107,17 +120,37 @@ jobs:
           P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
           P_GOOGLE_CLIENT_ID: ${{ vars.ADMIN_GOOGLE_CLIENT_ID }}
           P_GOOGLE_CLIENT_SECRET: ${{ secrets.ADMIN_GOOGLE_CLIENT_SECRET }}
-          P_EMAIL_ALLOWLIST: ${{ vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
-          P_BOOTSTRAP_EMAIL: ${{ vars.ADMIN_BOOTSTRAP_EMAIL }}
+          # Secrets: this repository is public, and Actions prints variable values.
+          P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
+          P_BOOTSTRAP_EMAIL: ${{ secrets.ADMIN_BOOTSTRAP_EMAIL }}
           P_BOOTSTRAP_PASSWORD: ${{ secrets.ADMIN_BOOTSTRAP_TEMP_PASSWORD }}
           P_MAIL_DOMAIN: ${{ vars.MAIL_SENDING_DOMAIN }}
-          P_BRIEF_RECIPIENT: ${{ vars.BRIEF_RECIPIENT_EMAIL }}
-          P_SEC_CONTACT: ${{ vars.SEC_CONTACT_EMAIL }}
+          P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL }}
+          P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL }}
           P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
           P_COGNITO_ORIGIN: ${{ vars.ADMIN_COGNITO_ORIGIN }}
           P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
         run: |
           set -eo pipefail
+          # The whole list is already a secret. Mask each address too, so a
+          # later line that prints one of them is redacted.
+          mask_list() {
+            local raw="$1"
+            local part trimmed
+            local -a parts
+            IFS=',' read -ra parts <<< "$raw"
+            for part in "${parts[@]}"; do
+              trimmed="${part#"${part%%[![:space:]]*}"}"
+              trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+              if [ -n "$trimmed" ]; then
+                echo "::add-mask::${trimmed}"
+              fi
+            done
+          }
+          mask_list "${P_EMAIL_ALLOWLIST}"
+          mask_list "${P_BOOTSTRAP_EMAIL}"
+          mask_list "${P_BRIEF_RECIPIENT}"
+          mask_list "${P_SEC_CONTACT}"
           npx cdk acknowledge 34892 || true
 
           BACKEND_PARAM_ARGS=()
