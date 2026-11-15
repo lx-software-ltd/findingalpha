@@ -53,7 +53,8 @@ def _load(secret_id: str, client: Any) -> dict[str, Any]:
         raw = client.get_secret_value(SecretId=secret_id)["SecretString"]
         parsed = json.loads(raw)
     except Exception as exc:
-        logger.info("secret read failed id=%s error=%s", secret_id, type(exc).__name__)
+        # The id stays out of the log. CodeQL treats that name as sensitive.
+        logger.info("secret read failed error=%s", type(exc).__name__)
         raise NotConfigured(secret_id) from None
     if not isinstance(parsed, dict):
         raise NotConfigured(secret_id)
