@@ -32,9 +32,12 @@ def get_settings(_event: dict[str, Any]) -> dict[str, Any]:
 
 
 def put_settings(event: dict[str, Any]) -> dict[str, Any]:
-    claims = _require_admin(event)
-    if claims is None:
-        return _json_response(403, {"message": "Forbidden"})
+    actor = event.get("actor")
+    if not isinstance(actor, str) or not actor.startswith(("user:", "apikey:")):
+        claims = _require_admin(event)
+        if claims is None:
+            return _json_response(403, {"message": "Forbidden"})
+        actor = f"user:{claims.get('sub') or ''}"
     body = _parse_json_body(event)
     unknown = [key for key in body if key not in SWITCHES]
     if unknown or not body:
@@ -46,5 +49,5 @@ def put_settings(event: dict[str, Any]) -> dict[str, Any]:
     row = _row()
     row.update({"pk": SETTINGS_PK, "sk": SETTINGS_SK, **body})
     store.put(row)
-    audit.write(str(claims.get("sub") or ""), "settings_put", ",".join(sorted(body)), event)
+    audit.write(actor, "settings_put", ",".join(sorted(body)), event)
     return _json_response(200, _flags(row))

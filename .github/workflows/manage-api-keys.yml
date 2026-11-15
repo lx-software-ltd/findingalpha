@@ -1,0 +1,168 @@
+name: Manage Public API Keys
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: create, list, revoke, or set-write
+        required: true
+        type: choice
+        options:
+          - create
+          - list
+          - revoke
+          - set-write
+      label:
+        description: Name for a new key
+        required: false
+        type: string
+      tier:
+        description: Only admin can be minted
+        required: false
+        type: choice
+        default: admin
+        options:
+          - admin
+      scopes:
+        description: Comma-separated scopes. Default system
+        required: false
+        type: string
+        default: system
+      allow_write:
+        description: Opt the key into writes. The stack switch must also be on
+        required: false
+        type: boolean
+        default: false
+      expires_at:
+        description: ISO date. Empty means 90 days
+        required: false
+        type: string
+      allowed_cidrs:
+        description: Comma-separated CIDRs. Empty allows any address
+        required: false
+        type: string
+      key_id:
+        description: keyId for revoke or set-write
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  keys:
+    name: Manage keys
+    runs-on: ubuntu-26.04
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Require the account id
+        env:
+          P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
+        run: |
+          if [ -n "${P_ACCOUNT_ID}" ]; then
+            echo "::add-mask::${P_ACCOUNT_ID}"
+          fi
+          if [ -z "${P_ACCOUNT_ID}" ]; then
+            echo "::error::Set AWS_ACCOUNT_ID as a repository secret or a variable before managing keys."
+            exit 1
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install boto3
+        run: pip install --quiet boto3
+
+      - name: Require the passphrase before creating a key
+        if: inputs.action == 'create'
+        env:
+          GPG_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE }}
+        run: |
+          if [ -z "${GPG_PASSPHRASE}" ]; then
+            echo "::error::Set PUBLIC_API_KEY_GPG_PASSPHRASE on the production environment before creating a key."
+            exit 1
+          fi
+
+      - name: Create key
+        if: inputs.action == 'create'
+        env:
+          LABEL: ${{ inputs.label }}
+          TIER: ${{ inputs.tier }}
+          EXPIRES_AT: ${{ inputs.expires_at }}
+          SCOPES: ${{ inputs.scopes }}
+          ALLOWED_CIDRS: ${{ inputs.allowed_cidrs }}
+          ALLOW_WRITE: ${{ inputs.allow_write }}
+          GPG_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          KEY_FILE="$(mktemp -u)"
+          ARGS=(create --label "$LABEL" --tier "$TIER" --plaintext-out "$KEY_FILE" --region "$AWS_REGION")
+          if [ -n "$EXPIRES_AT" ]; then
+            ARGS+=(--expires-at "$EXPIRES_AT")
+          fi
+          if [ -n "$SCOPES" ]; then
+            ARGS+=(--scopes "$SCOPES")
+          fi
+          if [ -n "$ALLOWED_CIDRS" ]; then
+            ARGS+=(--allowed-cidrs "$ALLOWED_CIDRS")
+          fi
+          if [ "$ALLOW_WRITE" = "true" ]; then
+            ARGS+=(--allow-write)
+          fi
+          python3 scripts/manage-public-api-keys.py "${ARGS[@]}"
+          echo "::add-mask::$(tr -d '\n' < "$KEY_FILE")"
+          gpg --batch --yes --symmetric --cipher-algo AES256 --armor \
+            --passphrase "$GPG_PASSPHRASE" \
+            --output key.asc "$KEY_FILE"
+          rm -f "$KEY_FILE"
+          {
+            echo "## Encrypted API key"
+            echo ""
+            echo "Copy the block below into \`key.asc\`, then run"
+            echo "\`gpg --decrypt key.asc\` and enter the"
+            echo "\`PUBLIC_API_KEY_GPG_PASSPHRASE\` value."
+            echo ""
+            echo '```'
+            cat key.asc
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f key.asc
+          echo "Encrypted key emitted to the job summary."
+
+      - name: List keys
+        if: inputs.action == 'list'
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: python3 scripts/manage-public-api-keys.py list --region "$AWS_REGION" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Revoke key
+        if: inputs.action == 'revoke'
+        env:
+          KEY_ID: ${{ inputs.key_id }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: python3 scripts/manage-public-api-keys.py revoke --key-id "$KEY_ID" --region "$AWS_REGION" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Set write
+        if: inputs.action == 'set-write'
+        env:
+          KEY_ID: ${{ inputs.key_id }}
+          ALLOW_WRITE: ${{ inputs.allow_write }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          FLAG="--read-only"
+          if [ "$ALLOW_WRITE" = "true" ]; then
+            FLAG="--allow-write"
+          fi
+          python3 scripts/manage-public-api-keys.py set-write --key-id "$KEY_ID" "$FLAG" --region "$AWS_REGION" | tee -a "$GITHUB_STEP_SUMMARY"

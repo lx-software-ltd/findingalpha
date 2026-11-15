@@ -36,6 +36,46 @@ export function handleSystem(ctx: MockCtx): Json | null {
     Object.assign(state.settings, readBody(ctx));
     return json(200, state.settings);
   }
+  if (ctx.method === "GET" && ctx.path === "/api-keys") {
+    const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    return json(200, {
+      keys: [
+        {
+          keyId: "active1",
+          label: "monitor",
+          tier: "admin",
+          scopes: ["system"],
+          allowWrite: false,
+          revoked: false,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          expiresAt: "2027-01-01T00:00:00.000Z",
+          lastUsedAt: null,
+        },
+        {
+          keyId: "soon1",
+          label: "rotation",
+          tier: "admin",
+          scopes: ["system", "operate"],
+          allowWrite: true,
+          revoked: false,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          expiresAt: soon,
+          lastUsedAt: null,
+        },
+        {
+          keyId: "revoked1",
+          label: "old",
+          tier: "admin",
+          scopes: ["research"],
+          allowWrite: false,
+          revoked: true,
+          createdAt: "2025-01-01T00:00:00.000Z",
+          expiresAt: null,
+          lastUsedAt: null,
+        },
+      ],
+    });
+  }
   if (ctx.method === "GET" && ctx.path === "/system/status") {
     return json(200, {
       ...statusFixture,

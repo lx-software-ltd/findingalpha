@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { adminFetchJson } from "../lib/apiAdminClient";
+import { apiKeyState, expiresSoon, type ApiKeyRow } from "../lib/apiKeyDisplay";
 import { queryKeys } from "../lib/queryKeys";
 
 export type JobRun = {
@@ -29,6 +30,24 @@ export function useSystemStatus() {
   return useQuery({
     queryKey: queryKeys.status,
     queryFn: () => adminFetchJson<SystemStatus>("/system/status"),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useApiKeys() {
+  return useQuery({
+    queryKey: queryKeys.apiKeys,
+    queryFn: async () => {
+      const data = await adminFetchJson<{ keys: ApiKeyRow[] }>("/api-keys");
+      const now = Date.now();
+      return {
+        keys: data.keys.map((row) => ({
+          ...row,
+          state: apiKeyState(row, now),
+          soon: expiresSoon(row, now),
+        })),
+      };
+    },
     refetchInterval: 60_000,
   });
 }

@@ -15,12 +15,14 @@ export class FindingalphaStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
-    // CDK reports this on the stack, and an acknowledgement here also covers
-    // the conditional domain resource. The empty defaults are unused.
+    // Empty hostname and certificate parameters fail the length and ARN
+    // checks. Both custom domains are created only when their parameters
+    // are set. An acknowledgement on the stack covers those warnings,
+    // including ones that carry no resource context.
     cdk.Validations.of(this).acknowledge({
       id: "CloudFormation-Validate::W1030",
       reason:
-        "Optional Cognito custom domain. Empty defaults fail the length and ARN checks, and the resource is created only when both parameters are set.",
+        "Optional Cognito and API custom domains. Empty defaults fail the length and ARN checks, and each domain is created only when both of its parameters are set.",
     });
     const parameters = defineParameters(this);
     const { sharedEncryptionKey, lambdaDeadLetterQueue } = defineSharedEncryption(this);
@@ -54,6 +56,10 @@ export class FindingalphaStack extends cdk.Stack {
       userPoolClientId: auth.userPoolClient.userPoolClientId,
       adminWebDomainName: parameters.adminWebDomainName,
       sharedEncryptionKey,
+      recordsTable,
+      lambdaDeadLetterQueue,
+      apiCustomDomainName: parameters.apiCustomDomainName,
+      apiCustomDomainCertificateArn: parameters.apiCustomDomainCertificateArn,
     });
     this.httpApiEndpoint = httpApi.apiEndpoint;
     defineSchedules(this, engineFn);

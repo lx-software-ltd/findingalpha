@@ -162,6 +162,8 @@ jobs:
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
           P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
           P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
+          P_API_DOMAIN: ${{ vars.API_CUSTOM_DOMAIN_NAME }}
+          P_API_CERT: ${{ vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           P_COGNITO_ORIGIN: ${{ vars.ADMIN_COGNITO_ORIGIN }}
           P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
         run: |
@@ -209,6 +211,8 @@ jobs:
             --parameters "findingalpha:BriefRecipientEmail=${P_BRIEF_RECIPIENT}" \
             --parameters "findingalpha:SecContactEmail=${P_SEC_CONTACT}" \
             --parameters "findingalpha-admin-web:AdminWebDomainName=${P_ADMIN_DOMAIN}" \
+            --parameters "findingalpha:ApiCustomDomainName=${P_API_DOMAIN}" \
+            --parameters "findingalpha:ApiCustomDomainCertificateArn=${P_API_CERT}" \
             --parameters "findingalpha-admin-web:AdminWebCertificateArn=${P_CERT_ARN}" \
             --parameters "findingalpha-admin-web:CspCognitoConnectOrigin=${P_COGNITO_ORIGIN}" \
             --parameters "findingalpha-admin-web:WafWebAclArn=${P_WAF_ARN}" \

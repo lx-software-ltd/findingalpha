@@ -1,6 +1,6 @@
 # Plan: M03 admin dashboard
 
-**Status**: The app is deployed and the login screen is Google only. The live Google sign-in check (M03-T09) is still open.
+**Status**: Done. The live Google sign-in check is closed.
 **Zone**: yellow (`apps/admin_web/src/**`, new engine routes). The two
 route entries in `backend/infrastructure/lib/api-routes.ts` are red:
 ask before that edit.

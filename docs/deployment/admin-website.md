@@ -165,6 +165,53 @@ line for an address you did not expect means that address is in
 secret and run **Deploy Backend**. The next token refresh for that
 account is refused.
 
+## Public API keys
+
+| Scope | Gives |
+| --- | --- |
+| `system` | Status, switches, job runs, owner tasks. Read only |
+| `research` | Research reads, when those routes exist |
+| `portfolio` | Portfolio reads, when those routes exist |
+| `operate` | Writes that a key is allowed to make |
+
+A key is one tier. Only `admin` can be minted. `user` is refused. A
+write also needs `allowWrite` on the key and `PublicApiWritesEnabled`
+on the stack. That switch stays `false` until a later milestone says
+otherwise. No key can turn a switch on, tick an owner task, list keys,
+reset a breaker, or approve a real-money action.
+
+Mint, list, revoke, and the write flag are the **Manage Public API
+Keys** workflow. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
+environment first. A new key is not printed. The job summary holds an
+armored block. Save it as `key.asc` and decrypt it locally:
+
+```
+gpg --decrypt key.asc
+```
+
+```
+curl -H "x-api-key: fapk_..." https://api.<domain>/public
+curl -H "x-api-key: fapk_..." https://api.<domain>/public/system/status
+curl -X PUT -H "x-api-key: fapk_..." -H "content-type: application/json" \
+  -d '{"ingestEnabled": false}' https://api.<domain>/public/settings
+```
+
+The dashboard System page lists keys. It does not mint or revoke them.
+
+## API hostname
+
+The certificate for `api.<domain>` is requested in `ap-southeast-1`,
+the stack's region. It is not the us-east-1 certificate used by
+CloudFront. Set `API_CUSTOM_DOMAIN_NAME` and
+`API_CUSTOM_DOMAIN_CERTIFICATE_ARN` when the certificate is issued.
+Empty values leave the custom domain off, and the execute-api URL keeps
+working for the dashboard.
+
+The DNS record points at the stack output `ApiCustomDomainTarget` (a
+`d-<id>.execute-api.<region>.amazonaws.com` name). It does not point at
+`<api-id>.execute-api.<region>.amazonaws.com`. The record is DNS only,
+not proxied. Create it only after the owner says go.
+
 ## Local UI without a stack
 
 There is no dashboard to run locally until M03. When `apps/admin_web`

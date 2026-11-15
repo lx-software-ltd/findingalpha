@@ -106,7 +106,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "screen",

@@ -42,7 +42,7 @@ jobs:
           python-version: "3.12"
       - run: python3 -m pip install boto3
       - run: |
-          for dir in backend/lambda/engine backend/lambda/pre_token_generation; do
+          for dir in backend/lambda/engine backend/lambda/pre_token_generation backend/lambda/public_api_authorizer; do
             if [ -d "$dir" ]; then
               python3 -m unittest discover -s "$dir" -p 'test_*.py' -v
             fi

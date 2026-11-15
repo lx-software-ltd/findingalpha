@@ -10,6 +10,9 @@ describe("mock admin api", () => {
   it("returns the fixtures", async () => {
     const tasks = await (await mockAdminFetch("/owner-tasks")).json();
     expect(tasks.done.O01.at).toBe("2026-01-02T00:00:00.000Z");
+    const keys = await (await mockAdminFetch("/api-keys")).json();
+    expect(keys.keys.map((row: { label: string }) => row.label)).toContain("monitor");
+    expect(JSON.stringify(keys)).not.toContain("APIKEY#");
     const status = await (await mockAdminFetch("/system/status")).json();
     expect(status.jobs.map((job: { job: string }) => job.job)).toContain("tick");
     expect(status.jobs.some((job: { lastRun: unknown }) => job.lastRun === null)).toBe(true);

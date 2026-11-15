@@ -1,0 +1,187 @@
+"""Key routes: scope, write reasons, and the dashboard boundary."""
+
+from __future__ import annotations
+
+import json
+import unittest
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
+import api_handler
+
+
+def _event(
+    method: str,
+    path: str,
+    body: dict[str, Any] | None = None,
+    *,
+    key: dict[str, Any] | None = None,
+    admin: bool = False,
+) -> dict[str, Any]:
+    authorizer: dict[str, Any] = {}
+    if admin:
+        authorizer["jwt"] = {"claims": {"sub": "user-1", "email": "owner@example.com", "cognito:groups": "[admin]"}}
+    if key is not None:
+        authorizer["lambda"] = key
+    event: dict[str, Any] = {
+        "requestContext": {"http": {"method": method, "path": path}, "authorizer": authorizer, "requestId": "req-1"}
+    }
+    if body is not None:
+        event["body"] = json.dumps(body)
+    return event
+
+
+def _key(**overrides: Any) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "keyId": "abc123",
+        "label": "monitor",
+        "tier": "admin",
+        "scopes": "system,research,portfolio,operate",
+        "write": "1",
+    }
+    context.update(overrides)
+    return context
+
+
+class _Store:
+    def __init__(self) -> None:
+        self.rows: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def get(self, pk: str, sk: str) -> dict[str, Any] | None:
+        return self.rows.get((pk, sk))
+
+    def put(self, item: dict[str, Any]) -> None:
+        self.rows[(item["pk"], item["sk"])] = dict(item)
+
+    def scan_pk_prefix(self, prefix: str) -> list[dict[str, Any]]:
+        return [item for (pk, _sk), item in self.rows.items() if pk.startswith(prefix)]
+
+
+# A route added without an entry here has not decided whether a key may call it.
+DECISIONS = {
+    ("GET", "/health"): None,
+    ("GET", "/me"): None,
+    ("GET", "/owner-tasks"): "system",
+    ("PUT", "/owner-tasks/"): None,
+    ("GET", "/settings"): "system",
+    ("PUT", "/settings"): "operate",
+    ("GET", "/jobs/runs"): "system",
+    ("GET", "/system/status"): "system",
+    ("GET", "/api-keys"): None,
+}
+
+
+class PublicApiTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.store = _Store()
+        self.audit = patch("audit.write").start()
+        patch("store.get", self.store.get).start()
+        patch("store.put", self.store.put).start()
+        patch("store.scan_pk_prefix", self.store.scan_pk_prefix).start()
+        self.writes = patch.dict("os.environ", {"PUBLIC_API_WRITES_ENABLED": "true"}).start()
+
+    def tearDown(self) -> None:
+        patch.stopall()
+
+    def test_every_route_has_a_key_decision(self) -> None:
+        seen = set()
+        for route in api_handler.ROUTES:
+            key = (route.method, route.pattern)
+            self.assertIn(key, DECISIONS)
+            self.assertEqual(route.key_scope, DECISIONS[key])
+            if route.key_scope == "operate":
+                self.assertTrue(route.key_write)
+            seen.add(key)
+        self.assertEqual(seen, set(DECISIONS))
+
+    def test_a_key_without_the_scope_gets_404(self) -> None:
+        event = _event("GET", "/public/system/status", key=_key(scopes="research", write="0"))
+        response = api_handler.lambda_handler(event, None)
+        self.assertEqual(response["statusCode"], 404)
+
+    def test_each_write_reason(self) -> None:
+        body = {"ingestEnabled": False}
+        cases = [
+            (_key(scopes="system", write="1"), "scope"),
+            (_key(write="1"), "writes_disabled"),
+            (_key(write="0"), "key_read_only"),
+            (_key(), "owner_only"),
+        ]
+        with patch.dict("os.environ", {"PUBLIC_API_WRITES_ENABLED": "false"}):
+            response = api_handler.lambda_handler(_event("PUT", "/public/settings", body, key=cases[1][0]), None)
+            self.assertEqual(json.loads(response["body"])["reason"], "writes_disabled")
+        response = api_handler.lambda_handler(_event("PUT", "/public/settings", body, key=cases[0][0]), None)
+        self.assertEqual(json.loads(response["body"])["reason"], "scope")
+        response = api_handler.lambda_handler(_event("PUT", "/public/settings", body, key=cases[2][0]), None)
+        self.assertEqual(json.loads(response["body"])["reason"], "key_read_only")
+        response = api_handler.lambda_handler(
+            _event("PUT", "/public/settings", {"ingestEnabled": True}, key=_key()), None
+        )
+        self.assertEqual(response["statusCode"], 403)
+        self.assertEqual(json.loads(response["body"])["reason"], "owner_only")
+        self.assertEqual(self.store.rows, {})
+
+    def test_a_key_can_turn_a_switch_off_and_the_audit_actor_is_the_key(self) -> None:
+        response = api_handler.lambda_handler(
+            _event("PUT", "/public/settings", {"ingestEnabled": False}, key=_key()), None
+        )
+        self.assertEqual(response["statusCode"], 200)
+        self.assertFalse(json.loads(response["body"])["ingestEnabled"])
+        self.assertEqual(self.audit.call_args.args[0], "apikey:abc123")
+
+    def test_a_key_on_a_dashboard_path_is_ignored(self) -> None:
+        response = api_handler.lambda_handler(_event("GET", "/system/status", key=_key()), None)
+        self.assertEqual(response["statusCode"], 403)
+
+    def test_a_dashboard_token_on_a_public_path_is_refused(self) -> None:
+        response = api_handler.lambda_handler(_event("GET", "/public/system/status", admin=True), None)
+        self.assertEqual(response["statusCode"], 401)
+
+    def test_the_index_lists_only_what_the_key_may_call(self) -> None:
+        response = api_handler.lambda_handler(_event("GET", "/public", key=_key(scopes="system", write="0")), None)
+        body = json.loads(response["body"])
+        paths = {(row["method"], row["path"]) for row in body["routes"]}
+        self.assertIn(("GET", "/public/system/status"), paths)
+        self.assertNotIn(("PUT", "/public/settings"), paths)
+        self.assertNotIn(("GET", "/public/me"), paths)
+        self.assertTrue(all(row["scope"] == "system" for row in body["routes"]))
+
+    def test_the_key_list_never_returns_the_digest(self) -> None:
+        self.store.put(
+            {
+                "pk": "APIKEY#digestvalue",
+                "sk": "META",
+                "keyId": "abc123",
+                "label": "monitor",
+                "tier": "admin",
+                "scopes": ["system"],
+                "allowWrite": False,
+                "revoked": False,
+                "createdAt": "2026-01-01T00:00:00+00:00",
+            }
+        )
+        response = api_handler.lambda_handler(_event("GET", "/api-keys", admin=True), None)
+        text = response["body"]
+        self.assertNotIn("APIKEY#", text)
+        self.assertNotIn("digestvalue", text)
+        self.assertEqual(json.loads(text)["keys"][0]["keyId"], "abc123")
+
+    def test_an_unmirrored_write_is_forbidden_and_a_read_is_not_found(self) -> None:
+        denied = api_handler.lambda_handler(_event("PUT", "/public/owner-tasks/O04", {"done": True}, key=_key()), None)
+        self.assertEqual(json.loads(denied["body"])["reason"], "not_mirrored")
+        missing = api_handler.lambda_handler(_event("GET", "/public/me", key=_key()), None)
+        self.assertEqual(missing["statusCode"], 404)
+
+    def test_only_tick_is_key_runnable(self) -> None:
+        payload = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "jobs.json").read_text())
+        runnable = {job["name"] for job in payload["jobs"] if job["keyRun"]}
+        self.assertEqual(runnable, {"tick"})
+        blocked = {"broker_setup", "broker_smoke", "breaker_drill", "record_drill", "execute_holds"}
+        for job in payload["jobs"]:
+            if job["name"] in blocked:
+                self.assertFalse(job["keyRun"])
+
+
+if __name__ == "__main__":
+    unittest.main()

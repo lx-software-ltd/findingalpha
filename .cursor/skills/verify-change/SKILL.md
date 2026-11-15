@@ -10,7 +10,7 @@ Run the narrowest command that exercises the edit, then the area lint. Paste the
 - Admin web unit: `npm run test:unit` in `apps/admin_web`. `npm test` is the right command when a page changed.
 - Admin web browser: `npm run dev:mock`, then exercise the changed flow. `npm run test:e2e` when layout or navigation changed.
 - Engine: `python3 -m unittest discover -s backend/lambda/engine -p 'test_*.py' -v`
-- One other Lambda: `python3 -m unittest discover -p 'test_*.py' -v` in that Lambda directory.
+- One other Lambda: `python3 -m unittest discover -p 'test_*.py' -v` in that Lambda directory. The same command covers `backend/lambda/pre_token_generation` and `backend/lambda/public_api_authorizer`.
 - CDK: `npm test` and `npm run build` in `backend/infrastructure` when a stack changed.
 - Contracts: `python3 scripts/sync-contracts.py` then `python3 scripts/check-contracts.py`.
 - Personal data: `python3 scripts/check_pii.py`.

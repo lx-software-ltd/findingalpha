@@ -1,0 +1,24 @@
+{
+  "scopes": [
+    { "name": "SCOPE_SYSTEM", "value": "system" },
+    { "name": "SCOPE_RESEARCH", "value": "research" },
+    { "name": "SCOPE_PORTFOLIO", "value": "portfolio" },
+    { "name": "SCOPE_OPERATE", "value": "operate" }
+  ],
+  "tiers": [
+    {
+      "name": "TIER_ADMIN",
+      "value": "admin",
+      "enabled": true,
+      "scopes": ["system", "research", "portfolio", "operate"],
+      "mayWrite": true
+    },
+    {
+      "name": "TIER_USER",
+      "value": "user",
+      "enabled": false,
+      "scopes": ["research"],
+      "mayWrite": false
+    }
+  ]
+}

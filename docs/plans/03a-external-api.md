@@ -1,6 +1,6 @@
 # Plan: M03A external API with keys and scopes
 
-**Status**: Draft
+**Status**: In review. T01 through T07 are in this change. T08 waits on the owner: the passphrase secret, the certificate, and the DNS record. Writes stay off.
 **Zone**: red (authorizer Lambda, CDK routes and IAM, a contract, a
 workflow)
 

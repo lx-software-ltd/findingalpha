@@ -15,6 +15,7 @@ const KILL_SWITCHES = [
 
 type CfnResource = {
   DeletionPolicy?: string;
+  Condition?: string;
   Properties: Record<string, unknown>;
 };
 
@@ -169,8 +170,8 @@ describe("findingalpha stack", () => {
     synthesized.hasParameter("GoogleClientSecret", { NoEcho: true });
     expect(synthesized.findParameters("AdminBootstrapEmail")).toEqual({});
     expect(synthesized.findParameters("AdminBootstrapTempPassword")).toEqual({});
-    expect(synthesized.findParameters("ApiCustomDomainName")).toEqual({});
-    expect(synthesized.findParameters("ApiCustomDomainCertificateArn")).toEqual({});
+    synthesized.hasParameter("ApiCustomDomainName", { Type: "String", Default: "" });
+    synthesized.hasParameter("ApiCustomDomainCertificateArn", { Type: "String", Default: "" });
     for (const name of KILL_SWITCHES) {
       synthesized.hasParameter(name, {
         Type: "String",
@@ -204,27 +205,89 @@ describe("findingalpha stack", () => {
     expect(variables.OPENROUTER_SECRET_ID).toBe("findingalpha/openrouter");
   });
 
-  test("every route except health uses the JWT authorizer", () => {
+  test("dashboard routes use the JWT authorizer and public routes use the key", () => {
+    const keyRoutes = new Set([
+      "GET /public",
+      "GET /public/{proxy+}",
+      "PUT /public/{proxy+}",
+      "POST /public/{proxy+}",
+    ]);
     const routes = resources("AWS::ApiGatewayV2::Route");
-    const keys = Object.values(routes).map((route) => route.Properties.RouteKey);
-    expect(keys).toEqual(expect.arrayContaining(["GET /health", "GET /me"]));
+    const keys = Object.values(routes).map((route) => String(route.Properties.RouteKey));
+    expect(keys).toEqual(expect.arrayContaining(["GET /health", "GET /me", "GET /api-keys", "GET /public"]));
     for (const route of Object.values(routes)) {
-      if (route.Properties.RouteKey === "GET /health") {
+      const routeKey = String(route.Properties.RouteKey);
+      if (routeKey === "GET /health") {
         expect(route.Properties.AuthorizationType ?? "NONE").not.toBe("JWT");
+        expect(route.Properties.AuthorizationType ?? "NONE").not.toBe("CUSTOM");
+      } else if (keyRoutes.has(routeKey)) {
+        expect(route.Properties.AuthorizationType).toBe("CUSTOM");
       } else {
         expect(route.Properties.AuthorizationType).toBe("JWT");
-        expect(route.Properties.AuthorizerId).toBeDefined();
+        expect(routeKey.startsWith("GET /public")).toBe(false);
       }
     }
   });
 
-  test("API Gateway has one invoke permission on AdminApiFn", () => {
+  test("the key authorizer can touch only APIKEY rows and AdminApiFn gains no key permission", () => {
+    const authorizerFn = Object.values(resources("AWS::Lambda::Function")).find((fn) => {
+      const variables = (fn.Properties.Environment as { Variables?: Record<string, string> } | undefined)?.Variables;
+      return fn.Properties.Handler === "handler.lambda_handler" && variables?.RECORDS_TABLE_NAME !== undefined;
+    });
+    if (!authorizerFn) {
+      throw new Error("key authorizer function is missing");
+    }
+    const role = authorizerFn.Properties.Role as { "Fn::GetAtt": string[] };
+    const authorizer = policyTextForRole(role["Fn::GetAtt"][0]);
+    const admin = policyTextForRole(roleIdForHandler("api_handler.lambda_handler"));
+    expect(authorizer).toContain("dynamodb:GetItem");
+    expect(authorizer).toContain("dynamodb:UpdateItem");
+    expect(authorizer).toContain("APIKEY#*");
+    expect(authorizer).toContain("dynamodb:LeadingKeys");
+    expect(authorizer).toContain("kms:Decrypt");
+    expect(authorizer).toContain("kms:GenerateDataKey");
+    for (const action of ["dynamodb:Scan", "dynamodb:Query", "dynamodb:PutItem", "dynamodb:DeleteItem"]) {
+      expect(authorizer).not.toContain(action);
+    }
+    expect(admin).not.toContain("APIKEY#*");
+    const variables = (authorizerFn.Properties.Environment as { Variables: Record<string, string> }).Variables;
+    expect(variables.RECORDS_TABLE_NAME).toBeDefined();
+    expect(variables.PUBLIC_API_WRITES_ENABLED).toBeUndefined();
+  });
+
+  test("API Gateway invokes AdminApiFn once and the key authorizer once", () => {
     const permissions = Object.values(resources("AWS::Lambda::Permission"));
     const apiGateway = permissions.filter(
       (permission) => permission.Properties.Principal === "apigateway.amazonaws.com",
     );
-    expect(apiGateway).toHaveLength(1);
-    expect(JSON.stringify(apiGateway[0].Properties.FunctionName)).toContain("AdminApiFn");
+    expect(apiGateway).toHaveLength(2);
+    const names = apiGateway.map((permission) => JSON.stringify(permission.Properties.FunctionName));
+    expect(names.filter((name) => name.includes("AdminApiFn"))).toHaveLength(1);
+    expect(names.filter((name) => name.includes("PublicApiKeyAuthorizerFn"))).toHaveLength(1);
+  });
+
+  test("the API custom domain is regional and created only when both parameters are set", () => {
+    const domains = resources("AWS::ApiGatewayV2::DomainName");
+    expect(Object.keys(domains)).toHaveLength(1);
+    const domain = Object.values(domains)[0];
+    expect(domain.Condition).toBe("UseApiCustomDomain");
+    const config = (domain.Properties.DomainNameConfigurations as Record<string, string>[])[0];
+    expect(config.EndpointType).toBe("REGIONAL");
+    expect(config.SecurityPolicy).toBe("TLS_1_2");
+    const mappings = resources("AWS::ApiGatewayV2::ApiMapping");
+    expect(Object.values(mappings)[0].Condition).toBe("UseApiCustomDomain");
+    const outputs = synthesized.toJSON().Outputs as Record<string, { Condition?: string }>;
+    expect(outputs.ApiCustomDomainTarget.Condition).toBe("UseApiCustomDomain");
+    expect(outputs.ApiCustomDomainUrl.Condition).toBe("UseApiCustomDomain");
+  });
+
+  test("public routes are throttled below the stage default", () => {
+    const stage = Object.values(resources("AWS::ApiGatewayV2::Stage"))[0];
+    const settings = stage.Properties.RouteSettings as Record<string, { ThrottlingRateLimit: number; ThrottlingBurstLimit: number }>;
+    expect(settings["GET /public"]).toEqual({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 });
+    expect(settings["GET /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 });
+    expect(settings["PUT /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
+    expect(settings["POST /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
   });
 
   test("EngineFn can invoke itself so a stalled job can start again", () => {
