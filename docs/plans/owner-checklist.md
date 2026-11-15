@@ -18,7 +18,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O06 | Request an ACM certificate for `admin.<domain>` in `us-east-1` with DNS validation. Give the validation record to the developer, who adds it in Cloudflare (see DNS below). Wait for ISSUED | First deploy (M02) |
 | O07 | Create a Google OAuth client (type Web application). Authorised redirect URI: `https://<cognito-domain>/oauth2/idpresponse` | First sign-in (M02) |
 | O08 | After the first deploy: say go for the `admin` DNS record. The developer adds it in Cloudflare | Dashboard reachable (M03) |
-| O09 | Sign in once with the bootstrap user, set a new password, enrol TOTP | Dashboard use (M03) |
+| O09 | Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment | Cleanup |
 | O10 | Open a free Alpaca paper account. Set the paper balance to the planned capital in US dollars. Store the paper API key in the secret `findingalpha/alpaca-paper` | M04 |
 | O11 | Review the provisional formulas listed in M05 and say which to keep | M05 merge |
 | O12 | Upload the PDFs to the knowledge base bucket under `theory/`. Split any file over 50 MB | M07 |
@@ -56,43 +56,27 @@ Do not create a variable or a secret whose value would be empty. An
 unset one reads as empty, which is what "optional" means below.
 
 The repository is public, and Actions prints every variable value in
-the job log. A value that identifies a person or the account is a
-secret, so the log shows `***` instead. The deploy reads the secret,
-and the variable of the same name when the secret is empty. Copy the
-variable into the secret, then delete the variable. Do not paste the
-value in chat. While the variable is still set, the deploy runs and
-the log shows the value. An empty allow-list, with neither a secret
-nor a variable, fails the deploy and does not remove access.
+the job log. An email is a secret, so the log shows `***` instead.
+The account id is a repository variable on purpose: the first settings
+block shows it and later lines are masked, with no warning. The deploy
+reads a secret, and the variable of the same name when that secret is
+empty. Copy an email variable into the secret, then delete the
+variable. Do not paste the value in chat. An empty allow-list, with
+neither a secret nor a variable, fails the deploy and does not remove
+access.
 
 **Repository variables** (Settings, Secrets and variables, Actions,
 Variables). `cdk-diff` on a pull request from this repository can read
-these and the repository secret below. Until `AWS_ACCOUNT_ID` and
-`AWS_REGION` are both set, that check passes with a warning and does
-not compare the account. The account id may be the secret or the
-variable of the same name. A Dependabot pull request receives
-Dependabot secrets, not Actions secrets, and it can read the variable.
-Add the same account id under Settings, Secrets and variables,
-Dependabot, before deleting the variable.
+these. Until `AWS_ACCOUNT_ID` and `AWS_REGION` are both set, that
+check passes with a warning and does not compare the account. A
+Dependabot pull request can read the variable.
 
 | Variable | Value |
 | --- | --- |
 | `AWS_REGION` | `ap-southeast-1` |
 | `CDK_BOOTSTRAP_QUALIFIER` | `siutindei` |
 | `CDK_PARAM_FILE` | `backend/infrastructure/params/production.json` |
-
-**Repository secret** (same settings page, Secrets):
-
-| Secret | Value |
-| --- | --- |
-| `AWS_ACCOUNT_ID` | The 12-digit account id used by `lx-software` |
-
-**Dependabot secret** (Settings, Secrets and variables, Dependabot).
-The same value as the repository secret. A Dependabot pull request
-takes its secrets from this store:
-
-| Secret | Value |
-| --- | --- |
-| `AWS_ACCOUNT_ID` | The same account id |
+| `AWS_ACCOUNT_ID` | The account id. A repository variable, not a secret |
 
 **Environment `production`, variables.** Needed for the first deploy:
 
@@ -118,9 +102,7 @@ Needed later, or optional:
 | Secret | Value | When |
 | --- | --- | --- |
 | `ADMIN_GOOGLE_CLIENT_SECRET` | From O07 | First deploy |
-| `ADMIN_BOOTSTRAP_TEMP_PASSWORD` | 14 or more characters, upper and lower case, digit, symbol. Used once | First deploy |
 | `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | The Google account emails allowed to sign in, lower case, comma-separated. The variable is used until this secret exists | First deploy |
-| `ADMIN_BOOTSTRAP_EMAIL` | Email of the password-and-TOTP fallback user. The variable is used until this secret exists | First deploy |
 | `SEC_CONTACT_EMAIL` | Contact address sent to the SEC in the `User-Agent` | M04 |
 | `BRIEF_RECIPIENT_EMAIL` | Where the daily email goes | M10 |
 | `PUBLIC_API_KEY_GPG_PASSPHRASE` | A long random passphrase. Encrypts a newly minted API key in the public run summary | M03A |

@@ -1,6 +1,6 @@
 # Plan: M03 admin dashboard
 
-**Status**: Draft
+**Status**: Built. The login screen is Google only. There is no password sign-in and no authenticator-app enrolment.
 **Zone**: yellow (`apps/admin_web/src/**`, new engine routes). The two
 route entries in `backend/infrastructure/lib/api-routes.ts` are red:
 ask before that edit.

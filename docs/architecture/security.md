@@ -9,8 +9,8 @@ Nothing in git identifies the owner: no account id, certificate ARN,
 email or domain. The dashboard hostname is the parameter
 `AdminWebDomainName`, written in docs as `admin.<domain>`.
 
-`GoogleClientSecret` and `AdminBootstrapTempPassword` are CloudFormation
-parameters with `noEcho: true`. Broker and model keys are Secrets
+`GoogleClientSecret` is a CloudFormation parameter with `noEcho: true`.
+Broker and model keys are Secrets
 Manager secrets named `findingalpha/alpaca-paper` and
 `findingalpha/openrouter`, encrypted with the shared key and retained.
 The Lambda environment receives those names as string literals. A secret
@@ -20,12 +20,15 @@ that lacks the JSON fields the engine expects counts as not configured.
 
 ## Sign-in
 
-The user pool does not allow self sign-up. MFA is required, TOTP only.
-The same Lambda is the Pre Sign-up and Pre Token Generation trigger. An
-email that is not on the allow-list and is not already in the `admin`
-group receives no token. The app client has no secret, uses the
+The user pool does not allow self sign-up and does not enrol an
+authenticator app. Sign-in is Google only. The same Lambda is the Pre
+Sign-up and Pre Token Generation trigger. An email that is not on the
+allow-list and is not already in the `admin` group receives no token.
+The app client has no secret, offers no password flow, uses the
 authorization-code grant, and builds its callback from
-`AdminWebDomainName`.
+`AdminWebDomainName`. If Google sign-in breaks, revert the change that
+removed the password client; the old password user stays in the pool
+until it is deleted in the Cognito console.
 
 ## Data
 

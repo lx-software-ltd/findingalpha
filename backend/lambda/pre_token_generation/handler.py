@@ -8,15 +8,14 @@ triggers and fails closed on both:
   federated email is on ``ADMIN_EMAIL_ALLOWLIST``, so an unknown Google
   account never becomes a Cognito user.
 * ``TokenGeneration_*`` raises unless the email is on the allow-list or the
-  user already holds the ``admin`` group in the pool (the native bootstrap
-  administrator). Cognito turns the exception into a sign-in error, so an
-  unlisted account receives no ID / access / refresh token at all instead
-  of a valid token that merely lacks the group. Matching users get the
-  ``admin`` group override as before.
+  user already holds the ``admin`` group in the pool. Cognito turns the
+  exception into a sign-in error, so an unlisted account receives no
+  ID / access / refresh token at all instead of a valid token that merely
+  lacks the group. Matching users get the ``admin`` group override.
 
-``AdminCreateUser`` (the bootstrap custom resource) is the only sign-up path
-that is not gated: an operator with ``cognito-idp:AdminCreateUser`` already
-controls the pool.
+``AdminCreateUser`` is the only sign-up path that is not gated: an operator
+with ``cognito-idp:AdminCreateUser`` already controls the pool. The app
+client does not offer a password sign-in.
 """
 
 from __future__ import annotations

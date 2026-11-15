@@ -23,7 +23,6 @@ interface AuthContextValue {
   readonly idToken: string | null;
   readonly isLoading: boolean;
   readonly loginWithGoogle: () => Promise<void>;
-  readonly loginWithEmail: () => Promise<void>;
   readonly logout: () => void;
   readonly refreshUser: () => void;
 }
@@ -88,10 +87,6 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
     await beginOAuthRedirect("Google");
   }, []);
 
-  const loginWithEmail = useCallback(async () => {
-    await beginOAuthRedirect();
-  }, []);
-
   const logout = useCallback(() => {
     void (async () => {
       const cfg = getAdminConfig();
@@ -132,11 +127,10 @@ export function AuthProvider({ children }: { readonly children: ReactNode }) {
       idToken,
       isLoading,
       loginWithGoogle,
-      loginWithEmail,
       logout,
       refreshUser,
     }),
-    [user, idToken, isLoading, loginWithGoogle, loginWithEmail, logout, refreshUser]
+    [user, idToken, isLoading, loginWithGoogle, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

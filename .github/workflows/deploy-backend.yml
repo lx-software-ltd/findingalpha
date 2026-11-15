@@ -33,12 +33,9 @@ jobs:
           P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
           P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
           P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
-          P_BOOTSTRAP_EMAIL: ${{ secrets.ADMIN_BOOTSTRAP_EMAIL || vars.ADMIN_BOOTSTRAP_EMAIL }}
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
           P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
-          ACCOUNT_FROM_VARIABLE: ${{ secrets.AWS_ACCOUNT_ID == '' && vars.AWS_ACCOUNT_ID != '' }}
           ALLOWLIST_FROM_VARIABLE: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST == '' && vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST != '' }}
-          BOOTSTRAP_FROM_VARIABLE: ${{ secrets.ADMIN_BOOTSTRAP_EMAIL == '' && vars.ADMIN_BOOTSTRAP_EMAIL != '' }}
           BRIEF_FROM_VARIABLE: ${{ secrets.BRIEF_RECIPIENT_EMAIL == '' && vars.BRIEF_RECIPIENT_EMAIL != '' }}
           SEC_FROM_VARIABLE: ${{ secrets.SEC_CONTACT_EMAIL == '' && vars.SEC_CONTACT_EMAIL != '' }}
         run: |
@@ -68,12 +65,9 @@ jobs:
           }
           mask_list "${P_ACCOUNT_ID}"
           mask_list "${P_EMAIL_ALLOWLIST}"
-          mask_list "${P_BOOTSTRAP_EMAIL}"
           mask_list "${P_BRIEF_RECIPIENT}"
           mask_list "${P_SEC_CONTACT}"
-          warn_if_variable "${ACCOUNT_FROM_VARIABLE}" "AWS_ACCOUNT_ID"
           warn_if_variable "${ALLOWLIST_FROM_VARIABLE}" "ADMIN_FEDERATED_EMAIL_ALLOWLIST"
-          warn_if_variable "${BOOTSTRAP_FROM_VARIABLE}" "ADMIN_BOOTSTRAP_EMAIL"
           warn_if_variable "${BRIEF_FROM_VARIABLE}" "BRIEF_RECIPIENT_EMAIL"
           warn_if_variable "${SEC_FROM_VARIABLE}" "SEC_CONTACT_EMAIL"
           if [ -z "${P_ADMIN_DOMAIN}" ] || [ -z "${P_CERT_ARN}" ]; then
@@ -84,8 +78,8 @@ jobs:
             echo "::error::Set AWS_ACCOUNT_ID as a repository secret or a variable before deploying."
             exit 1
           fi
-          if [ -z "${P_EMAIL_ALLOWLIST}" ] || [ -z "${P_BOOTSTRAP_EMAIL}" ]; then
-            echo "::error::Set ADMIN_FEDERATED_EMAIL_ALLOWLIST and ADMIN_BOOTSTRAP_EMAIL as production secrets or variables before deploying."
+          if [ -z "${P_EMAIL_ALLOWLIST}" ]; then
+            echo "::error::Set ADMIN_FEDERATED_EMAIL_ALLOWLIST as a production secret or a variable before deploying."
             exit 1
           fi
 
@@ -164,8 +158,6 @@ jobs:
           P_GOOGLE_CLIENT_SECRET: ${{ secrets.ADMIN_GOOGLE_CLIENT_SECRET }}
           # Secret wins. The settings step masks a variable fallback for the rest of this job.
           P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
-          P_BOOTSTRAP_EMAIL: ${{ secrets.ADMIN_BOOTSTRAP_EMAIL || vars.ADMIN_BOOTSTRAP_EMAIL }}
-          P_BOOTSTRAP_PASSWORD: ${{ secrets.ADMIN_BOOTSTRAP_TEMP_PASSWORD }}
           P_MAIL_DOMAIN: ${{ vars.MAIL_SENDING_DOMAIN }}
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
           P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
@@ -213,8 +205,6 @@ jobs:
             --parameters "findingalpha:GoogleClientId=${P_GOOGLE_CLIENT_ID}" \
             --parameters "findingalpha:GoogleClientSecret=${P_GOOGLE_CLIENT_SECRET}" \
             --parameters "findingalpha:AdminFederatedEmailAllowlist=${P_EMAIL_ALLOWLIST}" \
-            --parameters "findingalpha:AdminBootstrapEmail=${P_BOOTSTRAP_EMAIL}" \
-            --parameters "findingalpha:AdminBootstrapTempPassword=${P_BOOTSTRAP_PASSWORD}" \
             --parameters "findingalpha:MailSendingDomain=${P_MAIL_DOMAIN}" \
             --parameters "findingalpha:BriefRecipientEmail=${P_BRIEF_RECIPIENT}" \
             --parameters "findingalpha:SecContactEmail=${P_SEC_CONTACT}" \

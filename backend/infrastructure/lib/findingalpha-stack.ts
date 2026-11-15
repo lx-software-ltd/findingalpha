@@ -24,8 +24,6 @@ export class FindingalphaStack extends cdk.Stack {
       cognitoDomainPrefixParameter: parameters.cognitoDomainPrefix,
       cognitoCustomDomainNameParameter: parameters.cognitoCustomDomainName,
       cognitoCustomDomainCertificateArnParameter: parameters.cognitoCustomDomainCertificateArn,
-      adminBootstrapEmailParameter: parameters.adminBootstrapEmail,
-      adminBootstrapTempPasswordParameter: parameters.adminBootstrapTempPassword,
       adminFederatedEmailAllowlistParameter: parameters.adminFederatedEmailAllowlist,
       sharedEncryptionKey,
       sharedDeadLetterQueue: lambdaDeadLetterQueue,
