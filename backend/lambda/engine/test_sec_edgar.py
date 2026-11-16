@@ -117,7 +117,7 @@ class SecEdgarTest(unittest.TestCase):
         with self.assertRaises(http_client.HttpStatusError) as raised:
             client.daily_index("2024-07-01")
         self.assertEqual(raised.exception.status, 503)
-        self.assertEqual(seen, [url])
+        self.assertEqual(seen, [url, url])
 
     def test_a_missing_contact_makes_no_request(self) -> None:
         def opener(_request: object, timeout: float) -> _Response:
@@ -139,9 +139,13 @@ class SecEdgarTest(unittest.TestCase):
         index = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR1/master.20240103.idx"
         body = b"-" * 20 + b"\n7|CAF\xe9 INC|10-Q|2024-01-03|edgar/data/7/x.txt\n"
 
+        listing = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR1/index.json"
+
         def opener(request: urllib.request.Request, timeout: float) -> _Response:
             del timeout
             calls["n"] += 1
+            if request.full_url == listing:
+                return _Response(b'{"directory":{"item":[{"name":"master.20240103.idx"}]}}')
             if calls["n"] == 1:
                 headers = Message()
                 headers["Retry-After"] = "0"
@@ -151,8 +155,62 @@ class SecEdgarTest(unittest.TestCase):
 
         client = sec_edgar.SecEdgar(contact=_CONTACT, opener=opener, limiter=self.limiter)
         rows = client.daily_index("2024-01-03")
-        self.assertEqual(calls["n"], 2)
+        self.assertEqual(calls["n"], 3)
         self.assertEqual(rows[0]["company"], "CAF\u00e9 INC")
+
+    def test_a_403_for_an_unlisted_master_is_an_empty_day(self) -> None:
+        master = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/master.20241111.idx"
+        listing = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/index.json"
+        seen: list[str] = []
+
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            seen.append(request.full_url)
+            if request.full_url == listing:
+                return _Response(b'{"directory":{"item":[{"name":"master.20241112.idx"}]}}')
+            headers = Message()
+            raise urllib.error.HTTPError(request.full_url, 403, "closed", headers, io.BytesIO(b"<Error/>"))
+
+        client = sec_edgar.SecEdgar(contact=_CONTACT, opener=opener, limiter=self.limiter)
+        self.assertEqual(client.daily_index("2024-11-11"), [])
+        self.assertEqual(seen, [master, listing])
+
+    def test_a_listing_cached_before_publication_is_read_again(self) -> None:
+        listing = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/index.json"
+        body = b"-" * 20 + b"\n7|EXAMPLE INC|10-Q|2024-11-12|edgar/data/7/x.txt\n"
+        listings = {"n": 0}
+        masters = {"n": 0}
+
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            if request.full_url == listing:
+                listings["n"] += 1
+                name = "master.20241112.idx" if listings["n"] > 1 else "master.20241111.idx"
+                return _Response(f'{{"directory":{{"item":[{{"name":"{name}"}}]}}}}'.encode())
+            masters["n"] += 1
+            if masters["n"] < 3:
+                headers = Message()
+                raise urllib.error.HTTPError(request.full_url, 403, "slow", headers, io.BytesIO(b"slow"))
+            return _Response(body)
+
+        client = sec_edgar.SecEdgar(contact=_CONTACT, opener=opener, limiter=self.limiter)
+        self.assertEqual(client.daily_index("2024-11-12"), [])
+        rows = client.daily_index("2024-11-12")
+        self.assertEqual(rows[0]["form"], "10-Q")
+        self.assertEqual(listings["n"], 2)
+
+    def test_a_403_for_a_listed_master_still_fails(self) -> None:
+        master = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/master.20241112.idx"
+        listing = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/index.json"
+        client = self._client(
+            {
+                master: 403,
+                listing: b'{"directory":{"item":[{"name":"master.20241112.idx"}]}}',
+            }
+        )
+        with self.assertRaises(http_client.HttpStatusError) as raised:
+            client.daily_index("2024-11-12")
+        self.assertEqual(raised.exception.status, 403)
 
     def test_the_contact_is_not_logged(self) -> None:
         records: list[logging.LogRecord] = []

@@ -41,6 +41,64 @@ class ApiHandlerTest(unittest.TestCase):
         response = api_handler.lambda_handler(_event("GET", "/missing", "[admin]"), None)
         self.assertEqual(response["statusCode"], 404)
 
+    def test_a_manual_job_is_accepted_and_an_unknown_job_is_not(self) -> None:
+        from unittest.mock import patch
+
+        sent: list[tuple[str, str]] = []
+
+        def invoke(name: str, sub: str) -> None:
+            sent.append((name, sub))
+
+        with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write"):
+            allowed = api_handler.lambda_handler(_event("POST", "/jobs/ingest_daily/run", "[admin]"), None)
+            missing = api_handler.lambda_handler(_event("POST", "/jobs/reconcile/run", "[admin]"), None)
+        self.assertEqual(allowed["statusCode"], 202)
+        self.assertEqual(json.loads(allowed["body"]), {"accepted": True})
+        self.assertEqual(sent, [("ingest_daily", "user-1")])
+        self.assertEqual(missing["statusCode"], 404)
+
+    def test_the_latest_universe_is_the_newest_finished_row(self) -> None:
+        from unittest.mock import patch
+
+        rows = [
+            {"gsi1sk": "2024-06-01", "asOf": "2024-06-01", "members": 2, "counts": {"marketCap": 2}},
+            {
+                "gsi1sk": "2024-06-03",
+                "asOf": "2024-06-03",
+                "members": 4,
+                "counts": {"marketCap": 4},
+                "lastPriceDate": "2024-06-03",
+            },
+            {"gsi1sk": "2024-06-02", "members": 9},
+        ]
+
+        def get(pk: str, _sk: str) -> dict[str, object] | None:
+            if pk == "JOB#backfill_prices":
+                return {"status": "running", "cursor": 2, "total": 8}
+            return None
+
+        with patch("store.query_gsi1", return_value=rows), patch("store.get", side_effect=get):
+            response = api_handler.lambda_handler(_event("GET", "/universe/latest", "[admin]"), None)
+        body = json.loads(response["body"])
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(body["asOf"], "2024-06-03")
+        self.assertEqual(body["lastPriceDate"], "2024-06-03")
+        self.assertEqual(body["members"], 4)
+        self.assertEqual(body["counts"]["marketCap"], 4)
+        self.assertEqual(body["backfill"]["prices"], {"status": "running", "cursor": 2, "total": 8})
+        self.assertIsNone(body["backfill"]["fundamentals"])
+
+    def test_an_empty_universe_still_has_backfill_progress(self) -> None:
+        from unittest.mock import patch
+
+        with patch("store.query_gsi1", return_value=[]), patch("store.get", return_value=None):
+            response = api_handler.lambda_handler(_event("GET", "/universe/latest", "[admin]"), None)
+        body = json.loads(response["body"])
+        self.assertEqual(body["asOf"], None)
+        self.assertEqual(body["members"], 0)
+        self.assertIn("backfill", body)
+        self.assertIsNone(body["backfill"]["prices"])
+
 
 if __name__ == "__main__":
     unittest.main()

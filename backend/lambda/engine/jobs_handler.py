@@ -2,39 +2,115 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
+import ingest_jobs
 import job_runs
 from http_common import _log_event
 
 # Jobs with no kill switch. Later milestones add a switch name here.
-SWITCHES: dict[str, str] = {}
+SWITCHES: dict[str, str] = {
+    "ingest_daily": "ingestEnabled",
+    "weekly_refresh": "ingestEnabled",
+    "backfill_prices": "ingestEnabled",
+    "backfill_fundamentals": "ingestEnabled",
+}
+
+Handler = Callable[..., dict[str, Any]]
 
 
-def _noop(_event: dict[str, Any], _run: job_runs.JobRun) -> dict[str, Any]:
+def _noop(_event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None) -> dict[str, Any]:
     return {"ok": True}
 
 
-def _tick(_event: dict[str, Any], _run: job_runs.JobRun) -> dict[str, Any]:
+def _may_resume(job: str) -> bool:
+    switch = switch_for(job)
+    if not switch:
+        return True
+    import kill_switch
+
+    return kill_switch.is_enabled(switch)
+
+
+def _tick(_event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None) -> dict[str, Any]:
     import chunked
 
-    chunked.resume_stalled()
+    chunked.resume_stalled(enabled=_may_resume)
     return {"ok": True}
+
+
+def _daily(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.ingest_daily(event, context)
+
+
+def _weekly(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.weekly_refresh(event, context)
+
+
+def _prices(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.backfill_prices(event, context)
+
+
+def _fundamentals(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.backfill_fundamentals(event, context)
+
+
+def _filings(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.resume_filings(event, context)
+
+
+def _universe_refresh(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.resume_universe(event, context)
+
+
+def _universe_build(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.resume_build(event, context)
+
+
+def _adjusted(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.resume_adjusted(event, context)
 
 
 JOBS = {
     "noop": _noop,
     "tick": _tick,
+    "ingest_daily": _daily,
+    "weekly_refresh": _weekly,
+    "backfill_prices": _prices,
+    "backfill_fundamentals": _fundamentals,
+    ingest_jobs.UNIVERSE_REFRESH_JOB: _universe_refresh,
+    ingest_jobs.UNIVERSE_BUILD_JOB: _universe_build,
+    ingest_jobs.ADJUSTED_JOB: _adjusted,
 }
 
 
-def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+def handler_for(job: str) -> Handler | None:
+    """The function for a job, including a per-day filings refresh."""
+    found = JOBS.get(job)
+    if found is not None:
+        return found
+    if job.startswith(ingest_jobs.FILINGS_JOB_PREFIX):
+        return _filings
+    return None
+
+
+def switch_for(job: str) -> str:
+    if job.startswith(ingest_jobs.FILINGS_JOB_PREFIX) or job in {
+        ingest_jobs.UNIVERSE_REFRESH_JOB,
+        ingest_jobs.UNIVERSE_BUILD_JOB,
+        ingest_jobs.ADJUSTED_JOB,
+    }:
+        return "ingestEnabled"
+    return SWITCHES.get(job, "")
+
+
+def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     job = str((event or {}).get("job") or "")
-    handler = JOBS.get(job)
+    handler = handler_for(job)
     if handler is None:
         _log_event("error", tag="unknown_job", job=job)
         return {"ok": False, "error": "unknown job"}
-    switch = SWITCHES.get(job)
+    switch = switch_for(job)
     with job_runs.record(job) as run:
         if switch:
             import kill_switch
@@ -42,4 +118,4 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             if not kill_switch.is_enabled(switch):
                 run.skip()
                 return {"ok": True, "status": "skipped_disabled"}
-        return handler(event, run)
+        return handler(event, run, context)

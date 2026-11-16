@@ -224,6 +224,26 @@ class ChunkedTest(unittest.TestCase):
         self.assertEqual(result, ["beta"])
         self.assertEqual(started, ["beta"])
 
+    def test_a_paused_job_waits_until_the_switch_is_on(self) -> None:
+        memory = _Memory()
+        memory.put(
+            {
+                "pk": "JOB#prices",
+                "sk": "STATE",
+                "status": "paused",
+                "gsi1pk": "JOBSTATE",
+                "gsi1sk": "prices",
+                "cursor": 1,
+            }
+        )
+        started: list[str] = []
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            held = chunked.resume_stalled(now=lambda: NOW, invoke=started.append, enabled=lambda _job: False)
+            released = chunked.resume_stalled(now=lambda: NOW, invoke=started.append, enabled=lambda _job: True)
+        self.assertEqual(held, [])
+        self.assertEqual(released, ["prices"])
+        self.assertEqual(started, ["prices"])
+
     def test_invoke_uses_the_function_name_and_does_nothing_without_it(self) -> None:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AWS_LAMBDA_FUNCTION_NAME", None)
@@ -264,6 +284,31 @@ class ChunkedTest(unittest.TestCase):
             restarted: list[str] = []
             chunked.run("prices", ["x", "y"], restarted.append, _Context(200_000), now=lambda: NOW)
         self.assertEqual(restarted, ["x", "y"])
+
+    def test_the_switch_is_read_before_the_next_item(self) -> None:
+        memory = _Memory()
+        seen: list[str] = []
+        checks = {"n": 0}
+
+        def enabled() -> bool:
+            checks["n"] += 1
+            return checks["n"] == 1
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            result = chunked.run(
+                "prices",
+                ["a", "b"],
+                seen.append,
+                _Context(200_000),
+                now=lambda: NOW,
+                enabled=enabled,
+            )
+        self.assertEqual(seen, ["a"])
+        self.assertEqual(result["status"], "paused")
+        self.assertEqual(result["cursor"], 1)
+        saved = memory.items[("JOB#prices", "STATE")]
+        self.assertEqual(saved["status"], "paused")
+        self.assertNotIn("leaseUntil", saved)
 
     def test_invoke_sends_the_stored_params(self) -> None:
         calls: list[dict[str, object]] = []

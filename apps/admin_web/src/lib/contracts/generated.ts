@@ -22,7 +22,7 @@ export const jobs = {
       "cron": "0 6 ? * TUE-SAT *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
-      "manualRun": false,
+      "manualRun": true,
       "keyRun": false
     },
     {
@@ -85,7 +85,25 @@ export const jobs = {
       "cron": "0 8 ? * SUN *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
-      "manualRun": false,
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "backfill_prices",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "IngestEnabled",
+      "manualRun": true,
+      "keyRun": false
+    },
+    {
+      "name": "backfill_fundamentals",
+      "scheduleName": "",
+      "cron": "",
+      "timeZone": "",
+      "killSwitch": "IngestEnabled",
+      "manualRun": true,
       "keyRun": false
     },
     {

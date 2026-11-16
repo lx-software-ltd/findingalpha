@@ -94,6 +94,7 @@ def run(
     *,
     now: Clock = timeutil.utc_now,
     params: dict[str, Any] | None = None,
+    enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Claim the job, process from the cursor, and stop with two minutes left.
 
@@ -114,6 +115,9 @@ def run(
     lease = moment + LEASE
     try:
         while cursor < total:
+            if enabled is not None and not enabled():
+                _save(job, "paused", cursor, total, now(), None, digest, params)
+                return {"status": "paused", "cursor": cursor, "total": total}
             remaining = context.get_remaining_time_in_millis()
             if remaining < _STOP_WITH_MS_LEFT:
                 _save(job, "running", cursor, total, now(), None, digest, params)
@@ -132,19 +136,24 @@ def resume_stalled(
     *,
     now: Clock = timeutil.utc_now,
     invoke: Invoker | None = None,
+    enabled: Callable[[str], bool] | None = None,
 ) -> list[str]:
-    """Start again every running job whose lease has expired."""
+    """Start a running job whose lease expired, and a paused job, when ``enabled`` allows it."""
     moment = timeutil.format_iso_millis(now())
     send = invoke or _invoke_self
     started: list[str] = []
     for item in store.query_gsi1(_GSI_PK):
-        if item.get("sk") != _STATE_SK or item.get("status") != "running":
+        if item.get("sk") != _STATE_SK:
             continue
-        lease = str(item.get("leaseUntil") or "")
-        if lease and lease >= moment:
+        status = item.get("status")
+        if status not in {"running", "paused"}:
             continue
+        if status == "running":
+            lease = str(item.get("leaseUntil") or "")
+            if lease and lease >= moment:
+                continue
         job = str(item.get("gsi1sk") or "")
-        if not job:
+        if not job or (enabled is not None and not enabled(job)):
             continue
         try:
             send(job)

@@ -15,6 +15,7 @@ from alpaca_data import IngestDisabled
 _INDEX_FORMS = frozenset({"10-K", "10-Q", "8-K", "10-K/A", "10-Q/A", "8-K/A"})
 _REFRESH_FORMS = frozenset({"10-K", "10-Q", "10-K/A", "10-Q/A"})
 _CURSOR_PK = "JOB#ingest_filings"
+_FIRST_CATCH_UP = 5
 _CURSOR_SK = "CURSOR"
 STOCK_FRESH_DAYS = 450
 Facts = Callable[[str], dict[str, Any]]
@@ -57,8 +58,8 @@ def trim_facts(payload: dict[str, Any], maps: dict[str, dict[str, list[str]]] | 
     chosen = maps if maps is not None else fundamentals_pit.load_tag_maps()
     facts = payload.get("facts") if isinstance(payload.get("facts"), dict) else {}
     kept: dict[str, dict[str, Any]] = {}
-    for section in ("flows", "stocks"):
-        for tags in chosen[section].values():
+    for section in ("flows", "stocks", "shareFlows"):
+        for tags in (chosen.get(section) or {}).values():
             for tag in tags:
                 taxonomy = "dei" if tag.startswith("dei:") else "us-gaap"
                 source = facts.get(taxonomy) or {}
@@ -99,6 +100,7 @@ def refresh(
     bucket: str | None = None,
     client: Any = None,
     ingest_enabled: Callable[[], bool] | None = None,
+    as_of: str | None = None,
 ) -> dict[str, Any]:
     """Trim each company file to the mapped tags and write the point-in-time rows."""
     _require(ingest_enabled)
@@ -106,13 +108,29 @@ def refresh(
     name = _bucket(bucket)
     maps = fundamentals_pit.load_tag_maps()
     items = [_cik(cik) for cik in ciks]
+    params: dict[str, Any] = {"ciks": items}
+    if as_of:
+        params["asOf"] = as_of
 
     def process(cik: str) -> None:
         trimmed = trim_facts(_load_facts(facts_of, cik), maps)
         s3io.put_gzip_json(name, _facts_key(cik), trimmed, client=client)
         s3io.put_jsonl_gz(name, _pit_key(cik), fundamentals_pit.normalise(trimmed, maps), client=client)
 
-    return chunked.run(job, items, process, context, params={"ciks": items})
+    result = chunked.run(
+        job,
+        items,
+        process,
+        context,
+        params=params,
+        enabled=ingest_enabled or _default_ingest,
+    )
+    if result.get("status") == "done" and job.startswith("ingest_filings_refresh#"):
+        import store
+
+        store.delete(f"JOB#{job}", "STATE")
+        _save_cursor(date.fromisoformat(job.split("#", 1)[1]))
+    return result
 
 
 def _load_facts(facts_of: Facts, cik: str) -> dict[str, Any]:
@@ -175,7 +193,11 @@ def daily(
             ingest_enabled=ingest_enabled,
         )
     cursor = _cursor()
-    pending = [day for day in sessions if day <= through and (cursor is None or day > cursor)]
+    eligible = [day for day in sessions if day <= through]
+    if cursor is None:
+        pending = eligible[-_FIRST_CATCH_UP:]
+    else:
+        pending = [day for day in eligible if day > cursor]
     filings = 0
     refreshed = 0
     status = "done"
@@ -262,7 +284,8 @@ def coverage_report(
     maps = fundamentals_pit.load_tag_maps()
     flow_fields = list(maps["flows"])
     stock_fields = list(maps["stocks"])
-    counts = {field: 0 for field in flow_fields + stock_fields}
+    share_fields = list(maps.get("shareFlows") or {})
+    counts = {field: 0 for field in flow_fields + stock_fields + share_fields}
     padded = [_cik(cik) for cik in ciks]
     for cik in padded:
         key = _pit_key(cik)
@@ -275,10 +298,16 @@ def coverage_report(
         for field in stock_fields:
             if _fresh_stock(visible, field, day):
                 counts[field] += 1
+        for field in share_fields:
+            if _fresh_share(visible, field, day):
+                counts[field] += 1
     total = len(padded)
     flows = {field: (counts[field] / total if total else None) for field in flow_fields}
     stocks = {field: (counts[field] / total if total else None) for field in stock_fields}
-    report = _dynamo_ready({"asOf": day.isoformat(), "companies": total, "flows": flows, "stocks": stocks})
+    share_flows = {field: (counts[field] / total if total else None) for field in share_fields}
+    report = _dynamo_ready(
+        {"asOf": day.isoformat(), "companies": total, "flows": flows, "stocks": stocks, "shareFlows": share_flows}
+    )
     import store
 
     pk = f"UNIVERSE#{day.isoformat()}"
@@ -303,6 +332,13 @@ def _dynamo_ready(value: Any) -> Any:
 def _fresh_stock(rows: list[dict[str, Any]], field: str, day: date) -> bool:
     if fundamentals_pit.latest_stock(rows, field) is None:
         return False
+    ends = [str(row["end"]) for row in rows if row.get("field") == field and row.get("end")]
+    if not ends:
+        return False
+    return (day - date.fromisoformat(max(ends)[:10])).days <= STOCK_FRESH_DAYS
+
+
+def _fresh_share(rows: list[dict[str, Any]], field: str, day: date) -> bool:
     ends = [str(row["end"]) for row in rows if row.get("field") == field and row.get("end")]
     if not ends:
         return False

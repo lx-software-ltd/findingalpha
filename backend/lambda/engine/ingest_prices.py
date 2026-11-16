@@ -161,6 +161,17 @@ def _previous_count(bucket: str, day: date, client: Any) -> int | None:
     return sum(1 for _row in s3io.get_jsonl_gz(bucket, _raw_key(prior), client=client))
 
 
+def _keep_in_backfill(row: dict[str, Any]) -> bool:
+    """A bad print on one name is dropped. SPY stays so the day can still fail."""
+    if not isinstance(row, dict) or row.get("symbol") == "SPY":
+        return isinstance(row, dict)
+    for name in _PRICES:
+        value = row.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            return False
+    return True
+
+
 def _check(bars: list[dict[str, Any]], previous: int | None) -> None:
     if not any(isinstance(row, dict) and row.get("symbol") == "SPY" for row in bars):
         raise DataQualityError("spy_missing")
@@ -268,7 +279,7 @@ def _write_month(
     previous = _previous_count(bucket, days[0], client)
     ready: list[tuple[date, list[dict[str, Any]], list[dict[str, Any]]]] = []
     for day in days:
-        bars = grouped.get(day.isoformat(), [])
+        bars = [row for row in grouped.get(day.isoformat(), []) if _keep_in_backfill(row)]
         actions = by_ex.get(day.isoformat(), [])
         _check(bars, previous)
         ready.append((day, bars, actions))
@@ -304,6 +315,7 @@ def backfill_raw(
             fetch_actions=fetch_actions,
             bucket=bucket,
             client=client,
+            enabled=ingest_enabled or _default_ingest,
         )
 
 
@@ -319,6 +331,7 @@ def _backfill(
     fetch_actions: Actions | None,
     bucket: str | None,
     client: Any,
+    enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     chosen = _with_spy(list(symbols))
     bars_of = fetch_bars or _default_bars
@@ -337,6 +350,7 @@ def _backfill(
         process,
         context,
         params={"start": _as_date(start).isoformat(), "end": _as_date(end).isoformat(), "symbols": chosen},
+        enabled=enabled,
     )
 
 
@@ -353,7 +367,16 @@ def refresh_adjusted(
 ) -> dict[str, Any]:
     """Full history in parts of 100. SPY and BIL are always included."""
     with _hold(ingest_enabled):
-        return _refresh_adjusted(symbols, start, end, context, fetch_bars=fetch_bars, bucket=bucket, client=client)
+        return _refresh_adjusted(
+            symbols,
+            start,
+            end,
+            context,
+            fetch_bars=fetch_bars,
+            bucket=bucket,
+            client=client,
+            enabled=ingest_enabled or _default_ingest,
+        )
 
 
 def _refresh_adjusted(
@@ -365,6 +388,7 @@ def _refresh_adjusted(
     fetch_bars: Bars | None,
     bucket: str | None,
     client: Any,
+    enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     start_day = _as_date(start)
     end_day = _as_date(end)
@@ -388,6 +412,7 @@ def _refresh_adjusted(
         process,
         context,
         params={"start": start_day.isoformat(), "end": end_day.isoformat(), "symbols": chosen},
+        enabled=enabled,
     )
     if result.get("status") == "done":
         _drop_stale_parts(name, len(parts), client)

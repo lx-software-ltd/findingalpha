@@ -38,10 +38,10 @@ def period_class(start: date, end: date) -> str | None:
 
 
 def load_tag_maps(path: Path | None = None) -> TagMaps:
-    """Flows and stocks from the contract. Tag order is the preference order."""
+    """Flows, stocks, and share averages. Tag order is the preference order."""
     raw = json.loads((path or _CONTRACT).read_text(encoding="utf-8"))
     maps: TagMaps = {}
-    for section in ("flows", "stocks"):
+    for section in ("flows", "stocks", "shareFlows"):
         fields = raw.get(section)
         if not isinstance(fields, dict) or not fields:
             raise ValueError(f"fundamentals contract is missing {section}")
@@ -59,7 +59,7 @@ def _fact_rows(
     source = (facts.get("dei") or {}) if tag.startswith("dei:") else (facts.get("us-gaap") or {})
     concept = source.get(tag.removeprefix("dei:")) or {}
     units = concept.get("units") or {}
-    series = units.get("shares") if field == _SHARES_FIELD else units.get("USD")
+    series = units.get("shares") if field == _SHARES_FIELD or kind == "share" else units.get("USD")
     rows: list[dict[str, Any]] = []
     for fact in series or []:
         form = str(fact.get("form") or "")
@@ -77,6 +77,7 @@ def _fact_rows(
             {
                 "field": field,
                 "kind": kind,
+                "tag": tag,
                 "start": start.isoformat(),
                 "end": end.isoformat(),
                 "value": value,
@@ -98,8 +99,8 @@ def normalise(company_facts: dict[str, Any], maps: TagMaps | None = None) -> lis
     """
     chosen = maps if maps is not None else load_tag_maps()
     rows: list[dict[str, Any]] = []
-    for kind, section in (("flow", "flows"), ("stock", "stocks")):
-        for field, tags in chosen[section].items():
+    for kind, section in (("flow", "flows"), ("stock", "stocks"), ("share", "shareFlows")):
+        for field, tags in (chosen.get(section) or {}).items():
             best: dict[tuple[str, str], tuple[int, list[dict[str, Any]]]] = {}
             for rank, tag in enumerate(tags):
                 grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
@@ -119,7 +120,8 @@ def as_of(rows: list[dict[str, Any]], on: str) -> list[dict[str, Any]]:
 
     Share counts filed together are added, so two classes become one total.
     The same count repeated in that filing is kept once. A later filing
-    replaces the total.
+    replaces the total. A weighted-average share count is not added to
+    another duration.
     """
     chosen: dict[tuple[str, str, str], dict[str, Any]] = {}
     shares: dict[tuple[str, str], list[dict[str, Any]]] = {}
@@ -128,6 +130,12 @@ def as_of(rows: list[dict[str, Any]], on: str) -> list[dict[str, Any]]:
             continue
         if row.get("field") == _SHARES_FIELD:
             shares.setdefault((str(row["start"]), str(row["end"])), []).append(row)
+            continue
+        if row.get("kind") == "share":
+            key = (row["field"], row["start"], row["end"])
+            current = chosen.get(key)
+            if current is None or row["filed"] > current["filed"]:
+                chosen[key] = row
             continue
         key = (row["field"], row["start"], row["end"])
         current = chosen.get(key)
@@ -155,6 +163,7 @@ def _combine_shares(group: list[dict[str, Any]]) -> dict[str, Any] | None:
         return None
     base = dict(same[0])
     base["value"] = sum(values)
+    base["tag"] = same[0].get("tag")
     return base
 
 

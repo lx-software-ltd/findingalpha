@@ -13,20 +13,25 @@ from pathlib import Path
 from typing import Any, Callable
 
 import fundamentals_pit
+import share_count
 import universe_data
 from alpaca_data import IngestDisabled
 
 _RULES = Path(__file__).resolve().parent / "contracts" / "methodology.json"
 _SECTORS = Path(__file__).resolve().parent / "contracts" / "sic-sectors.json"
-Bars = Callable[[date], list[dict[str, Any]]]
+Bars = Callable[[date], list[dict[str, Any]] | None]
 Facts = Callable[[str], list[dict[str, Any]] | None]
 Submissions = Callable[[str], dict[str, Any]]
 Refresh = Callable[[list[str], Any], dict[str, Any]]
 Actions = Callable[[date], list[dict[str, Any]]]
+Cover = Callable[[str, date], dict[str, Any] | None]
 
 
 class PriceSessionMissing(RuntimeError):
-    """The last session has no prices, so the previous universe is left as it is."""
+    """A session in the window has no price file, so nothing is written."""
+
+
+_STOP_WITH_MS_LEFT = 120_000
 
 
 class PriceWindowShort(RuntimeError):
@@ -247,12 +252,9 @@ def _prices(
         if rows:
             raise PriceSessionMissing("no sessions")
         return [], []
-    last = window[-1]
-    last_bars = list(read(last))
-    if rows and not last_bars:
-        raise PriceSessionMissing(last.isoformat())
     needed = int(rules["dollarVolumeWindowSessions"])
     grouped: dict[str, list[tuple[date, float, float]]] = {}
+    last = window[-1]
 
     def consume(day: date, bars: list[dict[str, Any]]) -> None:
         for bar in bars:
@@ -265,10 +267,11 @@ def _prices(
                 continue
             grouped.setdefault(symbol, []).append((day, close, volume))
 
-    consume(last, last_bars)
     for day in window:
-        if day != last:
-            consume(day, list(read(day)))
+        bars = read(day)
+        if rows and (bars is None or (day == last and not bars)):
+            raise PriceSessionMissing(day.isoformat())
+        consume(day, list(bars or []))
     priced: list[dict[str, Any]] = []
     liquid: list[dict[str, Any]] = []
     floor = float(rules["minMedianDollarVolumeUsd"])
@@ -293,35 +296,19 @@ def _visible(rows: list[dict[str, Any]] | None, on: date) -> list[dict[str, Any]
     return fundamentals_pit.as_of(rows, on.isoformat())
 
 
-def _share_count(rows: list[dict[str, Any]]) -> tuple[float, date] | None:
-    """Total shares at the latest count date. Classes filed that day are added."""
-    stocks = [
-        row for row in rows if row.get("field") == "sharesOutstanding" and row.get("kind") == "stock" and row.get("end")
-    ]
-    if not stocks:
+def _remaining(context: Any) -> int | None:
+    method = getattr(context, "get_remaining_time_in_millis", None)
+    if method is None:
         return None
-    latest_end = max(str(row["end"]) for row in stocks)
-    at_end = [row for row in stocks if str(row["end"]) == latest_end]
-    latest_filed = max(str(row.get("filed") or "") for row in at_end)
-    values: list[float] = []
-    for row in at_end:
-        if str(row.get("filed") or "") != latest_filed:
-            continue
-        number = _number(row.get("value"))
-        if number is None or number <= 0 or number in values:
-            continue
-        values.append(number)
-    if not values:
+    try:
+        return int(method())
+    except (TypeError, ValueError):
         return None
-    return sum(values), date.fromisoformat(latest_end[:10])
 
 
-def _factor(events: dict[str, list[tuple[date, float]]], symbol: str, after: date, through: date) -> float:
-    factor = 1.0
-    for ex, ratio in events.get(symbol, []):
-        if after < ex <= through:
-            factor *= ratio
-    return factor
+def _out_of_time(context: Any) -> bool:
+    left = _remaining(context)
+    return left is not None and left < _STOP_WITH_MS_LEFT
 
 
 def build(
@@ -336,6 +323,7 @@ def build(
     read_submissions: Submissions | None = None,
     refresh: Refresh | None = None,
     read_actions: Actions | None = None,
+    read_cover: Cover | None = None,
     bucket: str | None = None,
     client: Any = None,
     ingest_enabled: Callable[[], bool] | None = None,
@@ -351,10 +339,13 @@ def build(
     bars_of = read_bars or universe_data.bars_reader(name, client)
     facts_of = read_facts or universe_data.facts_reader(name, client)
     subs_of = read_submissions or universe_data.submissions_reader(name, client)
-    refresh_of = refresh or universe_data.refresh_runner(name, client)
+    refresh_of = refresh or universe_data.refresh_runner(name, client, day)
+    cover_of = read_cover or universe_data.cover_reader(name, client)
     chosen = rules if rules is not None else load_rules()
     ranges = sectors if sectors is not None else load_sectors()
     listed = _screen_assets(assets, chosen)
+    if not listed or not tickers or not sessions:
+        return {"asOf": day.isoformat(), "status": "missing_inputs", "members": 0}
     joined = _joined(listed, tickers)
     needed = int(chosen["dollarVolumeWindowSessions"])
     window = _window(sessions, day, needed)
@@ -379,10 +370,12 @@ def build(
         for cik in missing:
             loaded.pop(cik, None)
     kept: list[dict[str, Any]] = []
-    for row in companies:
+    for index, row in enumerate(companies):
         visible = _visible(facts_once(row["cik"]), day)
         if not visible:
             continue
+        if _out_of_time(context):
+            return {"asOf": day.isoformat(), "status": "running", "pending": len(companies) - index}
         carried = dict(row)
         carried["sic"] = subs_of(row["cik"]).get("sic")
         carried["rows"] = visible
@@ -396,16 +389,19 @@ def build(
         for row in reporting
         if len(set(_annual_filings(row["rows"], annual_form).values())) >= int(chosen["minFundamentalsYears"])
     ]
-    prepared: list[tuple[dict[str, Any], float, date]] = []
+    prepared: list[tuple[dict[str, Any], share_count.Chosen]] = []
     earliest: date | None = None
-    for row in seasoned:
-        shares = _share_count(row["rows"])
-        if shares is None:
+    for index, row in enumerate(seasoned):
+        picked = share_count.choose(row["rows"], day)
+        if picked is None:
+            if _out_of_time(context):
+                return {"asOf": day.isoformat(), "status": "running", "pending": len(seasoned) - index}
+            picked = share_count.from_cover(cover_of(row["cik"], day), day)
+        if picked is None:
             continue
-        value, ended = shares
-        prepared.append((row, value, ended))
-        if earliest is None or ended < earliest:
-            earliest = ended
+        prepared.append((row, picked))
+        if earliest is None or picked.after < earliest:
+            earliest = picked.after
     events = (
         universe_data.split_events(day, earliest, sessions, read_actions, name, client)
         if prepared and earliest is not None
@@ -413,12 +409,14 @@ def build(
     )
     floor = float(chosen["minMarketCapUsd"])
     sized: list[dict[str, Any]] = []
-    for row, shares, ended in prepared:
-        cap = shares * _factor(events, row["symbol"], ended, day) * float(row["close"])
+    for row, picked in prepared:
+        factor = share_count.split_factor(events.get(row["symbol"], []), picked.after, day)
+        cap = picked.value * factor * float(row["close"])
         if cap < floor:
             continue
         carried = dict(row)
         carried["marketCap"] = cap
+        carried["sharesSource"] = picked.source
         carried["sector"] = sector_for(row["sic"], ranges)
         sized.append(carried)
     members = [
@@ -431,6 +429,7 @@ def build(
             "close": row["close"],
             "medianDollarVolume": row["medianDollarVolume"],
             "marketCap": row["marketCap"],
+            "sharesSource": row["sharesSource"],
         }
         for row in sorted(sized, key=lambda item: item["symbol"])
     ]
@@ -446,10 +445,20 @@ def build(
         "marketCap": len(members),
     }
     sector_counts: dict[str, int] = {}
+    share_sources: dict[str, int] = {}
     for row in members:
         sector_counts[row["sector"]] = sector_counts.get(row["sector"], 0) + 1
+        share_sources[row["sharesSource"]] = share_sources.get(row["sharesSource"], 0) + 1
     universe_data.write_universe(
-        day, members, counts, sector_counts, name, client, float(chosen["maxMemberDropFraction"])
+        day,
+        members,
+        counts,
+        sector_counts,
+        name,
+        client,
+        float(chosen["maxMemberDropFraction"]),
+        share_sources,
+        window[-1] if window else None,
     )
     return {
         "asOf": day.isoformat(),
@@ -457,4 +466,5 @@ def build(
         "members": len(members),
         "counts": counts,
         "sectors": sector_counts,
+        "shareSources": share_sources,
     }

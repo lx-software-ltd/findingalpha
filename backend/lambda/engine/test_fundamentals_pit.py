@@ -137,6 +137,9 @@ class NormaliseTest(unittest.TestCase):
         maps = load_tag_maps()
         self.assertEqual(maps["flows"]["revenue"][0], "Revenues")
         self.assertEqual(maps["stocks"]["sharesOutstanding"][0], "dei:EntityCommonStockSharesOutstanding")
+        self.assertEqual(
+            maps["shareFlows"]["weightedDilutedShares"], ["WeightedAverageNumberOfDilutedSharesOutstanding"]
+        )
         self.assertIn("currentAssets", maps["stocks"])
 
     def test_the_first_tag_with_a_row_wins(self) -> None:
@@ -168,6 +171,7 @@ class NormaliseTest(unittest.TestCase):
         self.assertEqual(assets["kind"], "stock")
         shares = next(row for row in rows if row["field"] == "sharesOutstanding")
         self.assertEqual(shares["value"], 1000)
+        self.assertEqual(shares["tag"], "dei:EntityCommonStockSharesOutstanding")
 
     def test_other_units_forms_and_lengths_are_dropped(self) -> None:
         facts = {
@@ -221,6 +225,28 @@ class NormaliseTest(unittest.TestCase):
         self.assertEqual(
             latest_stock(as_of([first, second, restated], "2024-05-01"), "sharesOutstanding"), 12_000_000_000
         )
+
+    def test_two_weighted_average_durations_stay_separate(self) -> None:
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "WeightedAverageNumberOfDilutedSharesOutstanding": {
+                        "units": {
+                            "shares": [
+                                _fact("2024-03-31", 7, "2024-05-01", start="2024-01-01"),
+                                _fact("2024-03-31", 8, "2024-05-01", start="2023-04-01"),
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        rows = normalise(
+            facts, {"shareFlows": {"weightedDilutedShares": ["WeightedAverageNumberOfDilutedSharesOutstanding"]}}
+        )
+        visible = as_of(rows, "2024-06-01")
+        self.assertEqual(sorted(row["value"] for row in visible), [7, 8])
+        self.assertTrue(all(row["kind"] == "share" for row in visible))
 
 
 if __name__ == "__main__":

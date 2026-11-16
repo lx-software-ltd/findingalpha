@@ -16,6 +16,8 @@ export const ROUTES: AdminApiRoute[] = [
   { path: "/owner-tasks/{taskId}", methods: [Method.PUT], auth: "jwt" },
   { path: "/settings", methods: [Method.GET, Method.PUT], auth: "jwt" },
   { path: "/jobs/runs", methods: [Method.GET], auth: "jwt" },
+  { path: "/jobs/{jobName}/run", methods: [Method.POST], auth: "jwt" },
+  { path: "/universe/latest", methods: [Method.GET], auth: "jwt" },
   { path: "/system/status", methods: [Method.GET], auth: "jwt" },
   { path: "/api-keys", methods: [Method.GET], auth: "jwt" },
   { path: "/public", methods: [Method.GET], auth: "key", throttle: { rate: 2, burst: 10 } },
