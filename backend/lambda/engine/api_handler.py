@@ -97,8 +97,23 @@ def latest_universe(_event: dict[str, Any]) -> dict[str, Any]:
             "counts": latest.get("counts"),
             "sectors": latest.get("sectors") or {},
             "shareSources": latest.get("shareSources") or {},
+            "coverage": latest.get("coverage") or {},
+            "lastPriceDate": latest.get("lastPriceDate"),
+            "backfill": {
+                "prices": _progress("backfill_prices"),
+                "fundamentals": _progress("backfill_fundamentals"),
+            },
         },
     )
+
+
+def _progress(job: str) -> dict[str, Any] | None:
+    import store
+
+    item = store.get(f"JOB#{job}", "STATE") or {}
+    if "cursor" not in item or "total" not in item:
+        return None
+    return {"status": item.get("status"), "cursor": item.get("cursor"), "total": item.get("total")}
 
 
 def _is_job_run(method: str, path: str) -> bool:

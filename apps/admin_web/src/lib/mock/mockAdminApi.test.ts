@@ -16,6 +16,11 @@ describe("mock admin api", () => {
     const status = await (await mockAdminFetch("/system/status")).json();
     expect(status.jobs.map((job: { job: string }) => job.job)).toContain("tick");
     expect(status.jobs.some((job: { lastRun: unknown }) => job.lastRun === null)).toBe(true);
+    const universe = await (await mockAdminFetch("/universe/latest")).json();
+    expect(universe.asOf).toBe("2024-06-03");
+    expect(universe.backfill.prices.cursor).toBe(2);
+    const run = await mockAdminFetch("/jobs/ingest_daily/run", { method: "POST" });
+    expect(run.status).toBe(202);
   });
 
   it("keeps a PUT in memory", async () => {

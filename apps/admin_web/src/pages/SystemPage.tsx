@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AdminCell, AdminDataTable, type AdminDataTableColumn } from "../components/ui/AdminDataTable";
 import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
-import { useApiKeys, useJobRuns, useSystemStatus, type JobRun } from "../hooks/useSystemStatus";
+import { useApiKeys, useJobRuns, useRunJob, useSystemStatus, useUniverse, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
 import { accessLabel } from "../lib/apiKeyDisplay";
 
@@ -11,8 +11,12 @@ export function SystemPage() {
   const status = useSystemStatus();
   const runs = useJobRuns();
   const keys = useApiKeys();
+  const universe = useUniverse();
+  const runJob = useRunJob();
   const put = usePutSettings();
   const [pending, setPending] = useState<{ name: SwitchName; next: boolean } | null>(null);
+  const [pendingJob, setPendingJob] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState<string | null>(null);
   const jobs = [...(status.data?.jobs ?? [])].sort((left, right) => Number(right.lastRun?.status === "failed") - Number(left.lastRun?.status === "failed"));
   const columns: AdminDataTableColumn[] = [
     { key: "job", header: "Job" },
@@ -21,7 +25,10 @@ export function SystemPage() {
     { key: "started", header: "Started" },
     { key: "duration", header: "Duration" },
     { key: "message", header: "Message" },
+    { key: "run", header: "Run" },
   ];
+  const data = universe.data;
+  const coverage = { ...(data?.coverage?.flows ?? {}), ...(data?.coverage?.stocks ?? {}) };
 
   return (
     <div>
@@ -55,7 +62,33 @@ export function SystemPage() {
         </tbody>
       </table>
       <p>Broker mode <span className="badge text-bg-secondary">{status.data?.brokerMode ?? "paper"}</span></p>
+      <h2 className="h5">Data</h2>
+      <p>
+        Universe {data?.asOf ?? "—"}, {data?.members ?? 0} names. Last raw price {data?.lastPriceDate ?? "—"}.
+      </p>
+      <table className="table">
+        <caption>Count after each rule</caption>
+        <thead><tr><th>Rule</th><th>Count</th></tr></thead>
+        <tbody>
+          {Object.entries(data?.counts ?? {}).map(([rule, count]) => (
+            <tr key={rule}><td>{rule}</td><td>{count}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      <table className="table">
+        <caption>Fundamentals coverage</caption>
+        <thead><tr><th>Field</th><th>Share</th></tr></thead>
+        <tbody>
+          {Object.entries(coverage).map(([field, share]) => (
+            <tr key={field}><td>{field}</td><td>{share === null || share === undefined ? "—" : share}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      <p>
+        Price backfill {progress(data?.backfill.prices)}. Fundamentals backfill {progress(data?.backfill.fundamentals)}.
+      </p>
       <h2 className="h5">Jobs</h2>
+      {accepted ? <p role="status">Accepted {accepted}.</p> : null}
       <AdminDataTable columns={columns} bare>
         {jobs.map((job) => (
           <tr key={job.job}>
@@ -65,6 +98,13 @@ export function SystemPage() {
             <AdminCell column="started">{job.lastRun ? <DateTimeDisplay iso={job.lastRun.startedAt} /> : "—"}</AdminCell>
             <AdminCell column="duration">{job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}</AdminCell>
             <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
+            <AdminCell column="run">
+              {job.manualRun ? (
+                <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setPendingJob(job.job)}>
+                  Run now
+                </button>
+              ) : null}
+            </AdminCell>
           </tr>
         ))}
       </AdminDataTable>
@@ -107,6 +147,19 @@ export function SystemPage() {
       </table>
       <p className="small text-body-secondary">Keys are created and revoked with the Manage Public API Keys workflow.</p>
       <ConfirmDialog
+        open={pendingJob !== null}
+        title="Run job"
+        body={pendingJob ? `Run ${pendingJob} now?` : ""}
+        confirmLabel="Run"
+        onCancel={() => setPendingJob(null)}
+        onConfirm={() => {
+          if (!pendingJob) return;
+          const name = pendingJob;
+          setPendingJob(null);
+          runJob.mutate(name, { onSuccess: () => setAccepted(name) });
+        }}
+      />
+      <ConfirmDialog
         open={pending !== null}
         title="Change setting"
         body={pending ? `Turn ${pending.name} ${pending.next ? "on" : "off"}?` : ""}
@@ -120,4 +173,9 @@ export function SystemPage() {
       />
     </div>
   );
+}
+
+function progress(row: { cursor: number; total: number } | null | undefined): string {
+  if (!row || row.total === 0) return "—";
+  return `${row.cursor} of ${row.total}`;
 }

@@ -193,7 +193,8 @@ def write_universe(
         f"UNIVERSE#{day.isoformat()}",
         "META",
         "SET #gsi1pk = :gsi1pk, #gsi1sk = :gsi1sk, #asOf = :asOf, #members = :members, "
-        "#counts = :counts, #sectors = :sectors, #shareSources = :shareSources",
+        "#counts = :counts, #sectors = :sectors, #shareSources = :shareSources, "
+        "#lastPriceDate = :lastPriceDate",
         {
             ":gsi1pk": "UNIVERSE",
             ":gsi1sk": day.isoformat(),
@@ -202,6 +203,7 @@ def write_universe(
             ":counts": counts,
             ":sectors": sectors,
             ":shareSources": share_sources or {},
+            ":lastPriceDate": day.isoformat(),
         },
         {
             "#gsi1pk": "gsi1pk",
@@ -211,6 +213,7 @@ def write_universe(
             "#counts": "counts",
             "#sectors": "sectors",
             "#shareSources": "shareSources",
+            "#lastPriceDate": "lastPriceDate",
         },
     )
 

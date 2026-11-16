@@ -231,6 +231,7 @@ class UniverseTest(unittest.TestCase):
         self.assertEqual(saved["gsi1pk"], "UNIVERSE")
         self.assertEqual(saved["gsi1sk"], "2024-06-03")
         self.assertEqual(saved["members"], 4)
+        self.assertEqual(saved["lastPriceDate"], "2024-06-03")
         self.assertEqual(saved["coverage"], {"asOf": "2024-06-03"})
         self.assertEqual(result["sectors"], {"Technology": 2, "Energy": 1, "Other": 1})
 

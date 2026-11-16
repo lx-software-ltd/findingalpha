@@ -15,7 +15,9 @@ def _event(method: str, path: str, body: dict[str, Any] | None = None, limit: st
     event: dict[str, Any] = {
         "requestContext": {
             "http": {"method": method, "path": path},
-            "authorizer": {"jwt": {"claims": {"sub": "user-1", "email": "owner@example.com", "cognito:groups": "[admin]"}}},
+            "authorizer": {
+                "jwt": {"claims": {"sub": "user-1", "email": "owner@example.com", "cognito:groups": "[admin]"}}
+            },
             "requestId": "req-1",
         }
     }
@@ -121,6 +123,7 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(tick["schedule"], "rate(15 minutes)")
         never = next(item for item in body["jobs"] if item["job"] == "ingest_daily")
         self.assertIsNone(never["lastRun"])
+        self.assertTrue(never["manualRun"])
         runs = json.loads(api_handler.lambda_handler(_event("GET", "/jobs/runs", limit="1"), None)["body"])["runs"]
         self.assertEqual(len(runs), 1)
         os.environ.pop("INGEST_ENABLED", None)

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminFetchJson } from "../lib/apiAdminClient";
 import { apiKeyState, expiresSoon, type ApiKeyRow } from "../lib/apiKeyDisplay";
 import { queryKeys } from "../lib/queryKeys";
@@ -22,8 +22,24 @@ export type SystemStatus = {
   readonly jobs: readonly {
     readonly job: string;
     readonly schedule: string;
+    readonly manualRun?: boolean;
     readonly lastRun: JobRun | null;
   }[];
+};
+
+export type UniverseLatest = {
+  readonly asOf: string | null;
+  readonly members: number;
+  readonly counts: Readonly<Record<string, number>>;
+  readonly coverage?: {
+    readonly flows?: Readonly<Record<string, number | null>>;
+    readonly stocks?: Readonly<Record<string, number | null>>;
+  };
+  readonly lastPriceDate: string | null;
+  readonly backfill: {
+    readonly prices: { readonly status?: string; readonly cursor: number; readonly total: number } | null;
+    readonly fundamentals: { readonly status?: string; readonly cursor: number; readonly total: number } | null;
+  };
 };
 
 export function useSystemStatus() {
@@ -50,6 +66,26 @@ export function useApiKeys() {
       };
     },
     refetchInterval: 60_000,
+  });
+}
+
+export function useUniverse() {
+  return useQuery({
+    queryKey: queryKeys.universe,
+    queryFn: () => adminFetchJson<UniverseLatest>("/universe/latest"),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useRunJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (job: string) =>
+      adminFetchJson<{ accepted: boolean }>(`/jobs/${job}/run`, { method: "POST" }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: queryKeys.runs });
+      void client.invalidateQueries({ queryKey: queryKeys.status });
+    },
   });
 }
 

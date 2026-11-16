@@ -62,16 +62,31 @@ class ApiHandlerTest(unittest.TestCase):
 
         rows = [
             {"gsi1sk": "2024-06-01", "asOf": "2024-06-01", "members": 2, "counts": {"marketCap": 2}},
-            {"gsi1sk": "2024-06-03", "asOf": "2024-06-03", "members": 4, "counts": {"marketCap": 4}},
+            {
+                "gsi1sk": "2024-06-03",
+                "asOf": "2024-06-03",
+                "members": 4,
+                "counts": {"marketCap": 4},
+                "lastPriceDate": "2024-06-03",
+            },
             {"gsi1sk": "2024-06-02", "members": 9},
         ]
-        with patch("store.query_gsi1", return_value=rows):
+
+        def get(pk: str, _sk: str) -> dict[str, object] | None:
+            if pk == "JOB#backfill_prices":
+                return {"status": "running", "cursor": 2, "total": 8}
+            return None
+
+        with patch("store.query_gsi1", return_value=rows), patch("store.get", side_effect=get):
             response = api_handler.lambda_handler(_event("GET", "/universe/latest", "[admin]"), None)
         body = json.loads(response["body"])
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(body["asOf"], "2024-06-03")
+        self.assertEqual(body["lastPriceDate"], "2024-06-03")
         self.assertEqual(body["members"], 4)
         self.assertEqual(body["counts"]["marketCap"], 4)
+        self.assertEqual(body["backfill"]["prices"], {"status": "running", "cursor": 2, "total": 8})
+        self.assertIsNone(body["backfill"]["fundamentals"])
 
 
 if __name__ == "__main__":

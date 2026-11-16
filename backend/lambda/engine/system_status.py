@@ -73,7 +73,12 @@ def status(_event: dict[str, Any]) -> dict[str, Any]:
         for name in SWITCHES
     ]
     jobs = [
-        {"job": job["name"], "schedule": _schedule(job), "lastRun": _last_run(str(job["name"]))}
+        {
+            "job": job["name"],
+            "schedule": _schedule(job),
+            "manualRun": job.get("manualRun") is True,
+            "lastRun": _last_run(str(job["name"])),
+        }
         for job in _jobs()
     ]
     return _json_response(

@@ -88,5 +88,19 @@ export function handleSystem(ctx: MockCtx): Json | null {
     });
   }
   if (ctx.method === "GET" && ctx.path === "/jobs/runs") return json(200, runsFixture);
+  if (ctx.method === "GET" && ctx.path === "/universe/latest") {
+    return json(200, {
+      asOf: "2024-06-03",
+      members: 4,
+      counts: { assets: 13, price: 11, marketCap: 4 },
+      coverage: { flows: { revenue: 0.5 }, stocks: { totalAssets: 0.5 } },
+      lastPriceDate: "2024-06-03",
+      backfill: {
+        prices: { status: "running", cursor: 2, total: 8 },
+        fundamentals: null,
+      },
+    });
+  }
+  if (ctx.method === "POST" && /^\/jobs\/[^/]+\/run$/.test(ctx.path)) return json(202, { accepted: true });
   return null;
 }
