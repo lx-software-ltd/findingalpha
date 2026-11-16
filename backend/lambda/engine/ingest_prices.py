@@ -15,6 +15,7 @@ from typing import Any, Callable
 import chunked
 import config
 import s3io
+from alpaca_data import IngestDisabled, hold_ingest_check
 
 LOOKBACK_DAYS = 7
 LOOKAHEAD_DAYS = 75
@@ -36,10 +37,6 @@ class DataQualityError(Exception):
         self.check = check
 
 
-class IngestDisabled(Exception):
-    """``IngestEnabled`` is off, so no request was sent."""
-
-
 def _require(check: Callable[[], bool] | None) -> None:
     allowed = check if check is not None else _default_ingest
     if not allowed():
@@ -58,6 +55,28 @@ def _as_date(value: date | datetime | str) -> date:
     if isinstance(value, date):
         return value
     return date.fromisoformat(str(value)[:10])
+
+
+def reused_symbols(assets: list[dict[str, Any]], *, include_inactive: bool) -> list[dict[str, Any]]:
+    """Tickers that have more than one NYSE or NASDAQ asset."""
+    statuses = {"active", "inactive"} if include_inactive else {"active"}
+    grouped: dict[str, list[dict[str, str]]] = {}
+    for asset in assets:
+        if not isinstance(asset, dict):
+            continue
+        if asset.get("exchange") not in _EXCHANGES or asset.get("status") not in statuses:
+            continue
+        symbol = str(asset.get("symbol") or "").strip()
+        if not symbol:
+            continue
+        grouped.setdefault(symbol, []).append(
+            {
+                "id": str(asset.get("id") or ""),
+                "status": str(asset.get("status") or ""),
+                "exchange": str(asset.get("exchange")),
+            }
+        )
+    return [{"symbol": symbol, "assets": rows} for symbol, rows in sorted(grouped.items()) if len(rows) > 1]
 
 
 def _with_spy(symbols: list[str]) -> list[str]:
@@ -168,6 +187,23 @@ def _for_day(rows: list[dict[str, Any]], day: date) -> list[dict[str, Any]]:
     return [row for row in rows if row.get("exDate") == token]
 
 
+def _hold(check: Callable[[], bool] | None) -> Any:
+    _require(check)
+    return hold_ingest_check()
+
+
+_PART_KEY = re.compile(r"^prices/(?:adj|split)/part=(\d+)/bars\.jsonl\.gz$")
+
+
+def _drop_stale_parts(bucket: str, count: int, client: Any) -> None:
+    for prefix in ("prices/adj/", "prices/split/"):
+        for key in s3io.list_keys(bucket, prefix, client=client):
+            match = _PART_KEY.search(key)
+            if match and int(match.group(1)) >= count:
+                s3io.delete(bucket, key, client=client)
+    s3io.put_json(bucket, "prices/manifest.json", {"parts": count}, client=client)
+
+
 def ingest_raw_day(
     day: date | datetime | str,
     symbols: list[str],
@@ -179,7 +215,21 @@ def ingest_raw_day(
     ingest_enabled: Callable[[], bool] | None = None,
 ) -> dict[str, int]:
     """Write one session. A failed check leaves both keys unwritten."""
-    _require(ingest_enabled)
+    with _hold(ingest_enabled):
+        return _ingest_raw_day(
+            day, symbols, fetch_bars=fetch_bars, fetch_actions=fetch_actions, bucket=bucket, client=client
+        )
+
+
+def _ingest_raw_day(
+    day: date | datetime | str,
+    symbols: list[str],
+    *,
+    fetch_bars: Bars | None,
+    fetch_actions: Actions | None,
+    bucket: str | None,
+    client: Any,
+) -> dict[str, int]:
     session = _as_date(day)
     chosen = _with_spy(list(symbols))
     bars_of = fetch_bars or _default_bars
@@ -234,6 +284,7 @@ def backfill_raw(
     context: Any,
     *,
     symbols: list[str],
+    assets: list[dict[str, Any]] | None = None,
     fetch_bars: Bars | None = None,
     fetch_actions: Actions | None = None,
     bucket: str | None = None,
@@ -241,17 +292,52 @@ def backfill_raw(
     ingest_enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """One calendar month per chunk, including the inactive names in ``symbols``."""
-    _require(ingest_enabled)
+    with _hold(ingest_enabled):
+        return _backfill(
+            start,
+            end,
+            sessions,
+            context,
+            symbols=symbols,
+            assets=assets,
+            fetch_bars=fetch_bars,
+            fetch_actions=fetch_actions,
+            bucket=bucket,
+            client=client,
+        )
+
+
+def _backfill(
+    start: date | str,
+    end: date | str,
+    sessions: list[date],
+    context: Any,
+    *,
+    symbols: list[str],
+    assets: list[dict[str, Any]] | None,
+    fetch_bars: Bars | None,
+    fetch_actions: Actions | None,
+    bucket: str | None,
+    client: Any,
+) -> dict[str, Any]:
     chosen = _with_spy(list(symbols))
     bars_of = fetch_bars or _default_bars
     actions_of = fetch_actions or _default_actions
     name = _bucket(bucket)
+    if assets is not None:
+        s3io.put_json(name, "reference/symbol-reuse.json", reused_symbols(assets, include_inactive=True), client=client)
     spans = month_spans(start, end)
 
     def process(span: tuple[date, date]) -> None:
         _write_month(span, sessions, chosen, bars_of, actions_of, name, client)
 
-    return chunked.run(_BACKFILL_JOB, spans, process, context)
+    return chunked.run(
+        _BACKFILL_JOB,
+        spans,
+        process,
+        context,
+        params={"start": _as_date(start).isoformat(), "end": _as_date(end).isoformat(), "symbols": chosen},
+    )
 
 
 def refresh_adjusted(
@@ -266,7 +352,20 @@ def refresh_adjusted(
     ingest_enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Full history in parts of 100. SPY and BIL are always included."""
-    _require(ingest_enabled)
+    with _hold(ingest_enabled):
+        return _refresh_adjusted(symbols, start, end, context, fetch_bars=fetch_bars, bucket=bucket, client=client)
+
+
+def _refresh_adjusted(
+    symbols: list[str],
+    start: date | str,
+    end: date | str,
+    context: Any,
+    *,
+    fetch_bars: Bars | None,
+    bucket: str | None,
+    client: Any,
+) -> dict[str, Any]:
     start_day = _as_date(start)
     end_day = _as_date(end)
     chosen = sorted(set(_with_spy(list(symbols))) | {"BIL"})
@@ -283,4 +382,51 @@ def refresh_adjusted(
             )
             s3io.put_jsonl_gz(name, f"prices/{prefix}/part={index:03d}/bars.jsonl.gz", rows, client=client)
 
-    return chunked.run(_ADJUSTED_JOB, parts, process, context)
+    result = chunked.run(
+        _ADJUSTED_JOB,
+        parts,
+        process,
+        context,
+        params={"start": start_day.isoformat(), "end": end_day.isoformat(), "symbols": chosen},
+    )
+    if result.get("status") == "done":
+        _drop_stale_parts(name, len(parts), client)
+    return result
+
+
+def refresh_corporate_actions(
+    start: date | str,
+    end: date | str,
+    sessions: list[date],
+    *,
+    fetch_actions: Actions | None = None,
+    bucket: str | None = None,
+    client: Any = None,
+    ingest_enabled: Callable[[], bool] | None = None,
+) -> dict[str, int]:
+    """Rewrite ex-date files. A row that appears after the daily run still lands."""
+    with _hold(ingest_enabled):
+        return _refresh_actions(start, end, sessions, fetch_actions=fetch_actions, bucket=bucket, client=client)
+
+
+def _refresh_actions(
+    start: date | str,
+    end: date | str,
+    sessions: list[date],
+    *,
+    fetch_actions: Actions | None,
+    bucket: str | None,
+    client: Any,
+) -> dict[str, int]:
+    first = _as_date(start)
+    last = _as_date(end)
+    days = [day for day in sessions if first <= day <= last]
+    actions_of = fetch_actions or _default_actions
+    by_ex: dict[str, list[dict[str, Any]]] = {}
+    for row in actions_of(first - timedelta(days=LOOKBACK_DAYS), last + timedelta(days=LOOKAHEAD_DAYS)):
+        by_ex.setdefault(str(row.get("exDate") or ""), []).append(row)
+    name = _bucket(bucket)
+    for day in days:
+        kept = sorted(by_ex.get(day.isoformat(), []), key=_action_key)
+        s3io.put_jsonl_gz(name, _actions_key(day), kept, client=client)
+    return {"days": len(days)}

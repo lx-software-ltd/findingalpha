@@ -238,11 +238,48 @@ class ChunkedTest(unittest.TestCase):
         with (
             patch.dict(os.environ, {"AWS_LAMBDA_FUNCTION_NAME": "engine"}),
             patch("boto3.client", return_value=_Lambda()),
+            patch("store.get", return_value={}),
         ):
             chunked._invoke_self("prices")
         self.assertEqual(calls[0]["FunctionName"], "engine")
         self.assertEqual(calls[0]["InvocationType"], "Event")
-        self.assertIn(b'"job": "prices"', calls[0]["Payload"])
+        self.assertEqual(calls[0]["Payload"], b'{"job": "prices"}')
+
+    def test_a_changed_list_starts_again_and_the_same_list_resumes(self) -> None:
+        memory = _Memory()
+
+        def fail(item: str) -> None:
+            if item == "b":
+                raise RuntimeError("bad row")
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            with self.assertRaises(RuntimeError):
+                chunked.run("prices", ["a", "b"], fail, _Context(200_000), now=lambda: NOW)
+            resumed: list[str] = []
+            chunked.run("prices", ["a", "b"], resumed.append, _Context(200_000), now=lambda: NOW)
+            self.assertEqual(resumed, ["b"])
+            memory.items.pop(("JOB#prices", "STATE"))
+            with self.assertRaises(RuntimeError):
+                chunked.run("prices", ["a", "b"], fail, _Context(200_000), now=lambda: NOW)
+            restarted: list[str] = []
+            chunked.run("prices", ["x", "y"], restarted.append, _Context(200_000), now=lambda: NOW)
+        self.assertEqual(restarted, ["x", "y"])
+
+    def test_invoke_sends_the_stored_params(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        class _Lambda:
+            def invoke(self, **kwargs: object) -> dict[str, str]:
+                calls.append(kwargs)
+                return {"StatusCode": "202"}
+
+        with (
+            patch.dict(os.environ, {"AWS_LAMBDA_FUNCTION_NAME": "engine"}),
+            patch("boto3.client", return_value=_Lambda()),
+            patch("store.get", return_value={"params": {"start": "2016-01-01"}}),
+        ):
+            chunked._invoke_self("backfill_prices")
+        self.assertIn(b'"start": "2016-01-01"', calls[0]["Payload"])
 
 
 if __name__ == "__main__":

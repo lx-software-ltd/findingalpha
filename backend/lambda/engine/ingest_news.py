@@ -12,13 +12,10 @@ from zoneinfo import ZoneInfo
 
 import config
 import s3io
+from alpaca_data import IngestDisabled
 
 _NEW_YORK = ZoneInfo("America/New_York")
 News = Callable[[list[str], str, str], list[dict[str, Any]]]
-
-
-class IngestDisabled(Exception):
-    """``IngestEnabled`` is off, so no request was sent."""
 
 
 def _require(check: Callable[[], bool] | None) -> None:
@@ -54,7 +51,10 @@ def _bounds(end: date) -> tuple[str, str]:
 def _news_day(value: object) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
-    moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    try:
+        moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
     return moment.astimezone(_NEW_YORK).date().isoformat()
@@ -76,7 +76,7 @@ def daily(
     ingest_enabled: Callable[[], bool] | None = None,
 ) -> dict[str, int]:
     """The last three New York dates, ending on ``end``. Empty symbols fetch nothing."""
-    clean = sorted({str(symbol).strip() for symbol in symbols if str(symbol).strip()})
+    clean = sorted({str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()})
     if not clean:
         return {"items": 0}
     _require(ingest_enabled)
@@ -95,8 +95,9 @@ def daily(
         if day not in days:
             continue
         for symbol in row.get("symbols") or []:
-            if symbol in clean:
-                grouped.setdefault((symbol, day), []).append(row)
+            token = str(symbol).strip().upper()
+            if token in clean:
+                grouped.setdefault((token, day), []).append(row)
     name = bucket if bucket is not None else config.data_bucket_name()
     for symbol in clean:
         for day in days:

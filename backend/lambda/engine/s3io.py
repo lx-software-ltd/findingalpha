@@ -69,6 +69,10 @@ def get_jsonl_gz(bucket: str, key: str, *, client: Any = None) -> Iterator[dict[
         body.close()
 
 
+def delete(bucket: str, key: str, *, client: Any = None) -> None:
+    _client(client).delete_object(Bucket=bucket, Key=key)
+
+
 def exists(bucket: str, key: str, *, client: Any = None) -> bool:
     try:
         _client(client).head_object(Bucket=bucket, Key=key)

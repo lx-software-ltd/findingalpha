@@ -9,17 +9,15 @@ import chunked
 import config
 import fundamentals_pit
 import s3io
+from alpaca_data import IngestDisabled
 
 _INDEX_FORMS = frozenset({"10-K", "10-Q", "8-K", "10-K/A", "10-Q/A", "8-K/A"})
 _REFRESH_FORMS = frozenset({"10-K", "10-Q", "10-K/A", "10-Q/A"})
 _CURSOR_PK = "JOB#ingest_filings"
 _CURSOR_SK = "CURSOR"
+STOCK_FRESH_DAYS = 450
 Facts = Callable[[str], dict[str, Any]]
 Index = Callable[[date], list[dict[str, str]]]
-
-
-class IngestDisabled(Exception):
-    """``IngestEnabled`` is off, so no request was sent."""
 
 
 def _require(check: Callable[[], bool] | None) -> None:
@@ -109,11 +107,22 @@ def refresh(
     items = [_cik(cik) for cik in ciks]
 
     def process(cik: str) -> None:
-        trimmed = trim_facts(facts_of(cik), maps)
+        trimmed = trim_facts(_load_facts(facts_of, cik), maps)
         s3io.put_gzip_json(name, _facts_key(cik), trimmed, client=client)
         s3io.put_jsonl_gz(name, _pit_key(cik), fundamentals_pit.normalise(trimmed, maps), client=client)
 
-    return chunked.run(job, items, process, context)
+    return chunked.run(job, items, process, context, params={"ciks": items})
+
+
+def _load_facts(facts_of: Facts, cik: str) -> dict[str, Any]:
+    import http_client
+
+    try:
+        return facts_of(cik)
+    except http_client.HttpStatusError as exc:
+        if exc.status != 404:
+            raise
+        return {"cik": cik, "facts": {}}
 
 
 def _save_cursor(day: date) -> None:
@@ -122,24 +131,82 @@ def _save_cursor(day: date) -> None:
     store.put({"pk": _CURSOR_PK, "sk": _CURSOR_SK, "lastDate": day.isoformat()})
 
 
+def _cursor() -> date | None:
+    import store
+
+    item = store.get(_CURSOR_PK, _CURSOR_SK) or {}
+    raw = item.get("lastDate")
+    if not raw:
+        return None
+    return date.fromisoformat(str(raw)[:10])
+
+
 def daily(
     ciks: list[str],
     on: date | datetime | str,
     context: Any,
     *,
+    sessions: list[date] | None = None,
     fetch_index: Index | None = None,
     fetch_facts: Facts | None = None,
     bucket: str | None = None,
     client: Any = None,
     ingest_enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
-    """Write one day's 10-K, 10-Q, and 8-K rows, then refresh the 10-K and 10-Q filers.
+    """Write 10-K, 10-Q, and 8-K rows, then refresh the 10-K and 10-Q filers.
 
-    An empty index means it is not published yet. Nothing is written and
-    the cursor stays where it was.
+    ``sessions`` is the catch-up calendar. Only sessions after the stored
+    cursor and on or before ``on`` are requested. An empty index means
+    that day is not published yet, so later sessions wait.
     """
     _require(ingest_enabled)
-    day = _as_date(on)
+    through = _as_date(on)
+    if sessions is None:
+        return _one_day(
+            ciks,
+            through,
+            context,
+            fetch_index=fetch_index,
+            fetch_facts=fetch_facts,
+            bucket=bucket,
+            client=client,
+            ingest_enabled=ingest_enabled,
+        )
+    cursor = _cursor()
+    pending = [day for day in sessions if day <= through and (cursor is None or day > cursor)]
+    filings = 0
+    refreshed = 0
+    status = "done"
+    for day in pending:
+        outcome = _one_day(
+            ciks,
+            day,
+            context,
+            fetch_index=fetch_index,
+            fetch_facts=fetch_facts,
+            bucket=bucket,
+            client=client,
+            ingest_enabled=ingest_enabled,
+        )
+        if outcome["status"] != "done":
+            return {"status": outcome["status"], "filings": filings, "refreshed": refreshed}
+        filings += int(outcome["filings"])
+        refreshed += int(outcome["refreshed"])
+        status = "done"
+    return {"status": status, "filings": filings, "refreshed": refreshed}
+
+
+def _one_day(
+    ciks: list[str],
+    day: date,
+    context: Any,
+    *,
+    fetch_index: Index | None,
+    fetch_facts: Facts | None,
+    bucket: str | None,
+    client: Any,
+    ingest_enabled: Callable[[], bool] | None,
+) -> dict[str, Any]:
     index_of = fetch_index or _default_index
     rows = list(index_of(day))
     if not rows:
@@ -162,7 +229,7 @@ def daily(
         result = refresh(
             refresh_ciks,
             context,
-            job="ingest_filings_refresh",
+            job=f"ingest_filings_refresh#{day.isoformat()}",
             fetch_facts=fetch_facts,
             bucket=name,
             client=client,
@@ -197,7 +264,7 @@ def coverage_report(
             if fundamentals_pit.ttm(visible, field) is not None:
                 counts[field] += 1
         for field in stock_fields:
-            if fundamentals_pit.latest_stock(visible, field) is not None:
+            if _fresh_stock(visible, field, day):
                 counts[field] += 1
     total = len(padded)
     flows = {field: (counts[field] / total if total else None) for field in flow_fields}
@@ -206,7 +273,17 @@ def coverage_report(
     import store
 
     pk = f"UNIVERSE#{day.isoformat()}"
-    item = store.get(pk, "META") or {}
-    item.update({"pk": pk, "sk": "META", "coverage": report})
-    store.put(item)
+    try:
+        store.update_conditional(pk, "META", "SET coverage = :c", {":c": report}, "attribute_exists(pk)")
+    except store.ConditionNotMet:
+        pass
     return report
+
+
+def _fresh_stock(rows: list[dict[str, Any]], field: str, day: date) -> bool:
+    if fundamentals_pit.latest_stock(rows, field) is None:
+        return False
+    ends = [str(row["end"]) for row in rows if row.get("field") == field and row.get("end")]
+    if not ends:
+        return False
+    return (day - date.fromisoformat(max(ends)[:10])).days <= STOCK_FRESH_DAYS

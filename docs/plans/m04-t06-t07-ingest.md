@@ -35,6 +35,30 @@ and news the later jobs read.
   the mapped tags.
 - News files hold headlines, not article bodies.
 
+## Corrections
+
+- A company with no XBRL file (HTTP 404) is stored as empty facts and the
+  backfill continues.
+- A chunked run stores a digest of its list. The same list resumes. A
+  different list starts over. The resume payload includes the saved
+  `params`, so a later job handler can rebuild the call.
+- Adjusted history writes `prices/manifest.json` and deletes part files
+  past the current count when the run finishes.
+- `daily(sessions=...)` reads the filings cursor and walks sessions
+  after it. A date that is not a session is not requested. An empty
+  index stops the walk and does not move the cursor.
+- `refresh_corporate_actions` rewrites ex-date files for a recent
+  window, so a row that appears later still lands.
+- Coverage sets `coverage` on an existing universe row. It does not
+  create a row.
+- A ticker with two asset ids is requested once and listed in
+  `reference/symbol-reuse.json`.
+- Corporate actions request 1,000 rows per page. The kill switch is
+  checked once per call, then held for the Alpaca requests inside it.
+- One `IngestDisabled` type is shared. News symbols are upper-cased. A
+  bad `createdAt` is skipped. A stock value older than 450 days does
+  not count as covered.
+
 ## Behaviour
 
 Alpaca selects corporate actions by `process_date`, and it does return

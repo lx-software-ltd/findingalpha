@@ -55,6 +55,9 @@ class _Bucket:
             result["NextContinuationToken"] = str(start + 1)
         return result
 
+    def delete_object(self, *, Bucket: str, Key: str) -> None:
+        self.objects.pop((Bucket, Key), None)
+
 
 class _Memory:
     def __init__(self) -> None:
@@ -76,7 +79,17 @@ class _Memory:
         condition: str,
         names: dict[str, str] | None = None,
     ) -> dict[str, object] | None:
-        del expression, condition, names
+        del names
+        if "coverage" in expression:
+            current = self.items.get((pk, sk))
+            if not current:
+                raise store.ConditionNotMet(pk)
+            previous = dict(current)
+            row = dict(current)
+            row["coverage"] = values[":c"]
+            self.items[(pk, sk)] = row
+            return previous
+        del condition
         current = self.items.get((pk, sk), {})
         lease = str(current.get("leaseUntil") or "")
         if lease and lease >= values[":now"]:
@@ -165,7 +178,11 @@ class PriceIngestTest(unittest.TestCase):
 
         def actions(start: date, end: date) -> list[dict[str, object]]:
             seen["window"] = (start, end)
-            return [_action("2024-06-10", "2024-07-15"), _action("2024-06-11", "2024-06-12")]
+            return [
+                _action("2024-06-10", "2024-07-15"),
+                _action("2024-06-10", "2024-08-24"),
+                _action("2024-06-11", "2024-06-12"),
+            ]
 
         result = ingest_prices.ingest_raw_day(
             DAY,
@@ -176,14 +193,15 @@ class PriceIngestTest(unittest.TestCase):
             client=bucket,
             ingest_enabled=lambda: True,
         )
-        self.assertEqual(result, {"bars": 2, "actions": 1})
+        self.assertEqual(result, {"bars": 2, "actions": 2})
         self.assertEqual(seen["symbols"], ["EXMPL", "SPY"])
         self.assertEqual(seen["window"], (DAY - timedelta(days=7), DAY + timedelta(days=75)))
         stored = list(s3io.get_jsonl_gz("data", "prices/raw/date=2024-06-10/bars.jsonl.gz", client=bucket))
         self.assertEqual([row["symbol"] for row in stored], ["EXMPL", "SPY"])
         kept = list(s3io.get_jsonl_gz("data", "corporate-actions/date=2024-06-10/actions.jsonl.gz", client=bucket))
-        self.assertEqual([row["exDate"] for row in kept], ["2024-06-10"])
+        self.assertEqual([row["exDate"] for row in kept], ["2024-06-10", "2024-06-10"])
         self.assertEqual(kept[0]["processDate"], "2024-07-15")
+        self.assertEqual(kept[1]["processDate"], "2024-08-24")
 
         def bad_bars(symbols: list[str], start: date, end: date, adjustment: str) -> list[dict[str, object]]:
             del symbols, end, adjustment
@@ -323,6 +341,8 @@ class PriceIngestTest(unittest.TestCase):
             return [_bar(symbol, date(2024, 6, 3), close) for symbol in symbols]
 
         symbols = [f"S{index:03d}" for index in range(99)]
+        bucket.objects[("data", "prices/adj/part=002/bars.jsonl.gz")] = b"stale"
+        bucket.objects[("data", "prices/split/part=002/bars.jsonl.gz")] = b"stale"
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
             result = ingest_prices.refresh_adjusted(
                 symbols,
@@ -343,6 +363,96 @@ class PriceIngestTest(unittest.TestCase):
         self.assertEqual(split_rows[0]["close"], 1)
         self.assertIn("BIL", {row["symbol"] for row in rows})
         self.assertEqual([row["symbol"] for row in spy], ["SPY"])
+        self.assertNotIn(("data", "prices/adj/part=002/bars.jsonl.gz"), bucket.objects)
+        self.assertNotIn(("data", "prices/split/part=002/bars.jsonl.gz"), bucket.objects)
+        self.assertEqual(s3io.get_json("data", "prices/manifest.json", client=bucket), {"parts": 2})
+
+    def test_a_month_outside_the_sessions_writes_no_prices(self) -> None:
+        bucket = _Bucket()
+        memory = _Memory()
+
+        def bars(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+            raise AssertionError("requested")
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+            result = ingest_prices.backfill_raw(
+                date(2024, 1, 31),
+                date(2024, 2, 1),
+                [date(2024, 3, 1)],
+                _Context(),
+                symbols=["GONE"],
+                fetch_bars=bars,
+                fetch_actions=bars,
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+        self.assertEqual(result["status"], "done")
+        self.assertFalse(any(key.startswith("prices/") for _bucket, key in bucket.objects))
+
+    def test_reused_tickers_are_requested_once_and_listed(self) -> None:
+        bucket = _Bucket()
+        memory = _Memory()
+        assets = [
+            {"symbol": "EXMPL", "exchange": "NASDAQ", "status": "active", "id": "aaa"},
+            {"symbol": "EXMPL", "exchange": "NYSE", "status": "inactive", "id": "bbb"},
+            {"symbol": "ONLY", "exchange": "NASDAQ", "status": "active", "id": "ccc"},
+        ]
+        seen: list[list[str]] = []
+
+        def bars(symbols: list[str], start: date, end: date, adjustment: str) -> list[dict[str, object]]:
+            del end, adjustment
+            seen.append(symbols)
+            return [_bar(symbol, start) for symbol in symbols]
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+            ingest_prices.backfill_raw(
+                DAY,
+                DAY,
+                [DAY],
+                _Context(),
+                symbols=ingest_prices.raw_symbols(assets, include_inactive=True),
+                assets=assets,
+                fetch_bars=bars,
+                fetch_actions=lambda _start, _end: [],
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+        self.assertEqual(seen, [["EXMPL", "ONLY", "SPY"]])
+        listed = s3io.get_json("data", "reference/symbol-reuse.json", client=bucket)
+        self.assertEqual(
+            listed,
+            [
+                {
+                    "symbol": "EXMPL",
+                    "assets": [
+                        {"id": "aaa", "status": "active", "exchange": "NASDAQ"},
+                        {"id": "bbb", "status": "inactive", "exchange": "NYSE"},
+                    ],
+                }
+            ],
+        )
+
+    def test_corporate_actions_can_be_rewritten_without_touching_bars(self) -> None:
+        bucket = _Bucket()
+        s3io.put_jsonl_gz("data", "prices/raw/date=2024-06-10/bars.jsonl.gz", [_bar("SPY", DAY)], client=bucket)
+        before = bucket.objects[("data", "prices/raw/date=2024-06-10/bars.jsonl.gz")]
+        result = ingest_prices.refresh_corporate_actions(
+            DAY,
+            DAY,
+            [DAY],
+            fetch_actions=lambda start, end: (
+                [_action("2024-06-10", "2024-08-24")] if end == DAY + timedelta(days=75) else []
+            ),
+            bucket="data",
+            client=bucket,
+            ingest_enabled=lambda: True,
+        )
+        self.assertEqual(result, {"days": 1})
+        kept = list(s3io.get_jsonl_gz("data", "corporate-actions/date=2024-06-10/actions.jsonl.gz", client=bucket))
+        self.assertEqual(kept[0]["processDate"], "2024-08-24")
+        self.assertEqual(bucket.objects[("data", "prices/raw/date=2024-06-10/bars.jsonl.gz")], before)
 
 
 if __name__ == "__main__":
