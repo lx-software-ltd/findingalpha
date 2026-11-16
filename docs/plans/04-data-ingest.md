@@ -312,7 +312,9 @@ the owner confirms them (O11):
     "minMedianDollarVolumeUsd": 20000000,
     "dollarVolumeWindowSessions": 60,
     "minMarketCapUsd": 2000000000,
-    "minFundamentalsYears": 3
+    "minFundamentalsYears": 3,
+    "maxAnnualReportAgeDays": 500,
+    "maxMemberDropFraction": 0.5
   }
 }
 ```
@@ -328,12 +330,19 @@ same thing; price, volume and size keep trading costs small.
 1. Assets: active, tradable, exchange in the list, marginable.
 2. Join to the SEC ticker map. Drop symbols without a CIK.
 3. From the last 60 raw daily files: last close and median of
-   `close * volume`. Apply price and dollar-volume rules.
-4. For survivors, make sure fundamentals exist (call `refresh` for
-   missing CIKs) and read the SIC code from `submissions`.
-5. Apply the SIC exclusion, the 10-K rule, the history rule.
-6. Market cap = latest `sharesOutstanding` as of the date times last
-   close. Apply the size rule.
+   `close * volume`. The median needs a bar in every session of that
+   window. A missing file for the last session fails the build.
+4. For survivors, make sure fundamentals exist. `refresh` runs as
+   `universe_fundamentals_refresh` and the build writes nothing unless
+   that refresh finishes. Read the SIC code from `submissions`, using
+   the cached copy when one is stored.
+5. Apply the SIC exclusion (a blank code fails), the 10-K rule, and
+   the history rule. History counts one full fiscal year per 10-K
+   filing. The latest 10-K must be within `maxAnnualReportAgeDays`.
+6. One listing per CIK. Market cap = combined share count, times
+   splits after that count, times that listing's last close. Apply
+   the size rule. A result smaller than half the previous build
+   (`maxMemberDropFraction`) is not written.
 7. Sector from `contracts/sic-sectors.json`: a list of
    `{ "from": 1300, "to": 1399, "sector": "Energy" }` ranges covering
    every SIC code, mapped to eleven sectors (Energy, Materials,

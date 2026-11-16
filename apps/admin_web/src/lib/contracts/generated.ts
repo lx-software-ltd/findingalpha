@@ -226,6 +226,32 @@ export const jobs = {
   ]
 } as const;
 
+export const methodology = {
+  "version": 1,
+  "universe": {
+    "status": "provisional",
+    "exchanges": [
+      "NYSE",
+      "NASDAQ"
+    ],
+    "requireMarginable": true,
+    "requireAnnualReportForm": "10-K",
+    "excludeSicRanges": [
+      [
+        6000,
+        6799
+      ]
+    ],
+    "minPriceUsd": 5,
+    "minMedianDollarVolumeUsd": 20000000,
+    "dollarVolumeWindowSessions": 60,
+    "minMarketCapUsd": 2000000000,
+    "minFundamentalsYears": 3,
+    "maxAnnualReportAgeDays": 500,
+    "maxMemberDropFraction": 0.5
+  }
+} as const;
+
 export const publicApiScopes = {
   "scopes": [
     {
@@ -577,7 +603,8 @@ export const roadmap = {
         "https://github.com/lx-software-ltd/findingalpha/pull/9",
         "https://github.com/lx-software-ltd/findingalpha/pull/11",
         "https://github.com/lx-software-ltd/findingalpha/pull/12",
-        "https://github.com/lx-software-ltd/findingalpha/pull/13"
+        "https://github.com/lx-software-ltd/findingalpha/pull/13",
+        "https://github.com/lx-software-ltd/findingalpha/pull/15"
       ],
       "steps": [
         {
@@ -618,7 +645,7 @@ export const roadmap = {
         {
           "id": "M04-T08",
           "title": "Universe",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T09",
@@ -1193,6 +1220,423 @@ export const roadmap = {
       "id": "O21",
       "title": "Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment",
       "blocks": []
+    }
+  ]
+} as const;
+
+export const sicSectors = {
+  "version": 1,
+  "status": "provisional",
+  "ranges": [
+    {
+      "from": 100,
+      "to": 999,
+      "sector": "Consumer Staples"
+    },
+    {
+      "from": 1000,
+      "to": 1199,
+      "sector": "Materials"
+    },
+    {
+      "from": 1200,
+      "to": 1399,
+      "sector": "Energy"
+    },
+    {
+      "from": 1400,
+      "to": 1499,
+      "sector": "Materials"
+    },
+    {
+      "from": 1500,
+      "to": 1999,
+      "sector": "Industrials"
+    },
+    {
+      "from": 2000,
+      "to": 2199,
+      "sector": "Consumer Staples"
+    },
+    {
+      "from": 2200,
+      "to": 2399,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 2400,
+      "to": 2499,
+      "sector": "Materials"
+    },
+    {
+      "from": 2500,
+      "to": 2599,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 2600,
+      "to": 2710,
+      "sector": "Materials"
+    },
+    {
+      "from": 2711,
+      "to": 2749,
+      "sector": "Communication"
+    },
+    {
+      "from": 2750,
+      "to": 2799,
+      "sector": "Industrials"
+    },
+    {
+      "from": 2800,
+      "to": 2832,
+      "sector": "Materials"
+    },
+    {
+      "from": 2833,
+      "to": 2839,
+      "sector": "Health Care"
+    },
+    {
+      "from": 2840,
+      "to": 2850,
+      "sector": "Consumer Staples"
+    },
+    {
+      "from": 2851,
+      "to": 2910,
+      "sector": "Materials"
+    },
+    {
+      "from": 2911,
+      "to": 3010,
+      "sector": "Energy"
+    },
+    {
+      "from": 3011,
+      "to": 3020,
+      "sector": "Materials"
+    },
+    {
+      "from": 3021,
+      "to": 3049,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 3050,
+      "to": 3099,
+      "sector": "Materials"
+    },
+    {
+      "from": 3100,
+      "to": 3199,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 3200,
+      "to": 3410,
+      "sector": "Materials"
+    },
+    {
+      "from": 3411,
+      "to": 3569,
+      "sector": "Industrials"
+    },
+    {
+      "from": 3570,
+      "to": 3579,
+      "sector": "Technology"
+    },
+    {
+      "from": 3580,
+      "to": 3629,
+      "sector": "Industrials"
+    },
+    {
+      "from": 3630,
+      "to": 3639,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 3640,
+      "to": 3650,
+      "sector": "Industrials"
+    },
+    {
+      "from": 3651,
+      "to": 3651,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 3652,
+      "to": 3660,
+      "sector": "Communication"
+    },
+    {
+      "from": 3661,
+      "to": 3710,
+      "sector": "Technology"
+    },
+    {
+      "from": 3711,
+      "to": 3719,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 3720,
+      "to": 3750,
+      "sector": "Industrials"
+    },
+    {
+      "from": 3751,
+      "to": 3759,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 3760,
+      "to": 3820,
+      "sector": "Industrials"
+    },
+    {
+      "from": 3821,
+      "to": 3840,
+      "sector": "Technology"
+    },
+    {
+      "from": 3841,
+      "to": 3860,
+      "sector": "Health Care"
+    },
+    {
+      "from": 3861,
+      "to": 4010,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 4011,
+      "to": 4811,
+      "sector": "Industrials"
+    },
+    {
+      "from": 4812,
+      "to": 4899,
+      "sector": "Communication"
+    },
+    {
+      "from": 4900,
+      "to": 4949,
+      "sector": "Utilities"
+    },
+    {
+      "from": 4950,
+      "to": 4960,
+      "sector": "Industrials"
+    },
+    {
+      "from": 4961,
+      "to": 4999,
+      "sector": "Utilities"
+    },
+    {
+      "from": 5000,
+      "to": 5044,
+      "sector": "Industrials"
+    },
+    {
+      "from": 5045,
+      "to": 5046,
+      "sector": "Technology"
+    },
+    {
+      "from": 5047,
+      "to": 5049,
+      "sector": "Health Care"
+    },
+    {
+      "from": 5050,
+      "to": 5109,
+      "sector": "Industrials"
+    },
+    {
+      "from": 5110,
+      "to": 5170,
+      "sector": "Consumer Staples"
+    },
+    {
+      "from": 5171,
+      "to": 5179,
+      "sector": "Energy"
+    },
+    {
+      "from": 5180,
+      "to": 5199,
+      "sector": "Consumer Staples"
+    },
+    {
+      "from": 5200,
+      "to": 5399,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 5400,
+      "to": 5499,
+      "sector": "Consumer Staples"
+    },
+    {
+      "from": 5500,
+      "to": 5911,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 5912,
+      "to": 5939,
+      "sector": "Consumer Staples"
+    },
+    {
+      "from": 5940,
+      "to": 5999,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 6000,
+      "to": 6499,
+      "sector": "Financials"
+    },
+    {
+      "from": 6500,
+      "to": 6559,
+      "sector": "Real Estate"
+    },
+    {
+      "from": 6560,
+      "to": 6791,
+      "sector": "Financials"
+    },
+    {
+      "from": 6792,
+      "to": 6793,
+      "sector": "Energy"
+    },
+    {
+      "from": 6794,
+      "to": 6794,
+      "sector": "Financials"
+    },
+    {
+      "from": 6795,
+      "to": 6797,
+      "sector": "Energy"
+    },
+    {
+      "from": 6798,
+      "to": 6798,
+      "sector": "Real Estate"
+    },
+    {
+      "from": 6799,
+      "to": 6999,
+      "sector": "Financials"
+    },
+    {
+      "from": 7000,
+      "to": 7309,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 7310,
+      "to": 7319,
+      "sector": "Communication"
+    },
+    {
+      "from": 7320,
+      "to": 7369,
+      "sector": "Industrials"
+    },
+    {
+      "from": 7370,
+      "to": 7379,
+      "sector": "Technology"
+    },
+    {
+      "from": 7380,
+      "to": 7499,
+      "sector": "Industrials"
+    },
+    {
+      "from": 7500,
+      "to": 7599,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 7600,
+      "to": 7811,
+      "sector": "Industrials"
+    },
+    {
+      "from": 7812,
+      "to": 7899,
+      "sector": "Communication"
+    },
+    {
+      "from": 7900,
+      "to": 7999,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 8000,
+      "to": 8110,
+      "sector": "Health Care"
+    },
+    {
+      "from": 8111,
+      "to": 8199,
+      "sector": "Industrials"
+    },
+    {
+      "from": 8200,
+      "to": 8299,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 8300,
+      "to": 8350,
+      "sector": "Health Care"
+    },
+    {
+      "from": 8351,
+      "to": 8699,
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 8700,
+      "to": 8730,
+      "sector": "Industrials"
+    },
+    {
+      "from": 8731,
+      "to": 8733,
+      "sector": "Health Care"
+    },
+    {
+      "from": 8734,
+      "to": 8879,
+      "sector": "Industrials"
+    },
+    {
+      "from": 8880,
+      "to": 8899,
+      "sector": "Other"
+    },
+    {
+      "from": 8900,
+      "to": 8999,
+      "sector": "Industrials"
+    },
+    {
+      "from": 9000,
+      "to": 9999,
+      "sector": "Other"
     }
   ]
 } as const;

@@ -115,16 +115,47 @@ def normalise(company_facts: dict[str, Any], maps: TagMaps | None = None) -> lis
 
 
 def as_of(rows: list[dict[str, Any]], on: str) -> list[dict[str, Any]]:
-    """Rows filed on or before ``on``. One row per field and period: the latest filing."""
+    """Rows filed on or before ``on``. One row per field and period: the latest filing.
+
+    Share counts filed together are added, so two classes become one total.
+    The same count repeated in that filing is kept once. A later filing
+    replaces the total.
+    """
     chosen: dict[tuple[str, str, str], dict[str, Any]] = {}
+    shares: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in rows:
         if row["filed"] > on:
+            continue
+        if row.get("field") == _SHARES_FIELD:
+            shares.setdefault((str(row["start"]), str(row["end"])), []).append(row)
             continue
         key = (row["field"], row["start"], row["end"])
         current = chosen.get(key)
         if current is None or row["filed"] > current["filed"]:
             chosen[key] = row
+    for key, group in shares.items():
+        combined = _combine_shares(group)
+        if combined is not None:
+            chosen[(_SHARES_FIELD, key[0], key[1])] = combined
     return list(chosen.values())
+
+
+def _combine_shares(group: list[dict[str, Any]]) -> dict[str, Any] | None:
+    latest = max(str(row["filed"]) for row in group)
+    same = [row for row in group if str(row["filed"]) == latest]
+    values: list[float] = []
+    for row in same:
+        raw = row.get("value")
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            continue
+        number = float(raw)
+        if number not in values:
+            values.append(number)
+    if not values:
+        return None
+    base = dict(same[0])
+    base["value"] = sum(values)
+    return base
 
 
 def _class_of(row: dict[str, Any]) -> str | None:

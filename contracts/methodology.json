@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "universe": {
+    "status": "provisional",
+    "exchanges": ["NYSE", "NASDAQ"],
+    "requireMarginable": true,
+    "requireAnnualReportForm": "10-K",
+    "excludeSicRanges": [[6000, 6799]],
+    "minPriceUsd": 5,
+    "minMedianDollarVolumeUsd": 20000000,
+    "dollarVolumeWindowSessions": 60,
+    "minMarketCapUsd": 2000000000,
+    "minFundamentalsYears": 3,
+    "maxAnnualReportAgeDays": 500,
+    "maxMemberDropFraction": 0.5
+  }
+}

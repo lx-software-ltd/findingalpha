@@ -70,6 +70,30 @@ class _Memory:
     def put(self, item: dict[str, object]) -> None:
         self.items[(str(item["pk"]), str(item["sk"]))] = dict(item)
 
+    def update(
+        self,
+        pk: str,
+        sk: str,
+        expression: str,
+        values: dict[str, object],
+        names: dict[str, str] | None = None,
+    ) -> None:
+        row = dict(self.items.get((pk, sk), {"pk": pk, "sk": sk}))
+        row["pk"] = pk
+        row["sk"] = sk
+        body = expression.split("SET", 1)[1]
+        for part in body.split(","):
+            left, right = [piece.strip() for piece in part.split("=", 1)]
+            row[(names or {}).get(left, left)] = values[right]
+        self.items[(pk, sk)] = row
+
+    def query_gsi1(self, gsi1pk: str, prefix: str = "") -> list[dict[str, object]]:
+        return [
+            dict(item)
+            for item in self.items.values()
+            if item.get("gsi1pk") == gsi1pk and str(item.get("gsi1sk") or "").startswith(prefix)
+        ]
+
     def update_conditional(
         self,
         pk: str,

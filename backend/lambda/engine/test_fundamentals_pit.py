@@ -211,6 +211,17 @@ class NormaliseTest(unittest.TestCase):
         self.assertEqual(sorted(row["end"] for row in visible), ["2017-12-31", "2023-12-31"])
         self.assertEqual(ttm(visible, "revenue"), 900)
 
+    def test_share_classes_filed_together_are_added_and_a_later_filing_replaces_them(self) -> None:
+        first = _stock("sharesOutstanding", "2024-02-01", 5_000_000_000, "2024-02-15")
+        second = _stock("sharesOutstanding", "2024-02-01", 6_000_000_000, "2024-02-15")
+        repeated = _stock("sharesOutstanding", "2024-02-01", 6_000_000_000, "2024-02-15")
+        visible = as_of([first, second, repeated], "2024-03-01")
+        self.assertEqual(latest_stock(visible, "sharesOutstanding"), 11_000_000_000)
+        restated = _stock("sharesOutstanding", "2024-02-01", 12_000_000_000, "2024-05-01")
+        self.assertEqual(
+            latest_stock(as_of([first, second, restated], "2024-05-01"), "sharesOutstanding"), 12_000_000_000
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
