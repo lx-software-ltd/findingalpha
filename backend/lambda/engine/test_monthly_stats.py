@@ -20,6 +20,10 @@ class MonthlyStatsTest(unittest.TestCase):
         self.assertEqual(rows[0]["close"], 30)
         self.assertEqual(rows[0]["medianDollarVolume"], 2000)
 
+    def test_the_refresh_rewrites_the_previous_month_as_well_as_the_open_one(self) -> None:
+        self.assertEqual(monthly_stats.months_to_refresh(["2017-01", "2017-02", "2017-03"]), ["2017-02", "2017-03"])
+        self.assertEqual(monthly_stats.months_to_refresh(["2017-03"]), ["2017-03"])
+
     def test_months_run_from_the_start_through_the_end(self) -> None:
         self.assertEqual(
             monthly_stats.months_between("2016-11", "2017-02"), ["2016-11", "2016-12", "2017-01", "2017-02"]

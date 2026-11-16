@@ -260,11 +260,12 @@ test line.
 
 ## Known biases to state in the memo
 
-- **Survivorship.** The asset list is today's list. Companies that
-  went bankrupt or were delisted before today are missing unless
-  M04-T01 showed that inactive symbols have bars. Missing losers make
-  the backtest look better than reality.
-- **Sector and SIC code are today's**, not historical.
+- **Survivorship.** A name keeps the CIK from the latest stored
+  universe file that still listed it. A name that was never in one of
+  those files has no fundamentals, even when its price bars exist.
+  Missing losers make the backtest look better than reality.
+- **Sector and SIC code are the latest stored codes**, not the codes
+  at the time.
 - **Shares outstanding** come from filings and can lag buybacks and
   issues by a quarter.
 - **Trading at the close with a fixed cost** ignores market impact.
@@ -273,6 +274,13 @@ test line.
   price series over each holding period.
 - **Ten years is one market regime and a bit.** Most of it was a bull
   market led by large technology companies.
+- **Two debt totals.** When a filing has only `LongTermDebt` and
+  `DebtCurrent`, total debt is the larger figure. Borrowings that were
+  never inside `LongTermDebt` are missed. Adding both totals would
+  count the current portion twice.
+- **Fallback debt tags** (notes, convertibles, other long-term debt,
+  commercial paper, and the lease-inclusive total) apply only when the
+  narrower tag is missing, and they are not added together.
 
 ## Done when
 

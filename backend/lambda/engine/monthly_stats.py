@@ -25,13 +25,12 @@ def month_rows(days: list[tuple[str, list[dict[str, Any]]]], month: str) -> list
     end = in_month[-1]
     window = [(day, bars) for day, bars in ordered if day <= end][-60:]
     end_bars = {str(bar.get("symbol") or ""): bar for bar in window[-1][1] if bar.get("symbol")}
+    volumes_by_symbol = _volumes_by_symbol(window)
     rows: list[dict[str, Any]] = []
     for symbol, bar in sorted(end_bars.items()):
         close = _number(bar.get("close"))
-        if close is None:
-            continue
-        volumes = _volumes(window, symbol)
-        if not volumes:
+        volumes = volumes_by_symbol.get(symbol) or []
+        if close is None or not volumes:
             continue
         rows.append(
             {
@@ -42,6 +41,17 @@ def month_rows(days: list[tuple[str, list[dict[str, Any]]]], month: str) -> list
             }
         )
     return rows
+
+
+def months_to_refresh(months: list[str]) -> list[str]:
+    """The newest month and the one before it.
+
+    A run during the current month writes a file whose last session is not
+    the month end. The next run rewrites that file as well as the new month.
+    """
+    if not months:
+        return []
+    return months[-2:]
 
 
 def months_between(start: str, end: str) -> list[str]:
@@ -78,24 +88,38 @@ def run(
     def process(month: str) -> None:
         writer(month, month_rows(reader(month), month))
 
-    result = chunked.run("backfill_monthly_stats", chosen, process, context, params={"start": chosen[0]})
+    result = chunked.run(
+        "backfill_monthly_stats", chosen, process, context, params={"start": chosen[0]}, enabled=_ingest_enabled
+    )
     return {"ok": True, **result}
 
 
+def _ingest_enabled() -> bool:
+    import kill_switch
+
+    return kill_switch.is_enabled("ingestEnabled")
+
+
 def append_latest(event: dict[str, Any], _context: Any = None, *, client: Any = None) -> dict[str, Any]:
-    """Write the newest month the raw files can fill. The weekly refresh calls this."""
+    """Rewrite the newest month and the one before it. The weekly refresh calls this."""
     del event
     if not _bucket_ready():
         return {"ok": False, "status": "missing_inputs"}
     chosen = _listed_months(client)
     if not chosen:
         return {"ok": False, "status": "missing_inputs"}
-    month = chosen[-1]
-    rows = month_rows(_window(month, client), month)
-    if not rows:
-        return {"ok": False, "status": "missing_inputs", "month": month}
-    _store(month, rows, client)
-    return {"ok": True, "status": "done", "month": month, "symbols": len(rows)}
+    written: list[str] = []
+    symbols = 0
+    for month in months_to_refresh(chosen):
+        rows = month_rows(_window(month, client), month)
+        if not rows:
+            continue
+        _store(month, rows, client)
+        written.append(month)
+        symbols = len(rows)
+    if not written:
+        return {"ok": False, "status": "missing_inputs"}
+    return {"ok": True, "status": "done", "month": written[-1], "months": written, "symbols": symbols}
 
 
 def _bucket_ready() -> bool:
@@ -104,17 +128,18 @@ def _bucket_ready() -> bool:
     return bool(os.environ.get("DATA_BUCKET_NAME"))
 
 
-def _volumes(window: list[tuple[str, list[dict[str, Any]]]], symbol: str) -> list[float]:
-    volumes: list[float] = []
+def _volumes_by_symbol(window: list[tuple[str, list[dict[str, Any]]]]) -> dict[str, list[float]]:
+    """Dollar volume for every symbol, in one pass over the window."""
+    found: dict[str, list[float]] = {}
     for _day, bars in window:
         for bar in bars:
-            if str(bar.get("symbol") or "") != symbol:
-                continue
+            symbol = str(bar.get("symbol") or "")
             close = _number(bar.get("close"))
             volume = _number(bar.get("volume"))
-            if close is not None and volume is not None:
-                volumes.append(close * volume)
-    return volumes
+            if not symbol or close is None or volume is None:
+                continue
+            found.setdefault(symbol, []).append(close * volume)
+    return found
 
 
 def _listed_months(client: Any) -> list[str]:

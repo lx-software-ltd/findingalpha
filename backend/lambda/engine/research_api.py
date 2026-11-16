@@ -34,10 +34,13 @@ def list_backtests(_event: dict[str, Any]) -> dict[str, Any]:
             "runId": item.get("runId"),
             "portfolioSize": _plain(item.get("portfolioSize")),
             "registerHash": item.get("registerHash"),
+            "createdAt": item.get("createdAt"),
+            "status": item.get("status") or "done",
         }
-        for item in sorted(rows, key=lambda item: str(item.get("gsi1sk") or ""), reverse=True)
+        for item in rows
         if item.get("sk") == "META"
     ]
+    runs.sort(key=lambda item: (str(item.get("createdAt") or ""), str(item.get("runId") or "")), reverse=True)
     return _json_response(200, {"runs": runs})
 
 

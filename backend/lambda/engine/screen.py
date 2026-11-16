@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 import composite
 import config
+import market_files
 import methodology
 import s3io
 import snapshot as snapshot_mod
@@ -153,13 +154,23 @@ def run(
 ) -> dict[str, Any]:
     """Score the newest universe on or before the date. The date defaults to the previous session."""
     register = methodology.load()
-    day = _day(event, today=today, sessions=sessions, client=client)
+    explicit = (event.get("params") or {}).get("date") or event.get("date")
+    injected = snapshot_for is not None and members is not None and (sessions is not None or explicit)
+    name = bucket if bucket is not None else ("" if injected else config.data_bucket_name())
+    day = _day(event, today=today, sessions=sessions, client=client, bucket=name)
     if day is None:
         return {"ok": False, "status": "missing_inputs"}
-    listed = members if members is not None else _load_members(day, client)
+    listed = members if members is not None else _load_members(day, client, bucket=name)
     if not listed:
         return {"ok": False, "status": "missing_inputs", "asOf": day}
-    reader = snapshot_for or (lambda member: _snapshot(member, day, client))
+    if snapshot_for is not None:
+        reader = snapshot_for
+    else:
+        market = load_market(day, bucket=name, client=client)
+
+        def reader(member: dict[str, Any]) -> dict[str, Any]:
+            return _snapshot(member, day, client, market, bucket=name)
+
     scored = score_members(listed, register, reader)
     publish(day, scored, register, bucket=bucket, client=client, table=table)
     counts = {
@@ -213,11 +224,24 @@ def _ready(value: Any) -> Any:
     return value
 
 
-def _day(event: dict[str, Any], *, today: date | None, sessions: list[str] | None, client: Any) -> str | None:
+def load_market(day: str, *, bucket: str, client: Any = None) -> dict[str, Any]:
+    """Bars, the calendar, that day's raw closes, and recent splits. Each file is read once."""
+    calendar = market_files.sessions(bucket, client)
+    return {
+        "sessions": calendar,
+        "bars": market_files.bars_by_symbol(bucket, client),
+        "closes": market_files.raw_closes(bucket, day, calendar, client),
+        "splits": market_files.splits_until(bucket, day, client),
+    }
+
+
+def _day(
+    event: dict[str, Any], *, today: date | None, sessions: list[str] | None, client: Any, bucket: str
+) -> str | None:
     saved = (event.get("params") or {}).get("date") or event.get("date")
     if saved:
         return str(saved)[:10]
-    calendar = sessions if sessions is not None else _calendar(client)
+    calendar = sessions if sessions is not None else market_files.sessions(bucket, client)
     if not calendar:
         return None
     moment = today or date.today()
@@ -225,18 +249,7 @@ def _day(event: dict[str, Any], *, today: date | None, sessions: list[str] | Non
     return prior[-1] if prior else None
 
 
-def _calendar(client: Any) -> list[str]:
-    bucket = config.data_bucket_name()
-    found: list[str] = []
-    for key in s3io.list_keys(bucket, "reference/calendar/", client=client):
-        payload = s3io.get_json(bucket, key, client=client)
-        if isinstance(payload, dict):
-            found.extend(str(day) for day in payload.get("sessions") or [])
-    return sorted(set(found))
-
-
-def _load_members(day: str, client: Any) -> list[dict[str, Any]]:
-    bucket = config.data_bucket_name()
+def _load_members(day: str, client: Any, *, bucket: str) -> list[dict[str, Any]]:
     dates = []
     for key in s3io.list_keys(bucket, "universe/date=", client=client):
         if "/members.jsonl.gz" not in key:
@@ -254,41 +267,57 @@ def _load_members(day: str, client: Any) -> list[dict[str, Any]]:
     ]
 
 
-def _snapshot(member: dict[str, Any], day: str, client: Any) -> dict[str, Any]:
-    bucket = config.data_bucket_name()
+def _snapshot(member: dict[str, Any], day: str, client: Any, market: dict[str, Any], *, bucket: str) -> dict[str, Any]:
+    """Snapshot using the date's close and the shares public that day."""
+    symbol = str(member.get("symbol") or "")
     cik = str(member.get("cik") or "")
-    pit: list[dict[str, Any]] = []
-    key = f"fundamentals/pit/cik={cik}/facts.jsonl.gz"
-    if cik and s3io.exists(bucket, key, client=client):
-        pit = [row for row in s3io.get_jsonl_gz(bucket, key, client=client) if isinstance(row, dict)]
-    bars = _bars_for(str(member.get("symbol") or ""), client)
-    close = _number(member.get("close"))
-    cap = _number(member.get("marketCap"))
-    shares = None if close in (None, 0) or cap is None else cap / close
+    pit = _pit(bucket, cik, client)
+    close = market["closes"].get(symbol)
+    if close is None:
+        close = _number(member.get("close"))
+    shares = _shares(pit, market["splits"].get(symbol) or [], day)
+    if shares is None:
+        member_close = _number(member.get("close"))
+        cap = _number(member.get("marketCap"))
+        shares = None if member_close in (None, 0) or cap is None else cap / member_close
     return snapshot_mod.build(
-        str(member.get("symbol") or ""),
+        symbol,
         cik,
         day,
         pit,
-        bars,
+        market["bars"].get(symbol) or [],
         close,
         shares,
-        _calendar(client) or None,
+        market["sessions"] or None,
     )
 
 
-def _bars_for(symbol: str, client: Any) -> list[dict[str, Any]]:
-    bucket = config.data_bucket_name()
-    found: list[dict[str, Any]] = []
-    for key in s3io.list_keys(bucket, "prices/adj/", client=client):
-        if not key.endswith("bars.jsonl.gz"):
+def _pit(bucket: str, cik: str, client: Any) -> list[dict[str, Any]]:
+    if not cik:
+        return []
+    key = f"fundamentals/pit/cik={cik}/facts.jsonl.gz"
+    if not s3io.exists(bucket, key, client=client):
+        return []
+    return [row for row in s3io.get_jsonl_gz(bucket, key, client=client) if isinstance(row, dict)]
+
+
+def _shares(pit: list[dict[str, Any]], splits: list[tuple[str, float]], day: str) -> float | None:
+    import share_count
+
+    try:
+        on = date.fromisoformat(day)
+    except ValueError:
+        return None
+    events = []
+    for ex, ratio in splits:
+        try:
+            events.append((date.fromisoformat(ex), float(ratio)))
+        except ValueError:
             continue
-        found.extend(
-            row
-            for row in s3io.get_jsonl_gz(bucket, key, client=client)
-            if isinstance(row, dict) and str(row.get("symbol") or "") == symbol
-        )
-    return found
+    chosen = share_count.shares_as_of(pit, events, on)
+    if chosen is None:
+        return None
+    return float(chosen["shares"])
 
 
 def _rule(row: dict[str, Any], rule: dict[str, Any]) -> bool:

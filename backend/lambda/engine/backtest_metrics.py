@@ -87,6 +87,39 @@ def average_turnover(turnovers: list[float]) -> float | None:
     return _mean(turnovers)
 
 
+def yearly_cost_drag(turnovers: list[float], cost_bps: float) -> float | None:
+    """Average one-way turnover, charged on both sides, times twelve."""
+    if not turnovers:
+        return None
+    return _mean(turnovers) * 2 * cost_bps / 10000 * 12
+
+
+def longest_behind(strategy: list[float], benchmark: list[float], labels: list[str]) -> dict[str, Any]:
+    """Longest run of months where strategy wealth lags the benchmark since a relative high.
+
+    The relative line is strategy divided by the benchmark. A new high resets the stretch.
+    """
+    if not labels or len(strategy) != len(benchmark) or len(strategy) != len(labels):
+        return {"months": 0, "start": "", "end": ""}
+    peak = _relative(strategy[0], benchmark[0])
+    peak_at = 0
+    best = 0
+    start = labels[0]
+    end = labels[0]
+    for index in range(1, len(strategy)):
+        relative = _relative(strategy[index], benchmark[index])
+        if relative >= peak:
+            peak = relative
+            peak_at = index
+            continue
+        span = index - peak_at
+        if span > best:
+            best = span
+            start = labels[peak_at]
+            end = labels[index]
+    return {"months": best, "start": start, "end": end}
+
+
 def yearly_table(curve: list[float], other: list[float], labels: list[str]) -> list[dict[str, Any]]:
     """Calendar-year returns. A year uses the last point of the previous year as its base."""
     last: dict[str, int] = {}
@@ -107,6 +140,12 @@ def _change(curve: list[float], start: int, end: int) -> float | None:
     if curve[start] <= 0:
         return None
     return curve[end] / curve[start] - 1
+
+
+def _relative(strategy: float, benchmark: float) -> float:
+    if benchmark == 0:
+        return 0.0
+    return strategy / benchmark
 
 
 def _mean(values: list[float]) -> float:

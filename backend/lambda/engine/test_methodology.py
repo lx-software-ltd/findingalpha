@@ -101,6 +101,11 @@ class MethodologyTest(unittest.TestCase):
         with self.assertRaises(methodology.MethodologyError):
             methodology.factor("missing")
 
+    def test_parameter_reads_follow_get_and_an_alias(self) -> None:
+        self.assertEqual(methodology._parameters_read(_reads_get), ["coverageCap"])
+        self.assertEqual(methodology._parameters_read(_reads_alias), ["maxTaxRate"])
+        self.assertEqual(methodology.unreported_debt(), "zero")
+
     def test_every_implementation_is_callable_and_every_public_function_is_registered(self) -> None:
         named = {item["implementation"] for item in methodology.load()["factors"]}
         for path in named:
@@ -113,6 +118,15 @@ class MethodologyTest(unittest.TestCase):
                 if name.startswith("_") or not callable(value):
                     continue
                 self.assertIn(f"{module_name}.{name}", named)
+
+
+def _reads_get(_snapshot: dict, settings: dict) -> object:
+    return settings.get("coverageCap")
+
+
+def _reads_alias(_snapshot: dict, params: dict) -> object:
+    chosen = params
+    return chosen["maxTaxRate"]
 
 
 if __name__ == "__main__":

@@ -126,7 +126,9 @@ def _combine_debt(
     ``LongTermDebt`` includes its current portion. ``DebtCurrent`` includes
     that portion and short-term borrowings. When only those two totals exist,
     the smaller one is treated as sitting inside the larger one, so the
-    current line is kept and the total is the larger figure. A missing role
+    current line is kept and the total is the larger figure. Borrowings that
+    sit in ``DebtCurrent`` and were never inside ``LongTermDebt`` are missed.
+    Counting both totals would count the current portion twice. A missing role
     stays missing here. The snapshot turns an unreported debt tag into zero.
     """
     implied = (
@@ -175,11 +177,18 @@ def _debt_rows(company_facts: dict[str, Any], roles: dict[str, list[str]]) -> li
             stamp = next((row for row in chosen.values() if row is not None and row["filed"] == filed), None)
             if stamp is None:
                 continue
+            label = _joined_tag(chosen)
             if long_term is not None:
-                emitted.append(_debt_row(stamp, end, filed, "longTermDebt", long_term))
+                emitted.append(_debt_row(stamp, end, filed, "longTermDebt", long_term, label))
             if short_term is not None:
-                emitted.append(_debt_row(stamp, end, filed, "shortTermDebt", short_term))
+                emitted.append(_debt_row(stamp, end, filed, "shortTermDebt", short_term, label))
     return emitted
+
+
+def _joined_tag(chosen: dict[str, dict[str, Any] | None]) -> str:
+    """Every tag that contributed, so a later reader can see the combination."""
+    tags = sorted({str(row.get("tag") or "") for row in chosen.values() if isinstance(row, dict) and row.get("tag")})
+    return "+".join(tags)
 
 
 def _amount(row: dict[str, Any] | None) -> float | None:
@@ -188,11 +197,11 @@ def _amount(row: dict[str, Any] | None) -> float | None:
     return float(row["value"])
 
 
-def _debt_row(stamp: dict[str, Any], end: str, filed: str, field: str, value: float) -> dict[str, Any]:
+def _debt_row(stamp: dict[str, Any], end: str, filed: str, field: str, value: float, tag: str) -> dict[str, Any]:
     return {
         "field": field,
         "kind": "stock",
-        "tag": str(stamp.get("tag") or ""),
+        "tag": tag,
         "start": end,
         "end": end,
         "value": value,

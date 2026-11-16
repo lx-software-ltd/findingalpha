@@ -34,8 +34,17 @@ Debt tags are combined per balance-sheet date. `LongTermDebt` already
 includes `LongTermDebtCurrent`, and `DebtCurrent` already includes the
 current portion and short-term borrowings, so those are not added
 again. When only the two totals are filed, the smaller one is treated
-as part of the larger one. A later filing that repeats an old column
-does not hide the original filing date.
+as part of the larger one. That keeps the current portion from being
+counted twice, and it misses borrowings that sit in `DebtCurrent` and
+were never inside `LongTermDebt`. Adding both totals would make the
+opposite mistake. A later filing that repeats an old column does not
+hide the original filing date. The stored tag lists every tag used in
+the combination.
+
+Notes payable, convertible notes, other long-term debt, commercial
+paper, and the lease-inclusive long-term total are read only when the
+narrower tag for that role is absent. They are alternatives, not extra
+dollars on top of a total. The lease-inclusive total includes leases.
 
 The register says `unreportedDebt` is `zero`. A balance sheet that
 never reports a debt tag, or that drops the tag after an older

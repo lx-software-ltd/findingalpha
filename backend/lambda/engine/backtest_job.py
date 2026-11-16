@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
 import backtest
+import backtest_inputs
 import config
 import methodology
 import s3io
@@ -40,58 +42,69 @@ def parts() -> list[str]:
 def perform(item: tuple[str, str], identity: str, size: int, register: dict[str, Any]) -> None:
     kind, key = item
     bucket = config.data_bucket_name()
+    if kind == "actions":
+        backtest_inputs.write_actions(key, identity, bucket=bucket)
+        return
     if kind == "part":
-        s3io.put_jsonl_gz(bucket, f"backtests/{identity}/factors/part={key}.jsonl.gz", _part_rows(key, register))
+        _part_rows(key, identity, register)
         return
     if kind == "month":
         payload = _holdings(identity, key, size, register)
         s3io.put_json(bucket, f"backtests/{identity}/holdings/month={key[:7]}.json", payload)
+        return
+    if kind == "marks":
+        backtest_inputs.write_marks(key, identity, register, bucket=bucket)
         return
     payload = _equity(identity, size, register)
     s3io.put_json(bucket, f"backtests/{identity}/equity.json", payload)
     _save_index(identity, size, register, payload)
 
 
-def _part_rows(part: str, register: dict[str, Any]) -> list[dict[str, Any]]:
+def _part_rows(part: str, identity: str, register: dict[str, Any]) -> None:
     bucket = config.data_bucket_name()
     key = f"prices/adj/part={part}/bars.jsonl.gz"
     if not s3io.exists(bucket, key):
-        return []
+        return
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in s3io.get_jsonl_gz(bucket, key):
         if isinstance(row, dict) and row.get("symbol"):
             grouped.setdefault(str(row["symbol"]), []).append(row)
     ends = month_ends(register)
-    members = _members()
+    anchor = ends[-1] if ends else "9999-12-31"
+    table = backtest_inputs.identities(bucket)
+    stats = backtest_inputs.monthly_for(set(grouped), bucket)
+    splits = backtest_inputs.saved_splits(identity, bucket=bucket)
     sessions = _sessions()
-    rows: list[dict[str, Any]] = []
+    written: dict[str, list[dict[str, Any]]] = {}
     for symbol, bars in grouped.items():
-        member = members.get(symbol) or {"symbol": symbol}
-        close = backtest._number(member.get("close"))
-        cap = backtest._number(member.get("marketCap"))
-        shares = None if close in (None, 0) or cap is None else cap / close
-        rows.extend(
-            backtest.rows_for_symbol(
-                symbol,
-                ends,
-                _pit(str(member.get("cik") or "")),
-                bars,
-                close,
-                shares,
-                sessions,
-                register,
-                sector=str(member.get("sector") or ""),
-                sic=member.get("sic"),
-                median_dollar_volume=backtest._number(member.get("medianDollarVolume")),
-            )
+        who = backtest_inputs.identity_on(table, symbol, anchor)
+        pit = _pit(str(who.get("cik") or ""))
+        symbol_splits = splits.get(symbol) or []
+        rows = backtest.rows_for_symbol(
+            symbol,
+            ends,
+            pit,
+            bars,
+            None,
+            None,
+            sessions,
+            register,
+            sector=str(who.get("sector") or ""),
+            sic=who.get("sic"),
+            by_month=stats.get(symbol) or {},
+            shares_on=lambda end, rows=pit, events=symbol_splits: backtest_inputs.shares_on(rows, events, end),
         )
-    return rows
+        for row in rows:
+            row["name"] = who.get("name") or symbol
+            written.setdefault(str(row["month"]), []).append(row)
+    for month, group in written.items():
+        s3io.put_jsonl_gz(bucket, f"backtests/{identity}/factors/month={month}/part={part}.jsonl.gz", group)
 
 
 def _holdings(identity: str, month_end: str, size: int, register: dict[str, Any]) -> dict[str, Any]:
     rows = [
         row
-        for row in _factor_rows(identity)
+        for row in backtest_inputs.factor_rows(identity, month_end[:7])
         if str(row.get("monthEnd") or "") == month_end and backtest.eligible(row, register["universe"])
     ]
     ranked = sorted(screen.score(rows, register), key=backtest._rank_key)
@@ -110,13 +123,13 @@ def _holdings(identity: str, month_end: str, size: int, register: dict[str, Any]
 
 def _equity(identity: str, size: int, register: dict[str, Any]) -> dict[str, Any]:
     holdings = _saved_holdings(identity)
-    ends = sorted(holdings)
+    ends = sorted(day for day in holdings if day)
     symbols = {str(row.get("symbol")) for rows in holdings.values() for row in rows}
     symbols.update({str(register["backtest"]["benchmark"]), str(register["backtest"]["cashProxy"])})
     played = backtest.replay(
         ends,
         {},
-        _price_book(symbols),
+        backtest_inputs.price_book(identity, symbols),
         _sessions(),
         register,
         portfolio_size=size,
@@ -125,14 +138,6 @@ def _equity(identity: str, size: int, register: dict[str, Any]) -> dict[str, Any
     played["registerHash"] = methodology.register_hash(register)
     played["portfolioSize"] = size
     return played
-
-
-def _factor_rows(identity: str) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    prefix = f"backtests/{identity}/factors/"
-    for key in s3io.list_keys(config.data_bucket_name(), prefix):
-        rows.extend(row for row in s3io.get_jsonl_gz(config.data_bucket_name(), key) if isinstance(row, dict))
-    return rows
 
 
 def _save_index(identity: str, size: int, register: dict[str, Any], payload: dict[str, Any]) -> None:
@@ -148,7 +153,11 @@ def _save_index(identity: str, size: int, register: dict[str, Any], payload: dic
                 "runId": identity,
                 "portfolioSize": size,
                 "registerHash": methodology.register_hash(register),
+                "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "status": "done",
                 "lastPriceCount": int(payload.get("lastPriceCount") or 0),
+                "unpricedCount": int(payload.get("unpricedCount") or 0),
+                "missingBenchmarkCount": int(payload.get("missingBenchmarkCount") or 0),
             }
         )
     )
@@ -163,40 +172,6 @@ def _saved_holdings(identity: str) -> dict[str, list[dict[str, Any]]]:
     return found
 
 
-def _price_book(symbols: set[str]) -> dict[str, list[dict[str, Any]]]:
-    book: dict[str, dict[str, dict[str, Any]]] = {symbol: {} for symbol in symbols}
-    bucket = config.data_bucket_name()
-    for kind, field in (("adj", "adj"), ("split", "split")):
-        for key in s3io.list_keys(bucket, f"prices/{kind}/"):
-            if not key.endswith("bars.jsonl.gz"):
-                continue
-            for row in s3io.get_jsonl_gz(bucket, key):
-                symbol = str(row.get("symbol") or "") if isinstance(row, dict) else ""
-                if symbol not in book:
-                    continue
-                day = str(row.get("date") or "")
-                book[symbol].setdefault(day, {"date": day})[field] = row.get("close")
-    return {
-        symbol: [bar for _day, bar in sorted(days.items()) if "adj" in bar and "split" in bar]
-        for symbol, days in book.items()
-    }
-
-
-def _members() -> dict[str, dict[str, Any]]:
-    bucket = config.data_bucket_name()
-    dates = [
-        key.split("date=", 1)[1][:10] for key in s3io.list_keys(bucket, "universe/date=") if "/members.jsonl.gz" in key
-    ]
-    if not dates:
-        return {}
-    latest = max(dates)
-    return {
-        str(row.get("symbol")): row
-        for row in s3io.get_jsonl_gz(bucket, f"universe/date={latest}/members.jsonl.gz")
-        if isinstance(row, dict) and row.get("symbol")
-    }
-
-
 def _pit(cik: str) -> list[dict[str, Any]]:
     if not cik:
         return []
@@ -208,13 +183,15 @@ def _pit(cik: str) -> list[dict[str, Any]]:
 
 
 def _sessions() -> list[str]:
-    found: list[str] = []
-    bucket = config.data_bucket_name()
-    for key in s3io.list_keys(bucket, "reference/calendar/"):
-        payload = s3io.get_json(bucket, key)
-        if isinstance(payload, dict):
-            found.extend(str(day) for day in payload.get("sessions") or [])
-    return sorted(set(found))
+    if not _ready_bucket():
+        return []
+    return market_sessions()
+
+
+def market_sessions() -> list[str]:
+    import market_files
+
+    return market_files.sessions(config.data_bucket_name())
 
 
 def _decimals(value: Any) -> Any:

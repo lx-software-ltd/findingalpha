@@ -49,10 +49,28 @@ def _daily(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) ->
 def _weekly(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
     result = ingest_jobs.weekly_refresh(event, context)
     if result.get("status") == "done":
+        result["monthly"] = _append_monthly(event, context)
+    return result
+
+
+def _append_monthly(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Rewrite the open month without failing the weekly refresh that already finished.
+
+    A short remainder is left for the next weekly run. An error is recorded
+    on the result and does not change the weekly status.
+    """
+    remaining = 10**9
+    if context is not None and hasattr(context, "get_remaining_time_in_millis"):
+        remaining = int(context.get_remaining_time_in_millis())
+    if remaining < 120_000:
+        return {"ok": False, "status": "deferred"}
+    try:
         import monthly_stats
 
-        result["monthly"] = monthly_stats.append_latest(event, context)
-    return result
+        return monthly_stats.append_latest(event, context)
+    except Exception as exc:
+        _log_event("error", tag="monthly_stats", error=type(exc).__name__)
+        return {"ok": False, "status": "failed"}
 
 
 def _prices(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:

@@ -103,8 +103,7 @@ def _apply_debt_policy(body: dict[str, Any], rows: list[dict[str, Any]]) -> None
     """
     import methodology
 
-    policy = methodology.load().get("fundamentals") or {}
-    if policy.get("unreportedDebt") != "zero":
+    if methodology.unreported_debt() != "zero":
         return
     ends = _statement_ends(rows)
     if not ends:

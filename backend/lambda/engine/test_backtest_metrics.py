@@ -34,6 +34,9 @@ class BacktestMetricsTest(unittest.TestCase):
         self.assertAlmostEqual(table[0]["strategy"], -0.1)
         self.assertAlmostEqual(table[1]["strategy"], 0.1)
         self.assertAlmostEqual(table[1]["benchmark"], 0.1)
+        behind = backtest_metrics.longest_behind([100.0, 90.0, 80.0, 120.0], [100.0, 100.0, 100.0, 100.0], list("abcd"))
+        self.assertEqual(behind, {"months": 2, "start": "a", "end": "c"})
+        self.assertAlmostEqual(backtest_metrics.yearly_cost_drag([1, 0], 10) or 0, 0.012)
 
 
 if __name__ == "__main__":

@@ -53,6 +53,28 @@ class ResearchApiTest(unittest.TestCase):
         self.assertEqual([row["symbol"] for row in body["rows"]], ["AAA"])
         self.assertEqual(body["counts"]["universe"], 2)
 
+    def test_backtests_are_listed_newest_first(self) -> None:
+        rows = [
+            {
+                "sk": "META",
+                "runId": "older",
+                "portfolioSize": 20,
+                "registerHash": "a",
+                "createdAt": "2020-01-01T00:00:00Z",
+            },
+            {
+                "sk": "META",
+                "runId": "newer",
+                "portfolioSize": 15,
+                "registerHash": "b",
+                "createdAt": "2024-06-01T00:00:00Z",
+            },
+        ]
+        with patch("store.query_gsi1", return_value=rows):
+            response = api_handler.lambda_handler(_event("/backtests"), None)
+        body = json.loads(response["body"])
+        self.assertEqual([item["runId"] for item in body["runs"]], ["newer", "older"])
+
     def test_a_missing_backtest_is_not_found(self) -> None:
         with patch("store.get", return_value=None):
             response = api_handler.lambda_handler(_event("/backtests/missing"), None)

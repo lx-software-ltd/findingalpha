@@ -106,7 +106,7 @@ export const screenFixture = {
 };
 
 export const backtestListFixture = [
-  { runId: "run-example", portfolioSize: 20, registerHash: "abc123abc123abcd" },
+  { runId: "run-example", portfolioSize: 20, registerHash: "abc123abc123abcd", createdAt: "2017-04-01T00:00:00Z" },
 ];
 
 export const backtestFixture = {
@@ -121,12 +121,26 @@ export const backtestFixture = {
     cash: [100, 100.1, 100.2],
   },
   lastPriceCount: 0,
+  unpricedCount: 0,
+  missingBenchmarkCount: 0,
   metrics: {
-    full: { cagr: 0.08, volatility: 0.12, sharpe: 0.5, maxDrawdown: { drawdown: -0.1, start: "2017-02", end: "2017-03" } },
+    full: {
+      cagr: 0.08,
+      volatility: 0.12,
+      sharpe: 0.5,
+      maxDrawdown: { drawdown: -0.1, start: "2017-02", end: "2017-03" },
+      benchmarks: {
+        spyNet: { cagr: 0.04, volatility: 0.1, sharpe: 0.3, maxDrawdown: { drawdown: -0.2, start: "2017-02", end: "2017-03" } },
+        spyGross: { cagr: 0.05, volatility: 0.1, sharpe: 0.4, maxDrawdown: { drawdown: -0.18, start: "2017-02", end: "2017-03" } },
+      },
+    },
     early: { cagr: 0.08, volatility: 0.12, sharpe: 0.5, maxDrawdown: { drawdown: -0.1, start: "2017-02", end: "2017-03" } },
     holdout: { cagr: null, volatility: null, sharpe: null, maxDrawdown: { drawdown: 0, start: "start", end: "start" } },
     hitRate: 0.5,
     averageTurnover: 0.2,
+    costDrag: 0.01,
+    worstWindow: { return: -0.08, start: "2017-02", end: "2018-01" },
+    longestBehind: { months: 3, start: "2017-02", end: "2017-04" },
     yearly: [{ year: "2017", strategy: 0.175, benchmark: 0.014 }],
   },
 };

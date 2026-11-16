@@ -6,12 +6,16 @@ import {
   useScreen,
   type PeriodMetrics,
   type ScreenRow,
+  type SeriesMetrics,
 } from "../hooks/useScreen";
 
 const BIASES = [
-  "The asset list is today's list. Companies that left the market before today are missing, which makes the result look better than a live portfolio.",
-  "Sector and SIC code are today's, not the code at the time.",
+  "A name keeps the CIK from the latest universe file that still listed it. A name that was never in a stored universe file has no fundamentals, even when its prices exist.",
+  "Sector and SIC code are the latest stored codes, not the codes at the time.",
   "Shares outstanding come from filings and can lag buybacks and issues by a quarter.",
+  "When a filing has only LongTermDebt and DebtCurrent, total debt is the larger figure. Borrowings that sit in DebtCurrent and were never inside LongTermDebt are missed. Adding the two totals would count the current portion twice.",
+  "Notes, convertibles, other long-term debt, commercial paper, and the lease-inclusive total are used only when the narrower tag is missing. Those fallbacks are not added together, and the lease-inclusive total includes leases.",
+  "A name with no price on the trade date is counted and earns the cash return for that month. A month with no holdings earns the cash return.",
   "Trading at the close with a fixed cost ignores market impact.",
   "Dividend withholding is the gap between the adjusted and split price series.",
   "Ten years is mostly one bull market led by large technology companies.",
@@ -64,7 +68,7 @@ function Shortlist() {
           <button className="btn btn-outline-secondary" type="submit">Load date</button>
         </div>
       </form>
-      {screen.isError ? <p>That screen is not stored.</p> : null}
+      {screen.isError ? <p>{screenMessage(screen.error)}</p> : null}
       <div className="row g-3 mb-3">
         <div className="col-6 col-lg-3"><AdminKpi label="Date" value={screen.data?.asOf ?? "—"} /></div>
         <div className="col-6 col-lg-3"><AdminKpi label="Universe" value={screen.data?.counts.universe ?? "—"} /></div>
@@ -76,14 +80,17 @@ function Shortlist() {
         <table className="table align-middle">
           <thead>
             <tr>
-              <SortHeader label="Rank" active={sort === "rank"} onClick={() => setSort("rank")} />
-              <SortHeader label="Symbol" active={sort === "symbol"} onClick={() => setSort("symbol")} />
+              <SortHeader label="Rank" active={sort === "rank"} direction="ascending" onClick={() => setSort("rank")} />
+              <SortHeader label="Symbol" active={sort === "symbol"} direction="ascending" onClick={() => setSort("symbol")} />
               <th>Name</th>
               <th>Sector</th>
-              <SortHeader label="Composite" active={sort === "composite"} onClick={() => setSort("composite")} />
+              <SortHeader label="Composite" active={sort === "composite"} direction="descending" onClick={() => setSort("composite")} />
               <th>Quality</th>
               <th>Value</th>
               <th>Trend</th>
+              {factorNames.map((name) => (
+                <th key={name}>{name}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -121,10 +128,13 @@ function Row({
         <td>{figure(row.groups.quality)}</td>
         <td>{figure(row.groups.value)}</td>
         <td>{figure(row.groups.trend)}</td>
+        {factorNames.map((name) => (
+          <td key={name}>{figure(row.factors[name])}</td>
+        ))}
       </tr>
       {open ? (
         <tr>
-          <td colSpan={8}>
+          <td colSpan={8 + factorNames.length}>
             <div className="row">
               {factorNames.map((name) => (
                 <div className="col-6 col-md-4" key={name}>
@@ -172,16 +182,25 @@ function BacktestPanel() {
           <div className="table-responsive">
             <table className="table">
               <thead>
-                <tr><th>Period</th><th>CAGR</th><th>Volatility</th><th>Sharpe</th><th>Max drawdown</th></tr>
+                <tr><th>Period</th><th>Series</th><th>CAGR</th><th>Volatility</th><th>Sharpe</th><th>Max drawdown</th></tr>
               </thead>
               <tbody>
-                <PeriodRow name="Full" metrics={data.metrics.full} />
-                <PeriodRow name="2017–2021" metrics={data.metrics.early} />
-                <PeriodRow name="2022 to today" metrics={data.metrics.holdout} />
+                <PeriodRows name="Full" metrics={data.metrics.full} />
+                <PeriodRows name="2017–2021" metrics={data.metrics.early} />
+                <PeriodRows name="2022 to today" metrics={data.metrics.holdout} />
               </tbody>
             </table>
           </div>
-          <p>Hit rate {percent(data.metrics.hitRate)}. Average turnover {percent(data.metrics.averageTurnover)}. Names carried at a last price {data.lastPriceCount ?? "—"}.</p>
+          <p>
+            Hit rate {percent(data.metrics.hitRate)}. Average turnover {percent(data.metrics.averageTurnover)}.
+            Yearly cost drag {percent(data.metrics.costDrag)}. Worst 12 months {percent(data.metrics.worstWindow?.return)}
+            {" "}({data.metrics.worstWindow?.start ?? "—"} to {data.metrics.worstWindow?.end ?? "—"}).
+            Longest stretch behind SPY net {data.metrics.longestBehind?.months ?? "—"} months
+            {" "}({data.metrics.longestBehind?.start ?? "—"} to {data.metrics.longestBehind?.end ?? "—"}).
+            Names carried at a last price {data.lastPriceCount ?? "—"}.
+            Names without a trade price {data.unpricedCount ?? "—"}.
+            Months missing a benchmark {data.missingBenchmarkCount ?? "—"}.
+          </p>
           <h3 className="h6">Yearly returns</h3>
           <ul>
             {(data.metrics.yearly ?? []).map((year) => (
@@ -196,10 +215,29 @@ function BacktestPanel() {
   );
 }
 
-function PeriodRow({ name, metrics }: { readonly name: string; readonly metrics: PeriodMetrics | undefined }) {
+function PeriodRows({ name, metrics }: { readonly name: string; readonly metrics: PeriodMetrics | undefined }) {
+  return (
+    <>
+      <MetricRow label={name} series="Strategy" metrics={metrics} />
+      {metrics?.benchmarks?.spyNet ? <MetricRow label="" series="SPY net" metrics={metrics.benchmarks.spyNet} /> : null}
+      {metrics?.benchmarks?.spyGross ? <MetricRow label="" series="SPY gross" metrics={metrics.benchmarks.spyGross} /> : null}
+    </>
+  );
+}
+
+function MetricRow({
+  label,
+  series,
+  metrics,
+}: {
+  readonly label: string;
+  readonly series: string;
+  readonly metrics: SeriesMetrics | undefined;
+}) {
   return (
     <tr>
-      <td>{name}</td>
+      <td>{label}</td>
+      <td>{series}</td>
       <td>{percent(metrics?.cagr)}</td>
       <td>{percent(metrics?.volatility)}</td>
       <td>{figure(metrics?.sharpe)}</td>
@@ -208,12 +246,28 @@ function PeriodRow({ name, metrics }: { readonly name: string; readonly metrics:
   );
 }
 
-function SortHeader({ label, active, onClick }: { readonly label: string; readonly active: boolean; readonly onClick: () => void }) {
+function SortHeader({
+  label,
+  active,
+  direction,
+  onClick,
+}: {
+  readonly label: string;
+  readonly active: boolean;
+  readonly direction: "ascending" | "descending";
+  readonly onClick: () => void;
+}) {
   return (
-    <th aria-sort={active ? "ascending" : "none"}>
+    <th aria-sort={active ? direction : "none"}>
       <button type="button" className="btn btn-link p-0" onClick={onClick}>{label}</button>
     </th>
   );
+}
+
+function screenMessage(error: unknown): string {
+  const status = typeof error === "object" && error !== null && "status" in error ? Number((error as { status: unknown }).status) : 0;
+  if (status === 404) return "That screen is not stored.";
+  return "The screen could not be loaded.";
 }
 
 function sortRows(rows: readonly ScreenRow[], sort: SortKey): ScreenRow[] {

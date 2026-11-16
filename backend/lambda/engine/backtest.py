@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 import backtest_metrics
 import fundamentals_pit
@@ -118,19 +118,33 @@ def rows_for_symbol(
     sector: str = "",
     sic: object = None,
     median_dollar_volume: float | None = None,
+    by_month: dict[str, dict[str, Any]] | None = None,
+    shares_on: Callable[[str], float | None] | None = None,
 ) -> list[dict[str, Any]]:
-    """One factor row per month end, using only filings and prices public on that day."""
+    """One factor row per month end, using only filings and prices public on that day.
+
+    ``by_month`` supplies that month's close and dollar volume. Without it,
+    the single ``raw_close`` is used for every month, which the tests do.
+    """
     rows: list[dict[str, Any]] = []
     for end in month_ends:
-        body = snapshot_mod.build(symbol, "", end, pit_rows, adjusted, raw_close, shares, sessions)
+        if by_month is None:
+            close: float | None = raw_close
+            volume = median_dollar_volume
+        else:
+            stats = by_month.get(end[:7]) or {}
+            close = _number(stats.get("close"))
+            volume = _number(stats.get("medianDollarVolume"))
+        share_count = shares_on(end) if shares_on is not None else shares
+        body = snapshot_mod.build(symbol, "", end, pit_rows, adjusted, close, share_count, sessions)
         row: dict[str, Any] = {
             "symbol": symbol,
             "month": end[:7],
             "monthEnd": end,
             "sector": sector,
             "sic": sic,
-            "close": raw_close,
-            "medianDollarVolume": median_dollar_volume,
+            "close": close,
+            "medianDollarVolume": volume,
             "marketCap": body.get("marketCap"),
             "historyYears": history_years(pit_rows, end),
         }
@@ -172,6 +186,8 @@ def replay(
     previous: dict[str, float] = {}
     periods: list[dict[str, Any]] = []
     last_price_count = 0
+    unpriced = 0
+    missing_benchmark = 0
     for index, end in enumerate(month_ends[:-1]):
         nxt = month_ends[index + 1]
         if holdings_by_month is not None:
@@ -182,23 +198,34 @@ def replay(
         start_day = session_after(sessions, end, delay)
         end_day = session_after(sessions, nxt, delay)
         weights = {str(row["symbol"]): float(row["weight"]) for row in chosen}
+        cash, _cash_used = _gross(prices.get(spec["cashProxy"]) or [], start_day, end_day)
+        spy_gross, _used = _gross(prices.get(spec["benchmark"]) or [], start_day, end_day)
+        spy_net, _spy_used = name_return(prices.get(spec["benchmark"]) or [], start_day, end_day, rate)
+        if cash is None or spy_gross is None or spy_net is None:
+            missing_benchmark += 1
         returns: list[float] = []
         for symbol in weights:
             value, used = name_return(prices.get(symbol) or [], start_day, end_day, rate)
             last_price_count += used
-            if value is not None:
-                returns.append(value)
-        turned = 1.0 if not previous else one_way_turnover(previous, weights)
-        spy_gross, _used = _gross(prices.get(spec["benchmark"]) or [], start_day, end_day)
-        spy_net, _spy_used = name_return(prices.get(spec["benchmark"]) or [], start_day, end_day, rate)
-        cash, _cash_used = _gross(prices.get(spec["cashProxy"]) or [], start_day, end_day)
+            if value is None:
+                unpriced += 1
+                if cash is not None:
+                    returns.append(cash)
+                continue
+            returns.append(value)
+        if not weights:
+            turned = 0.0
+            strategy: float | None = cash
+        else:
+            turned = 1.0 if not previous else one_way_turnover(previous, weights)
+            strategy = period_return(returns, turned, cost) if returns else cash
         periods.append(
             {
-                "month": end[:7],
-                "strategy": period_return(returns, turned, cost) if returns else 0.0,
-                "spyGross": spy_gross or 0.0,
-                "spyNet": spy_net or 0.0,
-                "cash": cash or 0.0,
+                "month": nxt[:7],
+                "strategy": strategy,
+                "spyGross": spy_gross,
+                "spyNet": spy_net,
+                "cash": cash,
                 "turnover": turned,
                 "holdings": [str(row["symbol"]) for row in chosen],
             }
@@ -211,8 +238,31 @@ def replay(
         "labels": labels,
         "curves": curves,
         "lastPriceCount": last_price_count,
-        "metrics": _metrics(periods, curves, labels),
+        "unpricedCount": unpriced,
+        "missingBenchmarkCount": missing_benchmark,
+        "metrics": _metrics(periods, curves, labels, cost),
     }
+
+
+def continued_run(previous: dict[str, Any], size: int) -> tuple[str, str] | None:
+    """The saved run when it is the same size and has not failed three times.
+
+    A different size, a finished run, and a terminal failure start a new id
+    so later months are not mixed with holdings already written.
+    """
+    if previous.get("status") not in {"running", "paused", "failed"}:
+        return None
+    saved = previous.get("params") if isinstance(previous.get("params"), dict) else {}
+    if isinstance(saved.get("portfolioSize"), bool) or not saved.get("runId"):
+        return None
+    try:
+        saved_size = int(saved.get("portfolioSize"))
+        failures = int(previous.get("failures") or 0)
+    except (TypeError, ValueError):
+        return None
+    if saved_size != size or (previous.get("status") == "failed" and failures >= 3):
+        return None
+    return str(saved["runId"]), str(saved.get("startedAt") or "")
 
 
 def portfolio_size(value: object, register: dict[str, Any]) -> int | None:
@@ -239,21 +289,23 @@ def run(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     if size is None:
         return {"ok": False, "status": "failed", "error": "portfolioSize"}
     previous = store.get("JOB#backtest", "STATE") or {}
-    saved = previous.get("params") if isinstance(previous.get("params"), dict) else {}
-    if previous.get("status") in {"running", "paused", "failed"} and saved.get("runId"):
-        identity = str(saved["runId"])
-        started = str(saved.get("startedAt") or "")
+    continued = continued_run(previous, size)
+    if continued is not None:
+        identity, started = continued
     else:
         started = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         identity = run_id(methodology.register_hash(register), size, started)
+    import backtest_inputs
     import backtest_job
 
     ends = backtest_job.month_ends(register)
     part_ids = backtest_job.parts()
     if not ends or not part_ids:
         return {"ok": False, "status": "missing_inputs", "runId": identity}
-    items: list[tuple[str, str]] = [("part", part) for part in part_ids]
+    items: list[tuple[str, str]] = [("actions", year) for year in backtest_inputs.action_years(ends)]
+    items.extend(("part", part) for part in part_ids)
     items.extend(("month", end) for end in ends)
+    items.extend(("marks", part) for part in part_ids)
     items.append(("equity", identity))
     import chunked
 
@@ -263,24 +315,33 @@ def run(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
         lambda item: backtest_job.perform(item, identity, size, register),
         context,
         params={"runId": identity, "portfolioSize": size, "startedAt": started},
+        enabled=_ingest_enabled,
     )
     return {"ok": True, "runId": identity, **result}
+
+
+def _ingest_enabled() -> bool:
+    import kill_switch
+
+    return kill_switch.is_enabled("ingestEnabled")
 
 
 def _curves(periods: list[dict[str, Any]]) -> dict[str, list[float]]:
     curves = {name: [float(_START_VALUE)] for name in ("strategy", "spyGross", "spyNet", "cash")}
     for period in periods:
         for name in curves:
-            curves[name].append(curves[name][-1] * (1 + float(period[name])))
+            curves[name].append(curves[name][-1] * (1 + _or_zero(period.get(name))))
     return curves
 
 
-def _metrics(periods: list[dict[str, Any]], curves: dict[str, list[float]], labels: list[str]) -> dict[str, Any]:
-    full = _window(periods, curves, labels, None, None)
+def _metrics(
+    periods: list[dict[str, Any]], curves: dict[str, list[float]], labels: list[str], cost: float
+) -> dict[str, Any]:
+    full = _window(periods, curves, labels, None, None, cost)
     return {
         "full": full,
-        "early": _window(periods, curves, labels, None, "2021-12"),
-        "holdout": _window(periods, curves, labels, "2022-01", None),
+        "early": _window(periods, curves, labels, None, "2021-12", cost),
+        "holdout": _window(periods, curves, labels, "2022-01", None, cost),
         **full,
     }
 
@@ -291,6 +352,7 @@ def _window(
     labels: list[str],
     start: str | None,
     end: str | None,
+    cost: float,
 ) -> dict[str, Any]:
     chosen = [
         index
@@ -301,10 +363,14 @@ def _window(
         return {}
     first = chosen[0] - 1
     last = chosen[-1]
-    strategy = [float(periods[index - 1]["strategy"]) for index in chosen]
-    cash = [float(periods[index - 1]["cash"]) for index in chosen]
-    spy = [float(periods[index - 1]["spyNet"]) for index in chosen]
+    strategy = [_or_zero(periods[index - 1].get("strategy")) for index in chosen]
+    cash = [_or_zero(periods[index - 1].get("cash")) for index in chosen]
+    spy = [_or_zero(periods[index - 1].get("spyNet")) for index in chosen]
+    gross = [_or_zero(periods[index - 1].get("spyGross")) for index in chosen]
+    turnovers = [float(periods[index - 1]["turnover"]) for index in chosen]
     curve = curves["strategy"][first : last + 1]
+    spy_curve = curves["spyNet"][first : last + 1]
+    gross_curve = curves["spyGross"][first : last + 1]
     window_labels = [labels[first], *[labels[index] for index in chosen]]
     return {
         "cagr": backtest_metrics.cagr(curve),
@@ -313,11 +379,29 @@ def _window(
         "maxDrawdown": backtest_metrics.max_drawdown(curve, window_labels),
         "hitRate": backtest_metrics.hit_rate(strategy, spy),
         "worstWindow": backtest_metrics.worst_window(curve, window_labels),
-        "averageTurnover": backtest_metrics.average_turnover(
-            [float(periods[index - 1]["turnover"]) for index in chosen]
-        ),
-        "yearly": backtest_metrics.yearly_table(curve, curves["spyNet"][first : last + 1], window_labels),
+        "averageTurnover": backtest_metrics.average_turnover(turnovers),
+        "costDrag": backtest_metrics.yearly_cost_drag(turnovers, cost),
+        "longestBehind": backtest_metrics.longest_behind(curve, spy_curve, window_labels),
+        "benchmarks": {
+            "spyNet": _series(spy_curve, spy, cash, window_labels),
+            "spyGross": _series(gross_curve, gross, cash, window_labels),
+        },
+        "yearly": backtest_metrics.yearly_table(curve, spy_curve, window_labels),
     }
+
+
+def _series(curve: list[float], returns: list[float], cash: list[float], labels: list[str]) -> dict[str, Any]:
+    return {
+        "cagr": backtest_metrics.cagr(curve),
+        "volatility": backtest_metrics.annualised_volatility(returns),
+        "sharpe": backtest_metrics.sharpe(returns, cash),
+        "maxDrawdown": backtest_metrics.max_drawdown(curve, labels),
+    }
+
+
+def _or_zero(value: object) -> float:
+    number = _number(value)
+    return 0.0 if number is None else number
 
 
 def _gross(series: list[dict[str, Any]], start: str | None, end: str | None) -> tuple[float | None, int]:

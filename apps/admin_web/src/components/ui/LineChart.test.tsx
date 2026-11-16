@@ -15,6 +15,8 @@ describe("LineChart", () => {
     );
     expect(screen.getByRole("img", { name: "Equity" })).toBeInTheDocument();
     expect(container.querySelectorAll("path")).toHaveLength(2);
+    expect(screen.getByText("a")).toBeInTheDocument();
+    expect(screen.getByText("b")).toBeInTheDocument();
     rerender(<LineChart title="Equity" series={[{ name: "Empty", colour: "#000", points: [] }]} />);
     expect(screen.getByText("No series to plot.")).toBeInTheDocument();
   });

@@ -26,6 +26,22 @@ export type BacktestRun = {
   readonly registerHash: string;
 };
 
+export type SeriesMetrics = {
+  readonly cagr: number | null;
+  readonly volatility: number | null;
+  readonly sharpe: number | null;
+  readonly maxDrawdown?: { readonly drawdown: number; readonly start: string; readonly end: string };
+};
+
+export type WindowStats = {
+  readonly yearly?: readonly { readonly year: string; readonly strategy: number | null; readonly benchmark: number | null }[];
+  readonly averageTurnover?: number | null;
+  readonly hitRate?: number | null;
+  readonly costDrag?: number | null;
+  readonly worstWindow?: { readonly return: number | null; readonly start: string; readonly end: string } | null;
+  readonly longestBehind?: { readonly months: number; readonly start: string; readonly end: string };
+};
+
 export type BacktestDetail = {
   readonly runId: string;
   readonly portfolioSize: number;
@@ -37,23 +53,18 @@ export type BacktestDetail = {
     readonly spyNet: readonly number[];
     readonly cash: readonly number[];
   };
-  readonly metrics: {
+  readonly metrics: WindowStats & {
     readonly full?: PeriodMetrics;
     readonly early?: PeriodMetrics;
     readonly holdout?: PeriodMetrics;
-    readonly yearly?: readonly { readonly year: string; readonly strategy: number | null; readonly benchmark: number | null }[];
-    readonly averageTurnover?: number | null;
-    readonly hitRate?: number | null;
-    readonly lastPriceCount?: number;
   };
   readonly lastPriceCount?: number;
+  readonly unpricedCount?: number;
+  readonly missingBenchmarkCount?: number;
 };
 
-export type PeriodMetrics = {
-  readonly cagr: number | null;
-  readonly volatility: number | null;
-  readonly sharpe: number | null;
-  readonly maxDrawdown: { readonly drawdown: number; readonly start: string; readonly end: string };
+export type PeriodMetrics = SeriesMetrics & {
+  readonly benchmarks?: { readonly spyNet?: SeriesMetrics; readonly spyGross?: SeriesMetrics };
 };
 
 export function useScreen(date: string) {

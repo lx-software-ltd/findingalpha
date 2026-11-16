@@ -8,6 +8,7 @@ export type ChartSeries = {
 
 const WIDTH = 640;
 const PAD = 36;
+const BOTTOM = 52;
 
 export function LineChart({
   series,
@@ -27,8 +28,10 @@ export function LineChart({
   const high = Math.max(...values);
   const span = high - low || 1;
   const ticks = [0, 1, 2, 3, 4].map((step) => low + (span * step) / 4);
-  const yOf = (value: number) => height - PAD - ((value - low) / span) * (height - PAD * 2);
+  const yOf = (value: number) => height - BOTTOM - ((value - low) / span) * (height - PAD - BOTTOM);
   const xOf = (index: number, count: number) => PAD + (count <= 1 ? 0 : (index * (WIDTH - PAD * 2)) / (count - 1));
+  const axis = plotted[0].points;
+  const xTicks = [...new Set([0, 1, 2, 3, 4].map((step) => Math.round(((axis.length - 1) * step) / 4)))];
 
   return (
     <svg role="img" aria-label={title} viewBox={`0 0 ${WIDTH} ${height}`} className="w-100">
@@ -39,6 +42,11 @@ export function LineChart({
             {formatY(tick)}
           </text>
         </g>
+      ))}
+      {xTicks.map((index) => (
+        <text key={axis[index].x} x={xOf(index, axis.length)} y={height - 6} fontSize="11" textAnchor="middle">
+          {axis[index].x}
+        </text>
       ))}
       {plotted.map((item) => (
         <path
@@ -53,7 +61,7 @@ export function LineChart({
         />
       ))}
       {plotted.map((item, index) => (
-        <text key={item.name} x={PAD + index * 140} y={height - 8} fontSize="12" fill={item.colour}>
+        <text key={item.name} x={PAD + index * 140} y={16} fontSize="12" fill={item.colour}>
           {item.name}
         </text>
       ))}

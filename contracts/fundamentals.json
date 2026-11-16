@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "flows": {
     "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"],
     "costOfRevenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
@@ -21,8 +21,8 @@
     "totalLiabilities": ["Liabilities"],
     "equity": ["StockholdersEquity"],
     "cash": ["CashAndCashEquivalentsAtCarryingValue"],
-    "longTermDebt": ["LongTermDebtNoncurrent", "LongTermDebt"],
-    "shortTermDebt": ["DebtCurrent", "LongTermDebtCurrent", "ShortTermBorrowings"],
+    "longTermDebt": ["LongTermDebtNoncurrent", "LongTermNotesPayable", "ConvertibleNotesPayable", "OtherLongTermDebtNoncurrent", "LongTermDebt", "LongTermDebtAndCapitalLeaseObligations"],
+    "shortTermDebt": ["DebtCurrent", "LongTermDebtCurrent", "ShortTermBorrowings", "CommercialPaper"],
     "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
     "shortTermInvestments": ["ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesDebtSecuritiesCurrent"]
   },
@@ -30,10 +30,10 @@
     "weightedDilutedShares": ["WeightedAverageNumberOfDilutedSharesOutstanding"]
   },
   "debt": {
-    "noncurrent": ["LongTermDebtNoncurrent"],
-    "includingCurrent": ["LongTermDebt"],
+    "noncurrent": ["LongTermDebtNoncurrent", "LongTermNotesPayable", "ConvertibleNotesPayable", "OtherLongTermDebtNoncurrent"],
+    "includingCurrent": ["LongTermDebt", "LongTermDebtAndCapitalLeaseObligations"],
     "currentPortion": ["LongTermDebtCurrent"],
     "debtCurrent": ["DebtCurrent"],
-    "borrowings": ["ShortTermBorrowings"]
+    "borrowings": ["ShortTermBorrowings", "CommercialPaper"]
   }
 }

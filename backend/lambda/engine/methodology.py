@@ -184,18 +184,66 @@ def _implementations(factors: list[dict[str, Any]]) -> None:
                 raise MethodologyError(f"unregistered {module_name}.{name}")
 
 
+def unreported_debt() -> str:
+    """The debt policy. Read from the cached register so a snapshot does not copy the file."""
+    load()
+    if _CACHE is None:
+        return ""
+    block = _CACHE[1].get("fundamentals") if isinstance(_CACHE[1], dict) else {}
+    policy = block.get("unreportedDebt") if isinstance(block, dict) else ""
+    return str(policy or "")
+
+
 def _parameters_read(function: Any) -> list[str]:
-    """Parameter names the function reads from ``params``. The source is the check."""
-    tree = ast.parse(inspect.getsource(function))
+    """Parameter names read from the mapping passed as the second argument.
+
+    ``params["name"]``, ``params.get("name")``, and an alias of that mapping
+    all count. The source file is the check.
+    """
+    try:
+        tree = ast.parse(inspect.getsource(function))
+    except (OSError, TypeError) as exc:
+        raise MethodologyError(f"{getattr(function, '__name__', 'factor')} source") from exc
+    func = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
+    names = _param_names(func)
     found: list[str] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Name):
-            continue
-        if node.value.id != "params" or not isinstance(node.slice, ast.Constant):
-            continue
-        if isinstance(node.slice.value, str) and node.slice.value not in found:
-            found.append(node.slice.value)
+    for node in ast.walk(func or tree):
+        key = _param_key(node, names)
+        if key and key not in found:
+            found.append(key)
     return found
+
+
+def _param_names(func: ast.FunctionDef | None) -> set[str]:
+    names = {"params"}
+    if func is not None and len(func.args.args) >= 2:
+        names.add(func.args.args[1].arg)
+    changed = True
+    while changed and func is not None:
+        changed = False
+        for node in ast.walk(func):
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and isinstance(node.value, ast.Name) and node.value.id in names:
+                if target.id not in names:
+                    names.add(target.id)
+                    changed = True
+    return names
+
+
+def _param_key(node: ast.AST, names: set[str]) -> str | None:
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id in names:
+        if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+            return node.slice.value
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute) or node.func.attr != "get":
+        return None
+    if not isinstance(node.func.value, ast.Name) or node.func.value.id not in names or not node.args:
+        return None
+    key = node.args[0]
+    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+        return key.value
+    return None
 
 
 def _callable(path: str) -> Any:

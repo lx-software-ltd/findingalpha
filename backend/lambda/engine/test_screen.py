@@ -8,6 +8,7 @@ import unittest
 import methodology
 import s3io
 import screen
+from botocore.exceptions import ClientError
 
 
 def _row(symbol: str, **overrides: object) -> dict:
@@ -70,6 +71,45 @@ class ScreenTest(unittest.TestCase):
         self.assertEqual([row["symbol"] for row in stored], sorted(row["symbol"] for row in scored))
         self.assertEqual(len(table.query_pk("SCREEN#2017-02-28", "RANK#")), 5)
 
+    def test_the_screen_uses_the_close_on_its_date(self) -> None:
+        bucket = _Bucket()
+        pit = [
+            {
+                "field": "sharesOutstanding",
+                "kind": "stock",
+                "tag": "dei:EntityCommonStockSharesOutstanding",
+                "start": "2017-02-28",
+                "end": "2017-02-28",
+                "value": 10,
+                "filed": "2017-02-28",
+                "form": "10-Q",
+            }
+        ]
+        s3io.put_json("data", "reference/calendar/year=2017.json", {"sessions": ["2017-02-28"]}, client=bucket)
+        s3io.put_jsonl_gz(
+            "data",
+            "prices/raw/date=2017-02-28/bars.jsonl.gz",
+            [{"symbol": "AAA", "close": 12, "volume": 1}],
+            client=bucket,
+        )
+        s3io.put_jsonl_gz(
+            "data",
+            "prices/adj/part=000/bars.jsonl.gz",
+            [{"symbol": "AAA", "date": "2017-02-28", "close": 12}, {"symbol": "BBB", "date": "2017-02-28", "close": 8}],
+            client=bucket,
+        )
+        s3io.put_jsonl_gz("data", "fundamentals/pit/cik=0000000001/facts.jsonl.gz", pit, client=bucket)
+        market = screen.load_market("2017-02-28", bucket="data", client=bucket)
+        self.assertEqual(sorted(market["bars"]), ["AAA", "BBB"])
+        body = screen._snapshot(
+            {"symbol": "AAA", "cik": "0000000001", "close": 999, "marketCap": 9990},
+            "2017-02-28",
+            bucket,
+            market,
+            bucket="data",
+        )
+        self.assertEqual(body["marketCap"], 120)
+
 
 def _company(register: dict, symbol: str, level: int, *, income: float = 10, present: bool = True) -> dict:
     weights = register["composite"]["groupWeights"]
@@ -129,6 +169,17 @@ class _Bucket:
 
     def get_object(self, *, Bucket: str, Key: str) -> dict:
         return {"Body": _Body(self.objects[(Bucket, Key)])}
+
+    def head_object(self, *, Bucket: str, Key: str) -> dict[str, str]:
+        if (Bucket, Key) not in self.objects:
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+        return {}
+
+    def list_objects_v2(self, *, Bucket: str, Prefix: str, ContinuationToken: str = "") -> dict[str, object]:
+        keys = sorted(key for bucket, key in self.objects if bucket == Bucket and key.startswith(Prefix))
+        start = int(ContinuationToken or "0")
+        page = keys[start : start + 1000]
+        return {"Contents": [{"Key": key} for key in page], "IsTruncated": False}
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 import backtest
 import methodology
@@ -106,6 +107,131 @@ class BacktestTest(unittest.TestCase):
         self.assertEqual(backtest.portfolio_size(15, register), 15)
         self.assertIsNone(backtest.portfolio_size(9, register))
         self.assertIsNone(backtest.portfolio_size(True, register))
+
+    def test_each_month_uses_that_months_close_and_share_count(self) -> None:
+        register = methodology.load()
+        built = backtest.rows_for_symbol(
+            "AAA",
+            ["2017-01-31", "2017-02-28"],
+            [],
+            [],
+            999,
+            999,
+            None,
+            register,
+            by_month={
+                "2017-01": {"close": 10, "medianDollarVolume": 10**9},
+                "2017-02": {"close": 30, "medianDollarVolume": 2 * 10**9},
+            },
+            shares_on=lambda end: 4 if end.startswith("2017-01") else 6,
+        )
+        self.assertEqual(built[0]["close"], 10)
+        self.assertEqual(built[0]["marketCap"], 40)
+        self.assertEqual(built[1]["marketCap"], 180)
+
+    def test_a_return_is_labelled_with_the_month_it_is_earned(self) -> None:
+        register = methodology.load()
+        played = backtest.replay(
+            ["2021-12-31", "2022-01-31"],
+            {},
+            {
+                "AAA": [_bar("2022-01-03", 100), _bar("2022-02-01", 110)],
+                "SPY": [_bar("2022-01-03", 100), _bar("2022-02-01", 100)],
+                "BIL": [_bar("2022-01-03", 100), _bar("2022-02-01", 100)],
+            },
+            ["2021-12-31", "2022-01-03", "2022-01-31", "2022-02-01"],
+            register,
+            holdings_by_month={"2021-12-31": [_holding("AAA")]},
+        )
+        self.assertEqual(played["periods"][0]["month"], "2022-01")
+        self.assertEqual(played["metrics"]["early"], {})
+        self.assertIsNotNone(played["metrics"]["holdout"].get("cagr"))
+
+    def test_a_name_without_a_trade_price_earns_cash_and_is_counted(self) -> None:
+        register = methodology.load()
+        prices = _prices()
+        prices["BIL"] = [_bar("2017-02-01", 100), _bar("2017-03-01", 110), _bar("2017-04-03", 110)]
+        played = backtest.replay(
+            _ENDS,
+            {},
+            prices,
+            _SESSIONS,
+            register,
+            holdings_by_month={
+                "2017-01-31": [{"symbol": "ZZZ", "weight": 1.0}],
+                "2017-02-28": [{"symbol": "ZZZ", "weight": 1.0}],
+            },
+        )
+        self.assertEqual(played["unpricedCount"], 2)
+        self.assertAlmostEqual(played["periods"][0]["strategy"], 0.098)
+
+    def test_an_empty_portfolio_earns_the_cash_return(self) -> None:
+        register = methodology.load()
+        prices = _prices()
+        prices["BIL"] = [_bar("2017-02-01", 100), _bar("2017-03-01", 110), _bar("2017-04-03", 110)]
+        played = backtest.replay(
+            _ENDS,
+            {},
+            prices,
+            _SESSIONS,
+            register,
+            holdings_by_month={"2017-01-31": [], "2017-02-28": []},
+        )
+        self.assertAlmostEqual(played["periods"][0]["strategy"], 0.1)
+        self.assertEqual(played["periods"][0]["turnover"], 0)
+
+    def test_a_missing_benchmark_is_left_blank_and_counted(self) -> None:
+        register = methodology.load()
+        prices = _prices()
+        del prices["SPY"]
+        played = backtest.replay(
+            _ENDS,
+            {},
+            prices,
+            _SESSIONS,
+            register,
+            holdings_by_month={
+                "2017-01-31": [_holding("AAA"), _holding("BBB")],
+                "2017-02-28": [_holding("AAA"), _holding("BBB")],
+            },
+        )
+        self.assertIsNone(played["periods"][0]["spyGross"])
+        self.assertGreater(played["missingBenchmarkCount"], 0)
+        self.assertIn("spyNet", played["metrics"]["benchmarks"])
+        self.assertIn("longestBehind", played["metrics"])
+        self.assertAlmostEqual(played["metrics"]["costDrag"], 0.012)
+
+    def test_a_different_size_or_a_terminal_failure_starts_a_new_run(self) -> None:
+        saved = {"status": "paused", "params": {"runId": "abc", "portfolioSize": 20, "startedAt": "t"}}
+        self.assertEqual(backtest.continued_run(saved, 20), ("abc", "t"))
+        self.assertIsNone(backtest.continued_run(saved, 15))
+        failed = {"status": "failed", "failures": 3, "params": saved["params"]}
+        self.assertIsNone(backtest.continued_run(failed, 20))
+
+    def test_the_run_can_pause_when_ingest_is_switched_off(self) -> None:
+        seen: dict[str, object] = {}
+
+        def fake_run(*args: object, **kwargs: object) -> dict[str, object]:
+            seen["items"] = args[1]
+            seen["enabled"] = kwargs.get("enabled")
+            return {"status": "done", "cursor": 1, "total": 1}
+
+        with (
+            patch("store.get", return_value={}),
+            patch("backtest_job.month_ends", return_value=["2017-02-28", "2017-03-31"]),
+            patch("backtest_job.parts", return_value=["000"]),
+            patch("chunked.run", fake_run),
+            patch("kill_switch.is_enabled", return_value=False),
+        ):
+            result = backtest.run({}, None)
+        self.assertTrue(result["ok"])
+        items = seen["items"]
+        assert isinstance(items, list)
+        self.assertEqual(items[0], ("actions", "2016"))
+        self.assertIn(("marks", "000"), items)
+        enabled = seen["enabled"]
+        assert callable(enabled)
+        self.assertFalse(enabled())
 
 
 def _holding(symbol: str) -> dict:
