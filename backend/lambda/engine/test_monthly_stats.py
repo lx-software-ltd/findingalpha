@@ -24,6 +24,20 @@ class MonthlyStatsTest(unittest.TestCase):
         self.assertEqual(monthly_stats.months_to_refresh(["2017-01", "2017-02", "2017-03"]), ["2017-02", "2017-03"])
         self.assertEqual(monthly_stats.months_to_refresh(["2017-03"]), ["2017-03"])
 
+    def test_a_name_that_cleared_the_floors_and_still_has_a_cik_is_priced(self) -> None:
+        rows = [
+            {"symbol": "SMALL", "monthEnd": "2018-06-29", "close": 20, "medianDollarVolume": 30_000_000},
+            {"symbol": "GONE", "monthEnd": "2018-06-29", "close": 20, "medianDollarVolume": 30_000_000},
+            {"symbol": "CHEAP", "monthEnd": "2018-06-29", "close": 1, "medianDollarVolume": 30_000_000},
+            {"symbol": "EARLY", "monthEnd": "2016-06-30", "close": 20, "medianDollarVolume": 30_000_000},
+        ]
+        tickers = {
+            "SMALL": {"cik": "0000000002", "name": "Small Co"},
+            "CHEAP": {"cik": "0000000003", "name": "Cheap Co"},
+            "EARLY": {"cik": "0000000004", "name": "Early Co"},
+        }
+        self.assertEqual(monthly_stats.for_adjusted(["EXMPL"], tickers, rows=rows), ["EXMPL", "SMALL"])
+
     def test_months_run_from_the_start_through_the_end(self) -> None:
         self.assertEqual(
             monthly_stats.months_between("2016-11", "2017-02"), ["2016-11", "2016-12", "2017-01", "2017-02"]

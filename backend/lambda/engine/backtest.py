@@ -68,6 +68,15 @@ def eligible(row: dict[str, Any], rules: dict[str, Any]) -> bool:
     return not _excluded(row.get("sic"), rules.get("excludeSicRanges") or [])
 
 
+def complete_month_ends(ends: list[str], sessions: list[str]) -> list[str]:
+    """Month ends that are the last stored session of their calendar month."""
+    last: dict[str, str] = {}
+    for day in sorted(sessions):
+        if len(day) >= 7:
+            last[day[:7]] = day
+    return [end for end in ends if last.get(end[:7]) == end]
+
+
 def session_after(sessions: list[str], day: str, delay: int) -> str | None:
     """The session ``delay`` steps after ``day``. A delay of 1 is the next session."""
     later = [item for item in sessions if item > day]
@@ -188,15 +197,18 @@ def replay(
     last_price_count = 0
     unpriced = 0
     missing_benchmark = 0
+    latest = _latest_bar(prices)
     for index, end in enumerate(month_ends[:-1]):
         nxt = month_ends[index + 1]
+        start_day = session_after(sessions, end, delay)
+        end_day = session_after(sessions, nxt, delay)
+        if start_day is None or end_day is None or (latest and end_day > latest):
+            break
         if holdings_by_month is not None:
             chosen = list(holdings_by_month.get(end[:7]) or holdings_by_month.get(end) or [])
         else:
             ranked = sorted(screen.score(scores_by_month.get(end) or [], register), key=_rank_key)
             chosen = choose(ranked, size, cap)
-        start_day = session_after(sessions, end, delay)
-        end_day = session_after(sessions, nxt, delay)
         weights = {str(row["symbol"]): float(row["weight"]) for row in chosen}
         cash, _cash_used = _gross(prices.get(spec["cashProxy"]) or [], start_day, end_day)
         spy_gross, _used = _gross(prices.get(spec["benchmark"]) or [], start_day, end_day)
@@ -397,6 +409,16 @@ def _series(curve: list[float], returns: list[float], cash: list[float], labels:
         "sharpe": backtest_metrics.sharpe(returns, cash),
         "maxDrawdown": backtest_metrics.max_drawdown(curve, labels),
     }
+
+
+def _latest_bar(prices: dict[str, list[dict[str, Any]]]) -> str:
+    latest = ""
+    for series in prices.values():
+        for bar in series:
+            day = str(bar.get("date") or "")
+            if day > latest:
+                latest = day
+    return latest
 
 
 def _or_zero(value: object) -> float:

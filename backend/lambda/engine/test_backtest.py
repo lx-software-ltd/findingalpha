@@ -233,6 +233,29 @@ class BacktestTest(unittest.TestCase):
         assert callable(enabled)
         self.assertFalse(enabled())
 
+    def test_an_unfinished_month_is_dropped_and_an_exit_after_the_last_bar_is_not_priced(self) -> None:
+        sessions = ["2026-09-30", "2026-10-30", "2026-10-31", "2026-11-13", "2026-11-30"]
+        self.assertEqual(
+            backtest.complete_month_ends(["2026-09-30", "2026-10-30", "2026-11-13"], sessions),
+            ["2026-09-30"],
+        )
+        register = methodology.load()
+        prices = {
+            "AAA": [{"date": "2026-10-01", "adj": 10, "split": 10}, {"date": "2026-10-31", "adj": 11, "split": 11}],
+            "SPY": [{"date": "2026-10-01", "adj": 10, "split": 10}, {"date": "2026-10-31", "adj": 10, "split": 10}],
+            "BIL": [{"date": "2026-10-01", "adj": 10, "split": 10}, {"date": "2026-10-31", "adj": 10, "split": 10}],
+        }
+        played = backtest.replay(
+            ["2026-09-30", "2026-10-31"],
+            {},
+            prices,
+            ["2026-09-30", "2026-10-01", "2026-10-31", "2026-11-02"],
+            register,
+            holdings_by_month={"2026-09-30": [{"symbol": "AAA", "weight": 1.0}]},
+        )
+        self.assertEqual(played["periods"], [])
+        self.assertEqual(played["lastPriceCount"], 0)
+
 
 def _holding(symbol: str) -> dict:
     return {"symbol": symbol, "weight": 0.5, "sector": "tech"}

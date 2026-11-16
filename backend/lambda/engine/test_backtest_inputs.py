@@ -31,6 +31,28 @@ class BacktestInputsTest(unittest.TestCase):
         self.assertEqual(backtest_inputs.identity_on(table, "NEW", "2017-06-01")["cik"], "0000000002")
         self.assertEqual(backtest_inputs.identity_on(table, "GONE", "2024-06-01")["cik"], "")
 
+    def test_a_name_never_listed_uses_todays_cik_and_a_later_filing_does_not_change_old_shares(self) -> None:
+        bucket = _Bucket()
+        s3io.put_jsonl_gz(
+            "data",
+            "universe/date=2017-01-31/members.jsonl.gz",
+            [{"symbol": "OLD", "cik": "0000000001", "sector": "Energy", "name": "Old Co"}],
+            client=bucket,
+        )
+        tickers = {"OLD": {"cik": "0000000099", "name": "Reused"}, "SMALL": {"cik": "2", "name": "Small Co"}}
+        table = backtest_inputs.identities("data", bucket, tickers=tickers)
+        self.assertEqual(backtest_inputs.identity_on(table, "OLD", "2018-01-31")["cik"], "0000000001")
+        self.assertEqual(backtest_inputs.identity_on(table, "SMALL", "2018-01-31")["cik"], "0000000002")
+        self.assertEqual(backtest_inputs.identity_on(table, "SMALL", "2018-01-31")["sector"], "")
+        pit = [
+            _shares("2017-01-31", 100, "2017-02-10"),
+            _shares("2026-07-31", 400, "2026-08-10"),
+        ]
+        splits = [("2017-03-15", 4.0)]
+        self.assertEqual(backtest_inputs.shares_on(pit, splits, "2017-02-28"), 100)
+        self.assertEqual(backtest_inputs.shares_on(pit, splits, "2017-06-01"), 400)
+        self.assertEqual(backtest_inputs.shares_on(pit, splits, "2026-08-31"), 400)
+
     def test_monthly_stats_are_read_per_month_for_the_requested_names(self) -> None:
         bucket = _Bucket()
         s3io.put_jsonl_gz(
@@ -92,6 +114,18 @@ class BacktestInputsTest(unittest.TestCase):
         )
         rows = backtest_inputs.factor_rows("run", "2017-02", "data", bucket)
         self.assertEqual([row["symbol"] for row in rows], ["BBB"])
+
+
+def _shares(end: str, value: float, filed: str) -> dict[str, object]:
+    return {
+        "field": "sharesOutstanding",
+        "kind": "share",
+        "tag": "dei:EntityCommonStockSharesOutstanding",
+        "start": end,
+        "end": end,
+        "value": value,
+        "filed": filed,
+    }
 
 
 class _Body:

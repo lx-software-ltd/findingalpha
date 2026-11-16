@@ -18,16 +18,39 @@ def sessions(bucket: str, client: Any = None) -> list[str]:
     return sorted(set(found))
 
 
-def bars_by_symbol(bucket: str, client: Any = None, *, prefix: str = "prices/adj/") -> dict[str, list[dict[str, Any]]]:
-    """Adjusted bars grouped by symbol. Each part file is read once."""
-    grouped: dict[str, list[dict[str, Any]]] = {}
-    for key in s3io.list_keys(bucket, prefix, client=client):
+# momentum_12_1 and volatility_252 both read 253 closes ending on the screen date.
+FACTOR_CLOSES = 253
+
+
+def closes_for_screen(
+    bucket: str, day: str, sessions_on: list[str], client: Any = None
+) -> tuple[list[str], dict[str, list[dict[str, Any]]]]:
+    """The sessions the trend factors read, and each symbol's close on those dates.
+
+    One session before the 253-session window is kept so a gap at the start
+    still carries the previous close. Older bars are not retained.
+    """
+    prior = [item for item in sessions_on if item <= day]
+    used = prior[-(FACTOR_CLOSES + 1) :] if len(prior) > FACTOR_CLOSES else prior
+    wanted = set(used)
+    grouped: dict[str, dict[str, float]] = {}
+    for key in s3io.list_keys(bucket, "prices/adj/", client=client):
         if not key.endswith("bars.jsonl.gz"):
             continue
         for row in s3io.get_jsonl_gz(bucket, key, client=client):
-            if isinstance(row, dict) and row.get("symbol"):
-                grouped.setdefault(str(row["symbol"]), []).append(row)
-    return grouped
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("symbol") or "")
+            stamp = str(row.get("date") or "")[:10]
+            close = _number(row.get("close"))
+            if not symbol or stamp not in wanted or close is None:
+                continue
+            grouped.setdefault(symbol, {})[stamp] = close
+    bars = {
+        symbol: [{"date": stamp, "close": close} for stamp, close in sorted(days.items())]
+        for symbol, days in grouped.items()
+    }
+    return used, bars
 
 
 def raw_closes(bucket: str, day: str, sessions_on: list[str], client: Any = None) -> dict[str, float]:

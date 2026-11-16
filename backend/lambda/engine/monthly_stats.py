@@ -43,6 +43,29 @@ def month_rows(days: list[tuple[str, list[dict[str, Any]]]], month: str) -> list
     return rows
 
 
+def for_adjusted(
+    members: list[str],
+    tickers: dict[str, Any],
+    *,
+    rows: list[dict[str, Any]] | None = None,
+    client: Any = None,
+) -> list[str]:
+    """Members, plus names that cleared the price and volume floors and still have a CIK.
+
+    The floor check starts at the register's first screen month. A name with no
+    current CIK, including a delisted ticker, is left out.
+    """
+    import methodology
+
+    register = methodology.load()
+    since = str(register["backtest"]["firstScreenMonth"])
+    rules = register["universe"]
+    found = rows if rows is not None else _rows_since(since, client)
+    qualified = _symbols_meeting(found, since, float(rules["minPriceUsd"]), float(rules["minMedianDollarVolumeUsd"]))
+    covered = {symbol for symbol in qualified if _has_cik(tickers.get(symbol))}
+    return sorted({str(symbol) for symbol in members if str(symbol)} | covered)
+
+
 def months_to_refresh(months: list[str]) -> list[str]:
     """The newest month and the one before it.
 
@@ -120,6 +143,42 @@ def append_latest(event: dict[str, Any], _context: Any = None, *, client: Any = 
     if not written:
         return {"ok": False, "status": "missing_inputs"}
     return {"ok": True, "status": "done", "month": written[-1], "months": written, "symbols": symbols}
+
+
+def _symbols_meeting(rows: list[dict[str, Any]], since: str, min_price: float, min_volume: float) -> set[str]:
+    found: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        month = str(row.get("monthEnd") or "")[:7]
+        symbol = str(row.get("symbol") or "")
+        close = _number(row.get("close"))
+        volume = _number(row.get("medianDollarVolume"))
+        if month < since or not symbol or close is None or volume is None:
+            continue
+        if close >= min_price and volume >= min_volume:
+            found.add(symbol)
+    return found
+
+
+def _has_cik(entry: object) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    text = str(entry.get("cik") or "").strip()
+    return text.isdigit() and int(text) > 0
+
+
+def _rows_since(since: str, client: Any) -> list[dict[str, Any]]:
+    if not _bucket_ready():
+        return []
+    bucket = config.data_bucket_name()
+    found: list[dict[str, Any]] = []
+    for key in s3io.list_keys(bucket, "prices/monthly/month=", client=client):
+        month = key.split("month=", 1)[1][:7]
+        if month < since:
+            continue
+        found.extend(row for row in s3io.get_jsonl_gz(bucket, key, client=client) if isinstance(row, dict))
+    return found
 
 
 def _bucket_ready() -> bool:

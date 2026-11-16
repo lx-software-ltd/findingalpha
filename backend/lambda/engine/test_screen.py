@@ -109,6 +109,43 @@ class ScreenTest(unittest.TestCase):
             bucket="data",
         )
         self.assertEqual(body["marketCap"], 120)
+        later = dict(pit[0])
+        later["end"] = "2026-07-31"
+        later["start"] = "2026-07-31"
+        later["filed"] = "2026-08-10"
+        later["value"] = 400
+        s3io.put_jsonl_gz("data", "fundamentals/pit/cik=0000000001/facts.jsonl.gz", [*pit, later], client=bucket)
+        market = screen.load_market("2017-02-28", bucket="data", client=bucket)
+        body = screen._snapshot(
+            {"symbol": "AAA", "cik": "0000000001", "close": 999, "marketCap": 9990},
+            "2017-02-28",
+            bucket,
+            market,
+            bucket="data",
+        )
+        self.assertEqual(body["marketCap"], 120)
+        self.assertEqual(set(market["bars"]["AAA"][0]), {"date", "close"})
+
+    def test_the_screen_keeps_the_closes_the_trend_factors_read(self) -> None:
+        bucket = _Bucket()
+        sessions = [f"2016-{(index // 28) + 1:02d}-{(index % 28) + 1:02d}" for index in range(255)]
+        s3io.put_json("data", "reference/calendar/year=2016.json", {"sessions": sessions}, client=bucket)
+        s3io.put_jsonl_gz(
+            "data",
+            "prices/adj/part=000/bars.jsonl.gz",
+            [
+                {"symbol": "AAA", "date": sessions[0], "open": 1, "close": 4, "volume": 9},
+                {"symbol": "AAA", "date": sessions[-254], "open": 1, "close": 5, "volume": 9},
+                {"symbol": "AAA", "date": sessions[-1], "open": 1, "close": 6, "volume": 9},
+            ],
+            client=bucket,
+        )
+        market = screen.load_market(sessions[-1], bucket="data", client=bucket)
+        kept = [bar["date"] for bar in market["bars"]["AAA"]]
+        self.assertNotIn(sessions[0], kept)
+        self.assertEqual(kept, [sessions[-254], sessions[-1]])
+        self.assertEqual(market["factor_sessions"][0], sessions[-254])
+        self.assertEqual(len(market["factor_sessions"]), 254)
 
 
 def _company(register: dict, symbol: str, level: int, *, income: float = 10, present: bool = True) -> dict:

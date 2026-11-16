@@ -53,8 +53,17 @@ tag that was filed.
 
 Closes follow the market session calendar. A session with no print
 keeps the previous close, so a missing day does not move the 21, 200,
-or 252 session windows. A company with no sector is standardised
-against the whole universe.
+or 252 session windows. The screen keeps those closes and one earlier
+close, not the whole price history. A company with no sector is
+standardised against the whole universe.
+
+Market cap uses the share count that was public on the date, then
+applies splits after that count. A filing that arrives later does not
+change the earlier month.
+
+Adjusted prices include every name that passed the price and
+dollar-volume floors in any month since February 2017 and still has a
+CIK. A delisted name with no current CIK is absent.
 
 ## Reported, and left out of the composite
 

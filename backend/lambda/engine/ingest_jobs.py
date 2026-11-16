@@ -328,7 +328,9 @@ def _follow(
             (note_build or _note_build)(day, "running" if status == "running" else "failed")
         return body
     (note_build or _note_build)(day, "done")
-    symbols = [str(symbol) for symbol in (outcome.get("symbols") or [])]
+    import monthly_stats
+
+    symbols = monthly_stats.for_adjusted([str(symbol) for symbol in (outcome.get("symbols") or [])], mapped)
     if adjusted is None:
         _save_adjusted(symbols, day, hold=True)
     (coverage or _coverage)([str(cik) for cik in (outcome.get("ciks") or [])], day)
@@ -387,10 +389,8 @@ def _facts_open() -> bool:
 def _save_adjusted(symbols: list[str], day: date, *, hold: bool) -> None:
     """Save the adjusted refresh before the coverage report.
 
-    The lease matches the engine limit, so tick leaves the job alone
-    while this run is still writing the report. The lease is removed
-    before this same run claims the job. An empty symbol list is kept:
-    the refresh still writes SPY and BIL.
+    The lease keeps tick from starting a second copy. An empty list is kept
+    because the refresh still writes SPY and BIL.
     """
     import chunked
     import store

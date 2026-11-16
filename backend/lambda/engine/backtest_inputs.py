@@ -51,8 +51,14 @@ def saved_splits(identity: str, *, bucket: str | None = None, client: Any = None
     return found
 
 
-def identities(bucket: str | None = None, client: Any = None) -> dict[str, list[tuple[str, dict[str, Any]]]]:
-    """Every universe file, oldest first. A name that later drops out keeps its last row."""
+def identities(
+    bucket: str | None = None, client: Any = None, *, tickers: dict[str, Any] | None = None
+) -> dict[str, list[tuple[str, dict[str, Any]]]]:
+    """Every universe file, oldest first. A name that later drops out keeps its last row.
+
+    A symbol that was never in a universe file takes today's CIK when ``tickers``
+    has one. Its sector stays blank.
+    """
     name = _bucket(bucket)
     dates = sorted(
         {
@@ -68,6 +74,15 @@ def identities(bucket: str | None = None, client: Any = None) -> dict[str, list[
                 continue
             symbol = str(row["symbol"])
             table.setdefault(symbol, []).append((day, _who(row, symbol)))
+    for symbol, entry in (tickers or {}).items():
+        if symbol in table or not isinstance(entry, dict):
+            continue
+        cik = str(entry.get("cik") or "").strip()
+        if not cik.isdigit():
+            continue
+        table[symbol] = [
+            ("0001-01-01", {"cik": cik.zfill(10), "sector": "", "sic": None, "name": str(entry.get("name") or symbol)})
+        ]
     return table
 
 
@@ -117,7 +132,10 @@ def shares_on(pit: list[dict[str, Any]], splits: list[tuple[str, float]], end: s
         day = date.fromisoformat(end[:10])
     except ValueError:
         return None
-    chosen = share_count.shares_as_of(pit, events, day)
+    import fundamentals_pit
+
+    visible = fundamentals_pit.as_of(pit, end[:10]) if pit else []
+    chosen = share_count.shares_as_of(visible, events, day)
     if chosen is None:
         return None
     return float(chosen["shares"])

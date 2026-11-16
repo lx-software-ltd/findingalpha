@@ -135,14 +135,18 @@ refresh appends the latest month.
 
 ### M06-T03 Backtest engine
 
-`backtest.py` runs in three phases. Phases A and B are chunked jobs.
-Phase C fits in one invocation.
+`backtest.py` runs as one chunked job: split years, then one factor
+part, then one month of holdings, then compact marks, then the equity
+curve. An unfinished month, whose month end is not the last session of
+that month, is not a formation date. A holding period whose exit
+session is after the newest stored bar is left out.
 
-**Phase A, factor tables.** For each adjusted-price part (100
-symbols): for each symbol and each month end from `firstScreenMonth`,
-build the snapshot as of that month end and compute every factor,
-`marketCap`, and the count of years of fundamentals history. Write
-`backtests/<runId>/factors/part=<nnn>.jsonl.gz`.
+**Factor tables.** For each adjusted-price part (100 symbols): for each
+symbol and each completed month end from `firstScreenMonth`, build the
+snapshot as of that month end and compute every factor, `marketCap`,
+and the count of years of fundamentals history. The share count is the
+filing public that day. Write
+`backtests/<runId>/factors/month=<yyyy-mm>/part=<nnn>.jsonl.gz`.
 
 **Phase B, monthly portfolios.** For each month end `d`:
 
@@ -260,10 +264,14 @@ test line.
 
 ## Known biases to state in the memo
 
-- **Survivorship.** A name keeps the CIK from the latest stored
-  universe file that still listed it. A name that was never in one of
-  those files has no fundamentals, even when its price bars exist.
-  Missing losers make the backtest look better than reality.
+- **Survivorship.** Adjusted prices include every name that passed the
+  price and dollar-volume floors in any month since February 2017 and
+  still has a CIK in the current SEC map. Build the monthly stats
+  before refreshing adjusted prices, or the wider list is empty and
+  only today's members are fetched. A delisted name with no current
+  CIK has no adjusted prices and cannot be ranked. Missing those
+  losers makes the backtest look better than reality. A name that was
+  never in a stored universe file uses today's CIK and has no sector.
 - **Sector and SIC code are the latest stored codes**, not the codes
   at the time.
 - **Shares outstanding** come from filings and can lag buybacks and

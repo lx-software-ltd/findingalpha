@@ -29,7 +29,11 @@ def month_ends(register: dict[str, Any]) -> list[str]:
             if isinstance(row, dict) and row.get("monthEnd"):
                 ends.append(str(row["monthEnd"]))
                 break
-    return sorted(set(ends))
+    found = sorted(set(ends))
+    import market_files
+
+    sessions = market_files.sessions(config.data_bucket_name())
+    return backtest.complete_month_ends(found, sessions) if sessions else found
 
 
 def parts() -> list[str]:
@@ -71,7 +75,9 @@ def _part_rows(part: str, identity: str, register: dict[str, Any]) -> None:
             grouped.setdefault(str(row["symbol"]), []).append(row)
     ends = month_ends(register)
     anchor = ends[-1] if ends else "9999-12-31"
-    table = backtest_inputs.identities(bucket)
+    import sec_edgar
+
+    table = backtest_inputs.identities(bucket, tickers=sec_edgar.ticker_map())
     stats = backtest_inputs.monthly_for(set(grouped), bucket)
     splits = backtest_inputs.saved_splits(identity, bucket=bucket)
     sessions = _sessions()

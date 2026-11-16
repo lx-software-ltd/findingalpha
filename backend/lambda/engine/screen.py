@@ -225,11 +225,13 @@ def _ready(value: Any) -> Any:
 
 
 def load_market(day: str, *, bucket: str, client: Any = None) -> dict[str, Any]:
-    """Bars, the calendar, that day's raw closes, and recent splits. Each file is read once."""
+    """The closes the factors read, the calendar, that day's raw closes, and recent splits."""
     calendar = market_files.sessions(bucket, client)
+    factor_sessions, bars = market_files.closes_for_screen(bucket, day, calendar, client)
     return {
         "sessions": calendar,
-        "bars": market_files.bars_by_symbol(bucket, client),
+        "factor_sessions": factor_sessions,
+        "bars": bars,
         "closes": market_files.raw_closes(bucket, day, calendar, client),
         "splits": market_files.splits_until(bucket, day, client),
     }
@@ -288,7 +290,7 @@ def _snapshot(member: dict[str, Any], day: str, client: Any, market: dict[str, A
         market["bars"].get(symbol) or [],
         close,
         shares,
-        market["sessions"] or None,
+        market.get("factor_sessions") or None,
     )
 
 
@@ -314,7 +316,10 @@ def _shares(pit: list[dict[str, Any]], splits: list[tuple[str, float]], day: str
             events.append((date.fromisoformat(ex), float(ratio)))
         except ValueError:
             continue
-    chosen = share_count.shares_as_of(pit, events, on)
+    import fundamentals_pit
+
+    visible = fundamentals_pit.as_of(pit, day) if pit else []
+    chosen = share_count.shares_as_of(visible, events, on)
     if chosen is None:
         return None
     return float(chosen["shares"])
