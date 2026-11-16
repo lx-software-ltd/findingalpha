@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import fundamentals_pit
+
+_BALANCE_SHEET = frozenset(
+    {
+        "totalAssets",
+        "currentAssets",
+        "currentLiabilities",
+        "totalLiabilities",
+        "equity",
+        "cash",
+        "shortTermInvestments",
+    }
+)
+_DEBT_FIELDS = ("longTermDebt", "shortTermDebt")
 
 
 def build(
@@ -16,8 +29,15 @@ def build(
     adjusted_bars: list[dict[str, Any]],
     raw_close: float | None,
     shares_outstanding: float | None,
+    sessions: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """Trailing figures, stock averages, market cap, and closes on or before ``day``."""
+    """Trailing figures, stock averages, market cap, and closes on or before ``day``.
+
+    ``sessions`` is the market calendar. Closes are aligned to it, and a
+    session with no print keeps the previous close, so a gap does not move
+    the 21, 200, and 252 session windows. Without it, one close is kept per
+    date the symbol printed.
+    """
     on = day.isoformat() if isinstance(day, date) else str(day)[:10]
     visible = fundamentals_pit.as_of(list(pit_rows), on)
     maps = fundamentals_pit.load_tag_maps()
@@ -27,7 +47,8 @@ def build(
     for field in maps.get("stocks") or {}:
         body[field] = fundamentals_pit.latest_stock(visible, field)
         body[f"{field}_avg"] = fundamentals_pit.average_stock(visible, field)
-    body["closes"] = _closes(adjusted_bars, on)
+    _zero_missing_debt(body, visible)
+    body["closes"] = _closes(adjusted_bars, on, sessions)
     body["marketCap"] = _product(raw_close, shares_outstanding)
     body["enterpriseValue"] = _enterprise_value(body)
     return body
@@ -52,8 +73,54 @@ def _enterprise_value(body: dict[str, Any]) -> float | None:
     return value
 
 
-def _closes(bars: list[dict[str, Any]], on: str) -> list[float | None]:
-    parsed: list[tuple[str, float | None]] = []
+def _statement_ends(rows: list[dict[str, Any]]) -> list[str]:
+    ends = {str(row["end"]) for row in rows if row.get("kind") == "stock" and row.get("field") in _BALANCE_SHEET}
+    return sorted(ends)
+
+
+def _has_field(rows: list[dict[str, Any]], field: str, end: str | None = None) -> bool:
+    return any(
+        row.get("field") == field and row.get("kind") == "stock" and (end is None or row.get("end") == end)
+        for row in rows
+    )
+
+
+def _prior_statement(ends: list[str], latest: str) -> str | None:
+    latest_day = date.fromisoformat(latest)
+    target = latest_day - timedelta(days=365)
+    earlier = [end for end in ends if end != latest and abs((date.fromisoformat(end) - target).days) <= 45]
+    if not earlier:
+        return None
+    return min(earlier, key=lambda end: abs((date.fromisoformat(end) - target).days))
+
+
+def _zero_missing_debt(body: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+    """An unreported debt tag is zero once a balance sheet for that period exists.
+
+    A tag that was reported on an older statement is left as reported.
+    The average uses zero for a prior statement that omits the tag.
+    """
+    ends = _statement_ends(rows)
+    if not ends:
+        return
+    latest = ends[-1]
+    prior = _prior_statement(ends, latest)
+    for field in _DEBT_FIELDS:
+        if body.get(field) is None and not _has_field(rows, field):
+            body[field] = 0
+        if body.get(f"{field}_avg") is not None or prior is None or body.get(field) is None:
+            continue
+        if _has_field(rows, field, prior):
+            continue
+        body[f"{field}_avg"] = (float(body[field]) + 0) / 2
+
+
+def _closes(
+    bars: list[dict[str, Any]],
+    on: str,
+    sessions: list[Any] | None,
+) -> list[float | None]:
+    by_day: dict[str, float | None] = {}
     for bar in bars:
         if not isinstance(bar, dict):
             continue
@@ -62,11 +129,21 @@ def _closes(bars: list[dict[str, Any]], on: str) -> list[float | None]:
             continue
         close = bar.get("close")
         if isinstance(close, bool) or not isinstance(close, (int, float)):
-            parsed.append((day, None))
+            by_day[day] = None
         else:
-            parsed.append((day, float(close)))
-    parsed.sort(key=lambda item: item[0])
-    return [close for _day, close in parsed]
+            by_day[day] = float(close)
+    if not sessions:
+        return [by_day[day] for day in sorted(by_day)]
+    series: list[float | None] = []
+    last: float | None = None
+    for raw in sessions:
+        day = _day(raw)
+        if day is None or day > on:
+            continue
+        if day in by_day and by_day[day] is not None:
+            last = by_day[day]
+        series.append(last)
+    return series
 
 
 def _day(value: object) -> str | None:

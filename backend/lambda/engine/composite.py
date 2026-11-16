@@ -52,7 +52,7 @@ def zscores(
     *,
     min_sector_size: int,
 ) -> list[float | None]:
-    """Z-score inside the sector, falling back to the universe when the sector is too small."""
+    """Z-score inside the sector. A blank sector, a small sector, or a zero deviation uses the universe."""
     by_sector: dict[str, list[float]] = {}
     for value, sector in zip(values, sectors, strict=True):
         if value is not None:
@@ -64,7 +64,7 @@ def zscores(
             out.append(None)
             continue
         pool = by_sector.get(sector, [])
-        if len(pool) < min_sector_size or _population_std(pool) == 0:
+        if not str(sector).strip() or len(pool) < min_sector_size or _population_std(pool) == 0:
             pool = universe
         deviation = _population_std(pool)
         if deviation == 0:

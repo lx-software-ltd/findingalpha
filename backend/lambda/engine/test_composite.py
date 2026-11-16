@@ -83,6 +83,15 @@ class CompositeTest(unittest.TestCase):
             composite.composite([full, other], light)[0]["composite"],
         )
 
+    def test_a_blank_sector_uses_the_universe(self) -> None:
+        values = [1.0, 3.0, 10.0, 30.0]
+        sectors = ["", "", "tech", "tech"]
+        scores = composite.zscores(values, sectors, min_sector_size=2)
+        universe = composite.zscores(values, ["a", "b", "c", "d"], min_sector_size=10)
+        self.assertEqual(scores[0], universe[0])
+        self.assertEqual(scores[1], universe[1])
+        self.assertNotEqual(scores[2], universe[2])
+
 
 if __name__ == "__main__":
     unittest.main()

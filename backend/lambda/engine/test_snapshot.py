@@ -69,6 +69,34 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual(built["marketCap"], 10)
         self.assertIsNone(built["enterpriseValue"])
 
+    def test_a_missing_debt_tag_is_zero_when_the_balance_sheet_exists(self) -> None:
+        rows = [
+            _stock("equity", "2023-12-31", 80, "2024-02-01"),
+            _stock("cash", "2023-12-31", 20, "2024-02-01"),
+            _stock("equity", "2024-12-31", 90, "2025-02-01"),
+            _stock("cash", "2024-12-31", 20, "2025-02-01"),
+            _stock("longTermDebt", "2024-12-31", 40, "2025-02-01"),
+        ]
+        built = snapshot.build("AAA", "1", "2025-03-01", rows, [], 10, 10)
+        self.assertEqual(built["shortTermDebt"], 0)
+        self.assertEqual(built["longTermDebt"], 40)
+        # Prior statement has no debt tag, so its short-term and long-term debt count as zero.
+        self.assertEqual(built["shortTermDebt_avg"], 0)
+        self.assertEqual(built["longTermDebt_avg"], 20)
+        self.assertEqual(built["enterpriseValue"], 100 + 40 + 0 - 20)
+
+    def test_closes_follow_sessions_and_a_duplicate_date_keeps_the_later_bar(self) -> None:
+        bars = [
+            {"date": "2024-06-03", "close": 10},
+            {"date": "2024-06-03", "close": 12},
+            {"date": "2024-06-05", "close": 30},
+        ]
+        sessions = ["2024-06-03", "2024-06-04", "2024-06-05"]
+        built = snapshot.build("AAA", "1", "2024-06-05", [], bars, None, None, sessions)
+        self.assertEqual(built["closes"], [12, 12, 30])
+        plain = snapshot.build("AAA", "1", "2024-06-05", [], bars, None, None)
+        self.assertEqual(plain["closes"], [12, 30])
+
 
 if __name__ == "__main__":
     unittest.main()

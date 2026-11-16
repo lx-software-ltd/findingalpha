@@ -248,6 +248,75 @@ class NormaliseTest(unittest.TestCase):
         self.assertEqual(sorted(row["value"] for row in visible), [7, 8])
         self.assertTrue(all(row["kind"] == "share" for row in visible))
 
+    def test_the_bundled_debt_roles_match_the_stock_tags(self) -> None:
+        maps = load_tag_maps()
+        roles = {tag for tags in maps["debt"].values() for tag in tags}
+        self.assertEqual(roles, set(maps["stocks"]["longTermDebt"] + maps["stocks"]["shortTermDebt"]))
+
+    def test_inclusive_long_term_debt_does_not_count_the_current_portion_twice(self) -> None:
+        facts = _debt_facts(
+            {
+                "LongTermDebt": 100,
+                "LongTermDebtCurrent": 30,
+                "ShortTermBorrowings": 5,
+            }
+        )
+        rows = normalise(facts, _debt_maps())
+        self.assertEqual(_debt_value(rows, "longTermDebt"), 70)
+        self.assertEqual(_debt_value(rows, "shortTermDebt"), 35)
+
+    def test_debt_current_is_not_added_to_the_current_portion(self) -> None:
+        facts = _debt_facts(
+            {
+                "LongTermDebtNoncurrent": 80,
+                "LongTermDebtCurrent": 10,
+                "DebtCurrent": 25,
+                "ShortTermBorrowings": 15,
+            }
+        )
+        rows = normalise(facts, _debt_maps())
+        self.assertEqual(_debt_value(rows, "longTermDebt"), 80)
+        self.assertEqual(_debt_value(rows, "shortTermDebt"), 25)
+
+    def test_a_missing_debt_tag_is_left_missing(self) -> None:
+        facts = _debt_facts({"LongTermDebt": 40, "Assets": 100})
+        rows = normalise(facts, _debt_maps())
+        self.assertEqual(_debt_value(rows, "longTermDebt"), 40)
+        self.assertIsNone(_debt_value(rows, "shortTermDebt"))
+
+
+def _debt_maps() -> dict:
+    return {
+        "flows": {"revenue": ["Revenues"]},
+        "stocks": {
+            "totalAssets": ["Assets"],
+            "longTermDebt": ["LongTermDebtNoncurrent", "LongTermDebt"],
+            "shortTermDebt": ["DebtCurrent", "LongTermDebtCurrent", "ShortTermBorrowings"],
+        },
+        "debt": {
+            "noncurrent": ["LongTermDebtNoncurrent"],
+            "includingCurrent": ["LongTermDebt"],
+            "currentPortion": ["LongTermDebtCurrent"],
+            "debtCurrent": ["DebtCurrent"],
+            "borrowings": ["ShortTermBorrowings"],
+        },
+    }
+
+
+def _debt_facts(values: dict[str, float]) -> dict:
+    units = {
+        tag: {"units": {"USD": [{"end": "2024-12-31", "val": value, "filed": "2025-02-01", "form": "10-K"}]}}
+        for tag, value in values.items()
+    }
+    return {"facts": {"us-gaap": units}}
+
+
+def _debt_value(rows: list[dict], field: str) -> float | None:
+    matched = [row["value"] for row in rows if row["field"] == field]
+    if not matched:
+        return None
+    return matched[0]
+
 
 if __name__ == "__main__":
     unittest.main()

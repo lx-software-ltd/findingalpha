@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "flows": {
     "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"],
     "costOfRevenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
@@ -22,11 +22,18 @@
     "equity": ["StockholdersEquity"],
     "cash": ["CashAndCashEquivalentsAtCarryingValue"],
     "longTermDebt": ["LongTermDebtNoncurrent", "LongTermDebt"],
-    "shortTermDebt": ["LongTermDebtCurrent", "DebtCurrent", "ShortTermBorrowings"],
+    "shortTermDebt": ["DebtCurrent", "LongTermDebtCurrent", "ShortTermBorrowings"],
     "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
     "shortTermInvestments": ["ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesDebtSecuritiesCurrent"]
   },
   "shareFlows": {
     "weightedDilutedShares": ["WeightedAverageNumberOfDilutedSharesOutstanding"]
+  },
+  "debt": {
+    "noncurrent": ["LongTermDebtNoncurrent"],
+    "includingCurrent": ["LongTermDebt"],
+    "currentPortion": ["LongTermDebtCurrent"],
+    "debtCurrent": ["DebtCurrent"],
+    "borrowings": ["ShortTermBorrowings"]
   }
 }

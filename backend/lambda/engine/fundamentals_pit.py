@@ -46,6 +46,9 @@ def load_tag_maps(path: Path | None = None) -> TagMaps:
         if not isinstance(fields, dict) or not fields:
             raise ValueError(f"fundamentals contract is missing {section}")
         maps[section] = {str(field): [str(tag) for tag in tags] for field, tags in fields.items()}
+    debt = raw.get("debt")
+    if isinstance(debt, dict) and debt:
+        maps["debt"] = {str(role): [str(tag) for tag in tags] for role, tags in debt.items()}
     return maps
 
 
@@ -90,17 +93,106 @@ def _fact_rows(
     return rows
 
 
+def _preferred_by_end(company_facts: dict[str, Any], tags: list[str]) -> dict[str, dict[str, Any]]:
+    """One stock fact per balance-sheet date. The earlier tag wins; a later filing of that tag replaces it."""
+    best: dict[str, tuple[int, dict[str, Any]]] = {}
+    for rank, tag in enumerate(tags):
+        for row in _fact_rows(company_facts, "longTermDebt", tag, "stock"):
+            current = best.get(row["end"])
+            if current is None or rank < current[0] or (rank == current[0] and row["filed"] > current[1]["filed"]):
+                best[row["end"]] = (rank, row)
+    return {end: row for end, (_rank, row) in best.items()}
+
+
+def _component(values: dict[str, dict[str, dict[str, Any]]], role: str, end: str) -> float | None:
+    row = values.get(role, {}).get(end)
+    if row is None:
+        return None
+    return float(row["value"])
+
+
+def _debt_rows(company_facts: dict[str, Any], roles: dict[str, list[str]]) -> list[dict[str, Any]]:
+    """Split debt without counting the current portion twice.
+
+    ``LongTermDebt`` already includes ``LongTermDebtCurrent``. ``DebtCurrent``
+    already includes the current portion and short-term borrowings, so those
+    are not added again. A missing role stays missing. It is not stored as zero.
+    """
+    values = {role: _preferred_by_end(company_facts, tags) for role, tags in roles.items()}
+    ends: set[str] = set()
+    for by_end in values.values():
+        ends.update(by_end)
+    rows: list[dict[str, Any]] = []
+    for end in ends:
+        noncurrent = _component(values, "noncurrent", end)
+        including = _component(values, "includingCurrent", end)
+        portion = _component(values, "currentPortion", end)
+        current = _component(values, "debtCurrent", end)
+        borrowings = _component(values, "borrowings", end)
+        inclusive = noncurrent is None and including is not None
+        long_term: float | None
+        if noncurrent is not None:
+            long_term = noncurrent
+        elif inclusive and portion is not None and including is not None and including >= portion:
+            long_term = including - portion
+        elif inclusive:
+            long_term = including
+        else:
+            long_term = None
+        short_term: float | None
+        if inclusive and portion is None:
+            short_term = borrowings
+        elif current is not None:
+            short_term = current
+        elif portion is not None or borrowings is not None:
+            short_term = (portion or 0) + (borrowings or 0)
+        else:
+            short_term = None
+        if long_term is not None:
+            rows.append(_debt_row(values, end, "longTermDebt", long_term))
+        if short_term is not None:
+            rows.append(_debt_row(values, end, "shortTermDebt", short_term))
+    return rows
+
+
+def _debt_row(values: dict[str, dict[str, dict[str, Any]]], end: str, field: str, value: float) -> dict[str, Any]:
+    used = [row for by_end in values.values() if (row := by_end.get(end)) is not None]
+    latest = max(used, key=lambda row: row["filed"])
+    return {
+        "field": field,
+        "kind": "stock",
+        "tag": "+".join(sorted({str(row["tag"]) for row in used})),
+        "start": end,
+        "end": end,
+        "value": value,
+        "filed": latest["filed"],
+        "form": latest["form"],
+        "fy": latest.get("fy"),
+        "fp": latest.get("fp"),
+    }
+
+
 def normalise(company_facts: dict[str, Any], maps: TagMaps | None = None) -> list[dict[str, Any]]:
     """Turn a companyfacts payload into rows.
 
     USD only, except share counts. 10-K, 10-Q and their amendments only.
     For each period, the first tag that has a value wins. A later tag
     still fills periods the earlier tags do not cover.
+
+    Long-term and short-term debt are the exception. The ``debt`` roles
+    are combined per balance-sheet date so the current portion is not
+    added twice and short-term borrowings are not dropped.
     """
     chosen = maps if maps is not None else load_tag_maps()
     rows: list[dict[str, Any]] = []
+    skip: set[str] = set()
+    if chosen.get("debt"):
+        rows.extend(_debt_rows(company_facts, chosen["debt"]))
+        skip = {"longTermDebt", "shortTermDebt"}
     for kind, section in (("flow", "flows"), ("stock", "stocks"), ("share", "shareFlows")):
         for field, tags in (chosen.get(section) or {}).items():
+            if field in skip:
+                continue
             best: dict[tuple[str, str], tuple[int, list[dict[str, Any]]]] = {}
             for rank, tag in enumerate(tags):
                 grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
