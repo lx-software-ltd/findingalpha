@@ -283,10 +283,11 @@ Tests, with hand-made fixtures for an invented company:
   old and new tickers.
 - `backfill_raw(start, end)`: the same files, one calendar month per
   chunk, for active and inactive NYSE and NASDAQ names plus `SPY`.
-- Alpaca lists rights, contingent value rights, and escrow shares
-  under a nine-character identifier that ends in a digit, such as
-  `003CVR016`. The bars endpoint rejects them, so no bars request
-  includes one, whether the list is fresh or saved in the job state.
+- Alpaca's inactive list carries names that are not tickers: rights,
+  escrow shares, and delisted names under identifiers such as
+  `003CVR016`, `B002455`, and `ABCD_DELISTED`. The bars endpoint
+  rejects them. A symbol with a digit or an underscore is never sent
+  for bars, whether the list is fresh or saved in the job state.
 - Quality checks before writing: SPY is present; no bar with a price
   at or below zero; the number of bars is within 15% of the previous
   session's. On failure raise `DataQualityError` with the failing

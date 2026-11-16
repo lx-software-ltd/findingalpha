@@ -7,15 +7,20 @@
 
 Let `backfill_prices` get past its first month.
 
-The run at 6:31 PM HKT on 16 Nov 2026 failed with `HTTP 400 invalid symbol: 03211Q127`. The inactive asset list carries rights, contingent value rights, and escrow shares under a nine-character identifier that ends in a digit, such as `003CVR016`. The bars endpoint rejects each one. The run skipped 20 of them, one request or two apiece, and the 21st hit the skip cap. Symbols are sorted, so these all sit in the first batch.
+Alpaca's inactive asset list carries names that are not tickers, and the bars endpoint rejects each one as an invalid symbol. Two runs on 16 Nov 2026 showed four kinds:
 
-Every symbol sent for bars now passes one filter that drops that shape. It applies to a symbol list saved in the job state too, so a tick resume of the failed run does not send them again.
+- The 6:31 PM HKT run failed on `03211Q127`. It had skipped 20 nine-character identifiers for rights, contingent value rights, and escrow shares, such as `003CVR016`.
+- The first version of this plan dropped nine uppercase characters ending in a digit. The 6:45 PM HKT run dropped 276 of them and failed on `C032597`. It had skipped the same identifiers in lowercase, one ending in letters (`92556PCAL`), a letter followed by six digits (`B002455`), and delisted names (`ABCD_DELISTED`, `B009988_DELISTED`).
+
+All 42 rejected symbols contain a digit or an underscore. Every symbol the second run sent before `C032597` and did not skip was accepted. So the rule is now: a symbol with a digit or an underscore is not sent for bars. It applies to a symbol list saved in the job state too.
+
+A symbol that is kept but is not letters and dots is still sent. The run logs how many there are and the first ten, so the next run answers the open question below.
 
 ## Non-goals
 
-- Raising or removing the 20-skip cap. It stopped this run for the right reason.
+- Raising or removing the 20-skip cap. It stopped both runs for the right reason.
 - Changing `reference/symbol-reuse.json`, the universe rules, or the exchanges that are priced.
-- Dropping any symbol that only looks unusual, such as `GUT.RT` or `KCA.U`.
+- Dropping a dotted ticker such as `GUT.RT` or `KCA.U`.
 
 ## Files
 
@@ -25,7 +30,7 @@ Every symbol sent for bars now passes one filter that drops that shape. It appli
 ## Invariants this change preserves
 
 - SPY is always requested. BIL is always in the adjusted history.
-- A ticker is never dropped by shape. The filter matches exactly nine characters, letters and digits only, ending in a digit. No NYSE or NASDAQ ticker has that form.
+- A symbol made of letters and dots is always sent.
 - Any other symbol Alpaca rejects is still split out and skipped, and more than 20 new skips still fail the request.
 - The month cursor and the saved window are unchanged.
 
@@ -42,4 +47,4 @@ Revert the pull request. The backfill goes back to failing on the first month.
 
 ## Open questions
 
-Whether Alpaca rejects any other kind of symbol in the inactive list. The filter is built from the 21 rejected symbols in the log and the three identifiers in `reference/symbol-reuse.json`. If more than 20 symbols of another shape are rejected, the month fails and the error names one of them.
+Whether Alpaca rejects a symbol that has neither a digit nor an underscore. The two runs covered every digit-leading symbol and the letters up to `C03`, and found none. The asset list itself was not read, so the rest of the alphabet is unchecked. If more than 20 such symbols exist, the month fails and the error names one.

@@ -200,23 +200,28 @@ class PriceIngestTest(unittest.TestCase):
         assets = [
             {"symbol": "LIVE", "exchange": "NASDAQ", "status": "active"},
             {"symbol": "000CVR019", "exchange": "NASDAQ", "status": "inactive"},
-            {"symbol": "00000X0E0", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "00000x0e0", "exchange": "NYSE", "status": "inactive"},
             {"symbol": "X00000019", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "00000XCAL", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "X000019", "exchange": "NASDAQ", "status": "inactive"},
+            {"symbol": "EXM_DELISTED", "exchange": "NASDAQ", "status": "inactive"},
+            {"symbol": "X000019_DELISTED", "exchange": "NASDAQ", "status": "inactive"},
             {"symbol": "EXM.RT", "exchange": "NYSE", "status": "inactive"},
             {"symbol": "EXMPL.U", "exchange": "NYSE", "status": "inactive"},
             {"symbol": "ABCDEFGHI", "exchange": "NYSE", "status": "inactive"},
-            {"symbol": "S001", "exchange": "NASDAQ", "status": "inactive"},
+            {"symbol": "EXM-A", "exchange": "NYSE", "status": "inactive"},
         ]
-        self.assertEqual(
-            ingest_prices.raw_symbols(assets, include_inactive=True),
-            ["ABCDEFGHI", "EXM.RT", "EXMPL.U", "LIVE", "S001", "SPY"],
-        )
+        with self.assertLogs("ingest_prices", level="INFO") as logged:
+            found = ingest_prices.raw_symbols(assets, include_inactive=True)
+        self.assertEqual(found, ["ABCDEFGHI", "EXM-A", "EXM.RT", "EXMPL.U", "LIVE", "SPY"])
+        self.assertIn("dropped count=7", logged.output[0])
+        self.assertIn("count=1 sample=['EXM-A']", logged.output[1])
 
     def test_a_saved_symbol_list_drops_placeholder_identifiers(self) -> None:
         bucket = _Bucket()
         memory = _Memory()
         asked: list[list[str]] = []
-        saved = ["000CVR019", "GONE", "X00000019"]
+        saved = ["000CVR019", "GONE", "GONE_DELISTED", "X000019"]
 
         def bars(symbols: list[str], start: date, end: date, adjustment: str) -> list[dict[str, object]]:
             del end, adjustment
@@ -459,7 +464,7 @@ class PriceIngestTest(unittest.TestCase):
             close = 2 if adjustment == "all" else 1
             return [_bar(symbol, date(2024, 6, 3), close) for symbol in symbols]
 
-        symbols = [f"S{index:03d}" for index in range(99)]
+        symbols = [f"S{chr(65 + index // 26)}{chr(65 + index % 26)}" for index in range(99)]
         bucket.objects[("data", "prices/adj/part=002/bars.jsonl.gz")] = b"stale"
         bucket.objects[("data", "prices/split/part=002/bars.jsonl.gz")] = b"stale"
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
