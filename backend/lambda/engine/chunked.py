@@ -18,6 +18,8 @@ LEASE = timedelta(minutes=16)
 _STOP_WITH_MS_LEFT = 120_000
 _STATE_SK = "STATE"
 _GSI_PK = "JOBSTATE"
+_MAX_FAILURES = 3
+_PAYLOAD_MAX = 200_000
 
 Process = Callable[[Any], None]
 Clock = Callable[[], datetime]
@@ -67,6 +69,7 @@ def _save(
     lease: datetime | None,
     digest: str,
     params: dict[str, Any] | None,
+    failures: int = 0,
 ) -> None:
     item: dict[str, Any] = {
         "pk": _pk(job),
@@ -78,7 +81,10 @@ def _save(
         "updatedAt": timeutil.format_iso_millis(now),
         "gsi1pk": _GSI_PK,
         "gsi1sk": job,
+        "failures": failures,
     }
+    if failures:
+        item["failedCursor"] = cursor
     if lease is not None:
         item["leaseUntil"] = timeutil.format_iso_millis(lease)
     if params is not None:
@@ -128,7 +134,10 @@ def run(
         _save(job, "done", cursor, total, now(), None, digest, params)
         return {"status": "done", "cursor": cursor, "total": total}
     except Exception:
-        _save(job, "failed", cursor, total, now(), None, digest, params)
+        count = int(previous.get("failures") or 0)
+        if previous.get("failedCursor") != cursor:
+            count = 0
+        _save(job, "failed", cursor, total, now(), None, digest, params, failures=count + 1)
         raise
 
 
@@ -138,20 +147,17 @@ def resume_stalled(
     invoke: Invoker | None = None,
     enabled: Callable[[str], bool] | None = None,
 ) -> list[str]:
-    """Start a running job whose lease expired, and a paused job, when ``enabled`` allows it."""
+    """Start a job that should continue, when ``enabled`` allows it.
+
+    A running job whose lease expired, a paused job, and a failed job
+    with fewer than three failures at its cursor.
+    """
     moment = timeutil.format_iso_millis(now())
     send = invoke or _invoke_self
     started: list[str] = []
     for item in store.query_gsi1(_GSI_PK):
-        if item.get("sk") != _STATE_SK:
+        if item.get("sk") != _STATE_SK or not _resumable(item, moment):
             continue
-        status = item.get("status")
-        if status not in {"running", "paused"}:
-            continue
-        if status == "running":
-            lease = str(item.get("leaseUntil") or "")
-            if lease and lease >= moment:
-                continue
         job = str(item.get("gsi1sk") or "")
         if not job or (enabled is not None and not enabled(job)):
             continue
@@ -162,6 +168,18 @@ def resume_stalled(
             continue
         started.append(job)
     return started
+
+
+def _resumable(item: dict[str, Any], moment: str) -> bool:
+    status = item.get("status")
+    if status == "failed":
+        return int(item.get("failures") or 0) < _MAX_FAILURES
+    if status == "paused":
+        return True
+    if status != "running":
+        return False
+    lease = str(item.get("leaseUntil") or "")
+    return not lease or lease < moment
 
 
 def _invoke_self(job: str) -> None:
@@ -179,7 +197,12 @@ def _invoke_self(job: str) -> None:
 
 
 def _payload(job: str, params: object) -> bytes:
+    """The resume event. A parameter block over 200 KB stays in the state row."""
     body: dict[str, object] = {"job": job}
-    if params:
-        body["params"] = params  # type: ignore[assignment]
+    if not params:
+        return json.dumps(body).encode("utf-8")
+    encoded = json.dumps({"job": job, "params": params}).encode("utf-8")
+    if len(encoded) <= _PAYLOAD_MAX:
+        return encoded
+    body["paramsInState"] = True
     return json.dumps(body).encode("utf-8")

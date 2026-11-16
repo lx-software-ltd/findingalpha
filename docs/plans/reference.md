@@ -156,7 +156,7 @@ point-in-time recovery on, encrypted with the shared key, `RETAIN`.
 | Owner task | `OWNER_TASK#<id>` | `META` | | M03 |
 | Job run | `JOB#<job>` | `RUN#<startIso>` | `JOBRUNS` / `<startIso>` | M03 |
 | API key | `APIKEY#<scrypt digest>` | `META` | `APIKEYS` / `<createdAt>#<keyId>` | M03A |
-| Job cursor | `JOB#<job>` | `STATE` | | M04 |
+| Job cursor | `JOB#<job>` | `STATE` | `JOBSTATE` / `<job>` | M04 |
 | Universe | `UNIVERSE#<date>` | `META` | `UNIVERSE` / `<date>` | M04 |
 | Screen run | `SCREEN#<date>` | `META` | `SCREENS` / `<date>` | M06 |
 | Screen row | `SCREEN#<date>` | `RANK#<0001>#<symbol>` | | M06 |

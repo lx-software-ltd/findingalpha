@@ -18,6 +18,7 @@ from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import alpaca_data
+import http_client
 import secrets_read
 
 _FIXTURES = Path(__file__).resolve().parent / "test_fixtures"
@@ -72,6 +73,10 @@ def _query(url: str) -> dict[str, list[str]]:
 
 def _allow() -> bool:
     return True
+
+
+def _status(status: int, body: bytes) -> urllib.error.HTTPError:
+    return urllib.error.HTTPError("https://example.com/x", status, "err", Message(), io.BytesIO(body))
 
 
 def _client(
@@ -235,6 +240,44 @@ class AlpacaDataTest(unittest.TestCase):
         dated, dated_script, _dated_limiter = _client(empty)
         self.assertEqual(list(dated.daily_bars(["EXMPL"], evening, "2024-06-03", "raw")), [])
         self.assertEqual(_query(dated_script.urls[0])["start"], ["2024-06-03"])
+
+    def test_one_rejected_symbol_is_skipped_and_a_bad_window_is_not(self) -> None:
+        def bars_for(symbols: list[str]) -> bytes:
+            rows = {
+                symbol: [{"t": "2016-01-04T05:00:00Z", "o": 1, "h": 2, "l": 1, "c": 1, "v": 3, "vw": 1}]
+                for symbol in symbols
+            }
+            return json.dumps({"bars": rows}).encode()
+
+        urls: list[str] = []
+
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            urls.append(request.full_url)
+            symbols = _query(request.full_url)["symbols"][0].split(",")
+            if "BAD" in symbols:
+                raise _status(400, b'{"message":"invalid symbol: BAD"}')
+            return _Response(bars_for(symbols))
+
+        client = alpaca_data.AlpacaData(
+            key_id="kid", secret_key="sek", opener=opener, limiter=_Limiter(), ingest_enabled=_allow
+        )
+        names = ["AAA", "BAD", "SPY", "ZZZ"]
+        found = [row["symbol"] for row in client.daily_bars(names, "2016-01-04", "2016-01-29", "raw")]
+        self.assertEqual(found, ["AAA", "SPY", "ZZZ"])
+        self.assertIn("SPY", _query(urls[1])["symbols"][0])
+
+        def reject(request: urllib.request.Request, timeout: float) -> _Response:
+            del request, timeout
+            raise _status(400, b'{"message":"end is before start","url":"https://data.example/x?token=secret-query"}')
+
+        broken = alpaca_data.AlpacaData(
+            key_id="kid", secret_key="sek", opener=reject, limiter=_Limiter(), ingest_enabled=_allow
+        )
+        with self.assertRaises(http_client.HttpStatusError) as raised:
+            list(broken.daily_bars(["AAA", "SPY"], "2016-01-04", "2016-01-29", "raw"))
+        self.assertEqual(str(raised.exception), "HTTP 400 end is before start")
+        self.assertNotIn("secret-query", str(raised.exception))
 
     def test_a_bad_bars_shape_and_a_repeated_token_stop(self) -> None:
         client, script, _limiter = _client(b'{"bars":[],"next_page_token":null}')

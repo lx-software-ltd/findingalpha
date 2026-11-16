@@ -19,6 +19,17 @@ TICKERS = {"EXMPL": {"cik": "0000000001", "name": "Example Co"}}
 
 
 class IngestJobsTest(unittest.TestCase):
+    def test_a_resume_reads_a_parameter_block_kept_in_the_state_row(self) -> None:
+        from unittest.mock import patch
+
+        saved = {"symbols": ["EXMPL"], "start": "2016-01-01", "end": "2024-06-03"}
+        with patch("store.get", return_value={"params": saved}) as loaded:
+            found = ingest_jobs._params({"job": "backfill_prices", "paramsInState": True})
+        self.assertEqual(found, saved)
+        self.assertEqual(loaded.call_args.args, ("JOB#backfill_prices", "STATE"))
+        self.assertEqual(ingest_jobs._params({"job": "backfill_prices"}), {})
+        self.assertEqual(ingest_jobs._params({"params": {"symbols": ["EXMPL"]}}), {"symbols": ["EXMPL"]})
+
     def test_a_closed_session_does_no_work(self) -> None:
         def refuse(*_args: object, **_kwargs: object) -> None:
             raise AssertionError("called")
