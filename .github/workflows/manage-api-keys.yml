@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: create, list, revoke, or set-write
+        description: create, list, revoke, set-write, or set-scopes
         required: true
         type: choice
         options:
@@ -12,6 +12,7 @@ on:
           - list
           - revoke
           - set-write
+          - set-scopes
       label:
         description: Name for a new key
         required: false
@@ -24,10 +25,9 @@ on:
         options:
           - admin
       scopes:
-        description: Comma-separated scopes. Default system
+        description: Comma-separated scopes. Empty on create means system. set-scopes replaces the whole list, so repeat every scope to keep
         required: false
         type: string
-        default: system
       allow_write:
         description: Opt the key into writes. The stack switch must also be on
         required: false
@@ -42,7 +42,7 @@ on:
         required: false
         type: string
       key_id:
-        description: keyId for revoke or set-write
+        description: keyId for revoke, set-write, or set-scopes
         required: false
         type: string
 
@@ -166,3 +166,17 @@ jobs:
             FLAG="--allow-write"
           fi
           python3 scripts/manage-public-api-keys.py set-write --key-id "$KEY_ID" "$FLAG" --region "$AWS_REGION" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Set scopes
+        if: inputs.action == 'set-scopes'
+        env:
+          KEY_ID: ${{ inputs.key_id }}
+          SCOPES: ${{ inputs.scopes }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEY_ID" ] || [ -z "$SCOPES" ]; then
+            echo "::error::key_id and scopes are required for set-scopes. Repeat every scope the key should keep."
+            exit 1
+          fi
+          python3 scripts/manage-public-api-keys.py set-scopes --key-id "$KEY_ID" --scopes "$SCOPES" --region "$AWS_REGION" | tee -a "$GITHUB_STEP_SUMMARY"
