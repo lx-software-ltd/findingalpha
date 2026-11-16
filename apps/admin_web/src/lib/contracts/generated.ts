@@ -245,9 +245,13 @@ export const jobs = {
 } as const;
 
 export const methodology = {
-  "version": 1,
+  "version": 2,
   "universe": {
     "status": "provisional",
+    "confirmed": [
+      "excludeSicRanges",
+      "minFundamentalsYears"
+    ],
     "exchanges": [
       "NYSE",
       "NASDAQ"
@@ -257,10 +261,10 @@ export const methodology = {
     "excludeSicRanges": [
       [
         6000,
-        6319
+        6323
       ],
       [
-        6330,
+        6325,
         6799
       ]
     ],
@@ -1247,16 +1251,24 @@ export const roadmap = {
 } as const;
 
 export const sicSectors = {
-  "version": 1,
-  "status": "provisional",
-  "symbolSectors": [
+  "version": 2,
+  "status": "confirmed",
+  "companySectors": [
     {
-      "symbol": "V",
+      "cik": "0001403161",
       "sector": "Financials"
     },
     {
-      "symbol": "MA",
+      "cik": "0001141391",
       "sector": "Financials"
+    },
+    {
+      "cik": "0001177609",
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "cik": "0001639300",
+      "sector": "Consumer Discretionary"
     }
   ],
   "ranges": [
@@ -1537,16 +1549,16 @@ export const sicSectors = {
     },
     {
       "from": 6000,
-      "to": 6319,
+      "to": 6323,
       "sector": "Financials"
     },
     {
-      "from": 6320,
-      "to": 6329,
+      "from": 6324,
+      "to": 6324,
       "sector": "Health Care"
     },
     {
-      "from": 6330,
+      "from": 6325,
       "to": 6499,
       "sector": "Financials"
     },

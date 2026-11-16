@@ -11,16 +11,16 @@ Apply the four universe decisions, and turn the production ingest parameter on s
 
 ## Decisions
 
-- SIC 6320 to 6329 (accident and health insurance, and hospital and medical service plans) stay in the universe and map to Health Care. Banks, life insurers, property insurers, brokers, funds, and property trusts stay out. The exclusion is `[[6000, 6319], [6330, 6799]]`.
-- SIC 5330 to 5399 (variety stores and miscellaneous general merchandise) map to Consumer Staples. Department stores (5311) stay Consumer Discretionary. The SEC lists both large membership and variety retailers the review named under 5331.
-- Symbols `V` and `MA` map to Financials. Their SIC is 7389, which stays Industrials for every other symbol, because that code is business services in general. Exclusion is by SIC range, so these two stay in the universe.
+- Only SIC 6324 (hospital and medical service plans) stays in the universe, mapped to Health Care. SIC 6321 (accident and health insurance) stays out with the other insurers: two NYSE insurers file under that code. The exclusion is `[[6000, 6323], [6325, 6799]]`.
+- SIC 5330 to 5399 (variety stores and miscellaneous general merchandise) map to Consumer Staples. Department stores (5311) stay Consumer Discretionary. Two variety-store filers that are discretionary retailers are listed by CIK and stay Consumer Discretionary: `0001177609` and `0001639300`.
+- CIKs `0001403161` and `0001141391` map to Financials. Their SIC is 7389, which stays Industrials for every other company, because that code is business services in general. Exclusion is by SIC range, so these two stay in the universe. The override is by CIK, not by ticker.
 - History still requires three distinct fiscal years, one per 10-K filing. A listing with only two 10-Ks stays out. Comparative columns in one filing still count as one year.
 
 Price, volume, and size thresholds stay provisional.
 
 ## Non-goals
 
-- No live backfill in this change. The first run is T11, after this deploys and the runtime switch is on.
+- No live backfill in this change. The first run is T11, after this deploys and the runtime switch is on. Leave that switch off until `backfill_prices` can be started: the Sunday refresh needs 60 sessions of price files.
 - No change to cover-page conversion ratios or to how far a cover lookup reads.
 
 ## Files

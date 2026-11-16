@@ -1,9 +1,8 @@
 """The list of stocks the screen may consider.
 
-Thresholds come from ``contracts/methodology.json``. Sectors come from
-``contracts/sic-sectors.json``. The owner confirmed the four sector
-decisions; the other thresholds stay provisional. Bucket and table IO
-lives in ``universe_data``.
+Thresholds come from ``contracts/methodology.json`` and sectors from
+``contracts/sic-sectors.json``. The four sector decisions are confirmed.
+Other thresholds stay provisional. Bucket and table IO is in ``universe_data``.
 """
 
 from __future__ import annotations
@@ -100,16 +99,16 @@ def load_sectors(path: Path | None = None) -> list[dict[str, Any]]:
     return ranges
 
 
-def load_symbol_sectors(path: Path | None = None) -> dict[str, str]:
-    """Symbols whose sector is not the sector of their SIC code."""
+def load_company_sectors(path: Path | None = None) -> dict[str, str]:
+    """CIKs whose sector is not the sector of their SIC code."""
     raw = json.loads((path or _SECTORS).read_text(encoding="utf-8"))
-    rows = raw.get("symbolSectors") if isinstance(raw, dict) else None
+    rows = raw.get("companySectors") if isinstance(raw, dict) else None
     if not isinstance(rows, list):
         return {}
     return {
-        str(row["symbol"]).strip().upper(): str(row["sector"])
+        _cik(row["cik"]): str(row["sector"])
         for row in rows
-        if isinstance(row, dict) and row.get("symbol") and row.get("sector")
+        if isinstance(row, dict) and str(row.get("cik") or "").strip() and row.get("sector")
     }
 
 
@@ -117,13 +116,13 @@ def sector_for(
     sic: object,
     ranges: list[dict[str, Any]] | None = None,
     *,
-    symbol: str | None = None,
-    symbols: dict[str, str] | None = None,
+    cik: str | None = None,
+    companies: dict[str, str] | None = None,
 ) -> str:
-    """The sector for one SIC code. A listed symbol wins. An unmapped code is ``Other``."""
-    if symbol:
-        table = symbols if symbols is not None else load_symbol_sectors()
-        found = table.get(str(symbol).strip().upper())
+    """The sector for one SIC code. A listed CIK wins. An unmapped code is ``Other``."""
+    if cik and str(cik).strip():
+        table = companies if companies is not None else None if ranges is not None else load_company_sectors()
+        found = table.get(_cik(cik)) if table else None
         if found:
             return found
     chosen = ranges if ranges is not None else load_sectors()
@@ -354,6 +353,7 @@ def build(
     ingest_enabled: Callable[[], bool] | None = None,
     rules: dict[str, Any] | None = None,
     sectors: list[dict[str, Any]] | None = None,
+    company_sectors: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Apply each rule, then write the members and the universe row."""
     _require(ingest_enabled)
@@ -368,7 +368,9 @@ def build(
     cover_of = read_cover or universe_data.cover_reader(name, client)
     chosen = rules if rules is not None else load_rules()
     ranges = sectors if sectors is not None else load_sectors()
-    symbol_sectors = load_symbol_sectors()
+    if company_sectors is None and sectors is None:
+        company_sectors = load_company_sectors()
+    chosen_companies = company_sectors or {}
     listed = _screen_assets(assets, chosen)
     if not listed or not tickers or not sessions:
         return {"asOf": day.isoformat(), "status": "missing_inputs", "members": 0}
@@ -443,7 +445,7 @@ def build(
         carried = dict(row)
         carried["marketCap"] = cap
         carried["sharesSource"] = picked.source
-        carried["sector"] = sector_for(row["sic"], ranges, symbol=str(row["symbol"]), symbols=symbol_sectors)
+        carried["sector"] = sector_for(row["sic"], ranges, cik=str(row["cik"]), companies=chosen_companies)
         sized.append(carried)
     members = [
         {

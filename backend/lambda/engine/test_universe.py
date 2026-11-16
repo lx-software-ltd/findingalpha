@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from datetime import date, timedelta
 from decimal import Decimal
@@ -67,6 +68,50 @@ def _history(
     return rows
 
 
+def _built_sectors(
+    cases: list[tuple[str, str, str]], *, sectors: list[dict[str, object]] | None = None
+) -> dict[str, str]:
+    """Run one build and return ``symbol -> sector`` for the members it writes."""
+    sessions = [AS_OF - timedelta(days=offset) for offset in range(59, -1, -1)]
+    bars = {
+        day: [
+            {"symbol": symbol, "close": 10, "volume": 3_000_000, "date": day.isoformat()}
+            for symbol, _cik, _sic in cases
+        ]
+        for day in sessions
+    }
+    facts = {universe._cik(cik): _history(SHARES) for _symbol, cik, _sic in cases}
+    sics = {universe._cik(cik): sic for _symbol, cik, sic in cases}
+    bucket = _Bucket()
+    memory = _Memory()
+    with (
+        _bind(memory)[0],
+        _bind(memory)[1],
+        _bind(memory)[2],
+        patch("store.update", memory.update),
+        patch("store.query_gsi1", memory.query_gsi1),
+    ):
+        universe.build(
+            AS_OF,
+            _Context(),
+            assets=[_asset(symbol) for symbol, _cik, _sic in cases],
+            tickers={symbol: {"cik": cik, "name": f"Example {symbol}"} for symbol, cik, _sic in cases},
+            sessions=sessions,
+            read_bars=lambda day: bars[day],
+            read_facts=facts.get,
+            read_submissions=lambda cik: {"sic": sics[cik]},
+            refresh=lambda _ciks, _context: {"status": "done"},
+            read_actions=lambda _day: [],
+            read_cover=lambda _cik, _day: None,
+            bucket="data",
+            client=bucket,
+            ingest_enabled=lambda: True,
+            sectors=sectors,
+        )
+    rows = s3io.get_jsonl_gz("data", "universe/date=2024-06-03/members.jsonl.gz", client=bucket)
+    return {str(row["symbol"]): str(row["sector"]) for row in rows}
+
+
 class UniverseTest(unittest.TestCase):
     def test_ranges_cover_the_sic_list_once(self) -> None:
         ranges = universe.load_sectors()
@@ -105,7 +150,7 @@ class UniverseTest(unittest.TestCase):
         rules = universe.load_rules()
         excluded = rules["excludeSicRanges"]
         self.assertFalse(universe._excluded(6324, excluded))
-        self.assertFalse(universe._excluded(6321, excluded))
+        self.assertTrue(universe._excluded(6321, excluded))
         self.assertTrue(universe._excluded(6311, excluded))
         self.assertTrue(universe._excluded(6331, excluded))
         self.assertTrue(universe._excluded(6021, excluded))
@@ -113,12 +158,46 @@ class UniverseTest(unittest.TestCase):
         self.assertEqual(universe.sector_for(5399), "Consumer Staples")
         self.assertEqual(universe.sector_for(5311), "Consumer Discretionary")
         self.assertEqual(universe.sector_for(6324), "Health Care")
-        self.assertEqual(universe.sector_for(7389, symbol="V"), "Financials")
-        self.assertEqual(universe.sector_for(7389, symbol="MA"), "Financials")
-        self.assertEqual(universe.sector_for(7389, symbol="EXMPL"), "Industrials")
+        self.assertEqual(universe.sector_for(6321), "Financials")
+        self.assertEqual(universe.sector_for(7389, cik="0001403161"), "Financials")
+        self.assertEqual(universe.sector_for(7389, cik="0001141391"), "Financials")
+        self.assertEqual(universe.sector_for(5331, cik="0001177609"), "Consumer Discretionary")
+        self.assertEqual(universe.sector_for(5331, cik="0001639300"), "Consumer Discretionary")
+        self.assertEqual(universe.sector_for(7389, cik="0000000099"), "Industrials")
+        sectors = json.loads(universe._SECTORS.read_text(encoding="utf-8"))
+        self.assertEqual(sectors["version"], 2)
+        self.assertEqual(sectors["status"], "confirmed")
+        self.assertNotIn("symbolSectors", sectors)
+        self.assertEqual(json.loads(universe._RULES.read_text(encoding="utf-8"))["version"], 2)
         self.assertEqual(int(rules["minFundamentalsYears"]), 3)
         two_filings = _history(SHARES, years=("2022-12-31", "2023-12-31"))
         self.assertLess(len(set(universe._annual_filings(two_filings, "10-K").values())), 3)
+
+    def test_company_sectors_are_written_on_the_members(self) -> None:
+        found = _built_sectors(
+            [
+                ("CARD", "0001403161", "7389"),
+                ("SHOP", "0001177609", "5331"),
+                ("STAP", "0000000099", "5331"),
+                ("PLAN", "0000006324", "6324"),
+            ]
+        )
+        self.assertEqual(
+            found,
+            {
+                "CARD": "Financials",
+                "SHOP": "Consumer Discretionary",
+                "STAP": "Consumer Staples",
+                "PLAN": "Health Care",
+            },
+        )
+
+    def test_injected_ranges_do_not_use_the_contract_overrides(self) -> None:
+        found = _built_sectors(
+            [("CARD", "0001403161", "7389")],
+            sectors=[{"from": 100, "to": 9999, "sector": "Industrials"}],
+        )
+        self.assertEqual(found, {"CARD": "Industrials"})
 
     def test_each_rule_removes_only_its_own_rows(self) -> None:
         sessions = [AS_OF - timedelta(days=offset) for offset in range(59, -1, -1)]

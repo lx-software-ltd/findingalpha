@@ -1,11 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
   "universe": {
     "status": "provisional",
+    "confirmed": ["excludeSicRanges", "minFundamentalsYears"],
     "exchanges": ["NYSE", "NASDAQ"],
     "requireMarginable": true,
     "requireAnnualReportForm": "10-K",
-    "excludeSicRanges": [[6000, 6319], [6330, 6799]],
+    "excludeSicRanges": [[6000, 6323], [6325, 6799]],
     "minPriceUsd": 5,
     "minMedianDollarVolumeUsd": 20000000,
     "dollarVolumeWindowSessions": 60,

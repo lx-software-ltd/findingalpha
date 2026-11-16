@@ -37,7 +37,7 @@ These values are provisional. The owner reviews them before the first live build
 
 - Marginable, because the book uses leverage.
 - A 10-K, because a 20-F filer's tags are not the ones the formulas use.
-- SIC 6000 to 6799, because banks, insurers, funds, and property trusts do not fit the quality formulas.
+- SIC 6000 to 6323 and 6325 to 6799, because banks, insurers, funds, and property trusts do not fit the quality formulas. SIC 6324 stays in. The confirmed split is `docs/plans/m04-sector-decisions.md`.
 - Price at least $5, median dollar volume at least $20 million over 60 sessions, and market cap at least $2 billion, so trading costs stay small.
 - Three annual reports already on file.
 
