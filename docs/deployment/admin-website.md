@@ -176,9 +176,12 @@ account is refused.
 
 A key is one tier. Only `admin` can be minted. `user` is refused. A
 write also needs `allowWrite` on the key and `PublicApiWritesEnabled`
-on the stack. That switch stays `false` until a later milestone says
-otherwise. No key can turn a switch on, tick an owner task, list keys,
-reset a breaker, or approve a real-money action.
+on the stack. The production parameter file sets that switch to
+`true`. The CloudFormation default stays `false`. Setting the
+parameter back to `false` and redeploying stops every key write. No
+key can turn a switch on, tick an owner task, list keys, reset a
+breaker, start `weekly_refresh`, restart a finished backfill, or
+approve a real-money action.
 
 Mint, list, revoke, and the write flag are the **Manage Public API
 Keys** workflow. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`

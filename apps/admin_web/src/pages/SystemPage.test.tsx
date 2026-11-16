@@ -38,7 +38,8 @@ describe("SystemPage", () => {
               job: "ingest_daily",
               schedule: "0 6",
               manualRun: true,
-              lastRun: { status: "failed", startedAt: "2026-01-01T00:00:00.000Z", durationMs: 1, message: "" },
+              progress: { status: "running", cursor: 9, total: 131 },
+              lastRun: { status: "partial", startedAt: "2026-01-01T00:00:00.000Z", durationMs: 1, message: "9 of 131, continues on the next tick" },
             },
           ],
         });
@@ -63,6 +64,7 @@ describe("SystemPage", () => {
   it("shows the universe and confirms a run", async () => {
     const user = userEvent.setup();
     renderPage();
+    expect(await screen.findAllByText("partial · 9 of 131")).toHaveLength(2);
     expect(await screen.findByText(/Universe 2024-06-03, 4 names/)).toBeTruthy();
     expect(screen.getByText(/2 of 8/)).toBeTruthy();
     expect(screen.getByText("revenue")).toBeTruthy();

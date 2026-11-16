@@ -84,7 +84,7 @@ come from the GitHub `production` environment, not from the file.
 | `LeverageEnabled` | params file | `false` | Kill switch |
 | `BriefEmailEnabled` | params file | `false` | Kill switch |
 | `BrokerMode` | params file | `paper` | `allowedValues: ["paper"]` until M12 |
-| `PublicApiWritesEnabled` | params file | `false` | Kill switch for writes by API key |
+| `PublicApiWritesEnabled` | params file | `true` | Kill switch for writes by API key. CDK default stays `false` |
 | `ApiCustomDomainName` | GitHub var `API_CUSTOM_DOMAIN_NAME` | empty | `api.<domain>`. Empty skips the custom domain |
 | `ApiCustomDomainCertificateArn` | GitHub var `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | ACM in `ap-southeast-1`, not us-east-1 |
 | `CommitteeAnalystModel` | params file | set in M08 | OpenRouter slug |
@@ -265,6 +265,7 @@ it. A write needs the scope `operate`, `allowWrite` on the key, and
 `PublicApiWritesEnabled`. A settings write may only set switches to
 false. Turning a switch on, resetting a breaker, ticking an owner
 task, listing keys, and every real-money approval stay owner only.
+The key list never includes the digest.
 
 | Method and path | Purpose | Milestone | Key scope |
 | --- | --- | --- | --- |
@@ -323,11 +324,22 @@ cron syntax. Check both in the Scheduler console after the first deploy.
 
 A job that is switched off still writes a job run with status
 `skipped_disabled`, so the dashboard shows that it was asked to run.
+A run that stops with time left, or pauses, is `partial` and carries
+the cursor, for example `9 of 131, continues on the next tick`. A run
+that returns `missing_inputs` is `failed`. A clean finish is
+`succeeded`. `partial` is neither a success nor a failure.
 
 Jobs without a schedule, started from the dashboard through
 `POST /jobs/{jobName}/run` when `contracts/jobs.json` allows it:
-An API key can start a job only when the job has `keyRun: true`. Jobs
-that touch the broker or the drill never have it.
+An API key can start a job only when the job has `keyRun: true`.
+That flag is on for `tick`, `ingest_daily`, `backfill_prices`, and
+`backfill_fundamentals`. `weekly_refresh` stays on the dashboard:
+each run repeats the SEC and universe work. A key that asks to start
+a backfill whose saved state is already `done` is refused, because
+that starts the download again from the first month. The dashboard
+can still start it. Jobs that touch the broker or the drill never
+have `keyRun`. The system status reports `keyRun` and the saved
+`progress` for each job.
 
 | Job | Purpose | Milestone |
 | --- | --- | --- |

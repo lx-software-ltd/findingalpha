@@ -23,6 +23,8 @@ export type SystemStatus = {
     readonly job: string;
     readonly schedule: string;
     readonly manualRun?: boolean;
+    readonly keyRun?: boolean;
+    readonly progress?: { readonly status?: string; readonly cursor: number; readonly total: number } | null;
     readonly lastRun: JobRun | null;
   }[];
 };

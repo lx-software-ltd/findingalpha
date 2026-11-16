@@ -118,4 +118,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             if not kill_switch.is_enabled(switch):
                 run.skip()
                 return {"ok": True, "status": "skipped_disabled"}
-        return handler(event, run, context)
+        result = handler(event, run, context)
+        job_runs.apply_result(run, result)
+        return result

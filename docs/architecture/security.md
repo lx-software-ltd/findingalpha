@@ -59,7 +59,7 @@ token is ignored on `/public`.
 
 CORS stays the dashboard origin. Key callers are servers and do not
 send a browser preflight. `GET /api-keys` is the dashboard list and
-never returns the digest.
+never returns the digest. No key can read it.
 
 ## Edge
 

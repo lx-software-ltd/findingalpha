@@ -118,7 +118,10 @@ Owner-only, never reachable with any key, whatever its tier:
 - every approval of a real-money order (M12).
 
 The reason is the same as in the sibling: a leaked key must not be
-able to start trading, clear an alarm or widen its own access.
+able to start trading, clear an alarm or widen its own access. The
+production parameter file later sets `PublicApiWritesEnabled` to
+`true`. The parameter default stays `false`, and this owner-only list
+does not change.
 
 ## Files
 

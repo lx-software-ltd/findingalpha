@@ -38,6 +38,21 @@ class JobsHandlerTest(unittest.TestCase):
         self.assertEqual(result["status"], "skipped_disabled")
         self.assertTrue(run.skipped)
 
+    def test_a_running_result_is_stored_as_partial(self) -> None:
+        saved: list[dict] = []
+
+        def handler(_event: dict, _run: object, _context: object) -> dict:
+            return {"ok": True, "status": "running", "cursor": 1, "total": 4}
+
+        with (
+            patch.dict(jobs_handler.JOBS, {"tick": handler}),
+            patch("store.put", side_effect=lambda item: saved.append(dict(item))),
+        ):
+            result = jobs_handler.lambda_handler({"job": "tick"}, None)
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(saved[-1]["status"], "partial")
+        self.assertEqual(saved[-1]["errorMessage"], "1 of 4, continues on the next tick")
+
 
 if __name__ == "__main__":
     unittest.main()

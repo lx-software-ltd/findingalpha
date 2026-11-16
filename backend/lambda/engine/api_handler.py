@@ -78,6 +78,8 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
         allowed = row.get("manualRun") is True and _engine_runs(name)
     if not allowed:
         return not_found()
+    if _key_caller(event) and _backfill_finished(name):
+        return _json_response(409, {"message": f"{name} already finished"})
     actor = str(event.get("actor") or "") if _key_caller(event) else str(_claims(event).get("sub") or "")
     _invoke_engine(name, actor)
     import audit
@@ -124,13 +126,21 @@ def _universe_payload(latest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _progress(job: str) -> dict[str, Any] | None:
+def _backfill_finished(job: str) -> bool:
+    """A finished backfill starts again from the first month. A key must not do that."""
+    if job not in {"backfill_prices", "backfill_fundamentals"}:
+        return False
     import store
 
     item = store.get(f"JOB#{job}", "STATE") or {}
-    if "cursor" not in item or "total" not in item:
-        return None
-    return {"status": item.get("status"), "cursor": item.get("cursor"), "total": item.get("total")}
+    return item.get("status") == "done"
+
+
+def _progress(job: str) -> dict[str, Any] | None:
+    import store
+    from job_runs import position
+
+    return position(store.get(f"JOB#{job}", "STATE") or {})
 
 
 def _is_job_run(method: str, path: str) -> bool:

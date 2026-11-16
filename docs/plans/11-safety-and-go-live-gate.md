@@ -193,7 +193,7 @@ What each one reads:
 | --- | --- |
 | `paperDays` | Calendar days since the first paper trading day recorded in M10-T09 |
 | `leverageRulesActiveDays` | Days with `LeverageEnabled` on. The plan turns it on after the first 90 days |
-| `jobSuccessRate` | Scheduled job runs that succeeded, over all that were due. `skipped_disabled` during a planned stop is excluded. A run missing altogether counts as failed |
+| `jobSuccessRate` | Scheduled job runs that succeeded, over all that were due. `skipped_disabled` during a planned stop is excluded. `partial` is a chunk that continues, so it is neither a success nor a failure. A run missing altogether counts as failed |
 | `unexplainedReconcileDifferences` | `ledger_mismatch` trips without a reset note that names the cause |
 | `ordersWithThesisAndCitation` | Share of submitted orders whose thesis has at least one knowledge base citation. Risk sales count through the thesis of the position |
 | `backtestBeatsNetBenchmark` | The M06 run marked as the reference, at the current register hash. A register change after the run makes this "not yet measurable" until it is rerun |
