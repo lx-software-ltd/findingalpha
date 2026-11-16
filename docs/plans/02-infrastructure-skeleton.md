@@ -89,8 +89,8 @@ docs/deployment/setup.md  admin-website.md
    ```
    Create two stacks, `findingalpha` and `findingalpha-admin-web`, both
    with that `synthesizer`. Pass the backend stack's API endpoint to the
-   web stack as `cspApiConnectOrigin`. Set the tag `Project` to
-   `findingalpha`.
+   web stack as `cspApiConnectOrigin`. Set `Organization` to `LX Software`
+   and `Project` to `Finding Alpha` on both stacks.
 4. Never pass `--qualifier` to `cdk deploy` or `cdk diff`. That flag is
    for `cdk bootstrap` only. The environment variable is the mechanism.
 5. Remove the M01 guards from the `build-cdk` and

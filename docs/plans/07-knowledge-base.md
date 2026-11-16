@@ -117,7 +117,7 @@ deps)`:
    and read `KbBucket` under `theory/`, `formula-notes/` and
    `journal/` only.
 2. **Knowledge base** named `findingalpha-theory`, type `MANAGED`,
-   tagged `mcp-multirag-kb=true` and `Project=findingalpha`. Through
+   tagged `mcp-multirag-kb=true` and `Project=Finding Alpha`. Through
    `CfnKnowledgeBase` or, if T01 says so, an `AwsCustomResource` with
    `onCreate` calling `CreateKnowledgeBase` and a physical id taken
    from the response. No `onDelete`: removing the resource from the

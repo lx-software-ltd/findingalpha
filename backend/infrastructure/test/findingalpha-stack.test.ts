@@ -1,6 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { FindingalphaStack } from "../lib/findingalpha-stack";
+import { tagReport } from "./resource-tags";
 
 const ENV = { region: "ap-southeast-1" };
 
@@ -27,10 +28,12 @@ function dependencyList(resource: CfnResource): string[] {
 }
 
 let synthesized: Template;
+let app: cdk.App;
+let stack: FindingalphaStack;
 
 beforeAll(() => {
-  const app = new cdk.App({ context: { "aws:cdk:bundling-stacks": [] } });
-  const stack = new FindingalphaStack(app, "findingalpha", { env: ENV });
+  app = new cdk.App({ context: { "aws:cdk:bundling-stacks": [] } });
+  stack = new FindingalphaStack(app, "findingalpha", { env: ENV });
   synthesized = Template.fromStack(stack);
 });
 
@@ -75,6 +78,31 @@ function secretLogicalId(name: string): string {
 }
 
 describe("findingalpha stack", () => {
+  test("every taggable resource carries the organization and the project", () => {
+    const report = tagReport(app, stack);
+    expect(report.missing).toEqual([]);
+    // These types have no tag property in CloudFormation. A new type must
+    // carry both tags or be added here on purpose.
+    expect(report.untaggedTypes).toEqual([
+      "AWS::ApiGatewayV2::ApiMapping",
+      "AWS::ApiGatewayV2::Authorizer",
+      "AWS::ApiGatewayV2::Integration",
+      "AWS::ApiGatewayV2::Route",
+      "AWS::Cognito::UserPoolClient",
+      "AWS::Cognito::UserPoolDomain",
+      "AWS::Cognito::UserPoolGroup",
+      "AWS::Cognito::UserPoolIdentityProvider",
+      "AWS::IAM::Policy",
+      "AWS::KMS::Alias",
+      "AWS::Lambda::EventInvokeConfig",
+      "AWS::Lambda::Permission",
+      "AWS::Logs::ResourcePolicy",
+      "AWS::S3::BucketPolicy",
+      "AWS::Scheduler::Schedule",
+      "Custom::AWS",
+    ]);
+  });
+
   test("tables keep keys, on-demand billing, recovery, encryption, and retain", () => {
     synthesized.hasResourceProperties("AWS::DynamoDB::Table", {
       TableName: "findingalpha-records",

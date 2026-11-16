@@ -2,11 +2,13 @@ import * as cdk from "aws-cdk-lib";
 import { CheckovSuppressionAspect } from "../lib/constructs/checkov-suppressions";
 import { FindingalphaAdminWebStack } from "../lib/findingalpha-admin-web-stack";
 import { FindingalphaStack } from "../lib/findingalpha-stack";
+import { ORGANIZATION, PROJECT } from "../lib/tags";
 
 const app = new cdk.App();
 
 const COMMON_TAGS: Record<string, string> = {
-  Organization: "findingalpha",
+  Organization: ORGANIZATION,
+  Project: PROJECT,
   Repository: "findingalpha",
   Environment: "production",
   ManagedBy: "CDK",
@@ -35,7 +37,6 @@ const backend = new FindingalphaStack(app, "findingalpha", {
   env,
   synthesizer,
 });
-cdk.Tags.of(backend).add("Project", "findingalpha");
 
 const adminWeb = new FindingalphaAdminWebStack(app, "findingalpha-admin-web", {
   description: "findingalpha admin dashboard delivery.",
@@ -43,6 +44,5 @@ const adminWeb = new FindingalphaAdminWebStack(app, "findingalpha-admin-web", {
   synthesizer,
   cspApiConnectOrigin: backend.httpApiEndpoint,
 });
-cdk.Tags.of(adminWeb).add("Project", "findingalpha");
 
 cdk.Aspects.of(app).add(new CheckovSuppressionAspect());

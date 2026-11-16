@@ -52,6 +52,8 @@ scripts/            checks, contract sync, deploy helpers, offline tools
 | Response headers policy | `findingalpha-admin-security-headers` |
 | API key prefix | `fapk_` |
 
+Both stacks set `Organization` to `LX Software` and `Project` to `Finding Alpha` on the stack and on every resource CloudFormation can tag. `Repository`, `Environment`, and `ManagedBy` stay as they are.
+
 All bucket names stay under 63 characters. Buckets are private
 (`BLOCK_ALL`), `enforceSSL`, versioned, `RETAIN`.
 
