@@ -91,14 +91,15 @@ def get_text(
     sleep: Sleeper = time.sleep,
     retry_on: frozenset[int] | None = None,
     errors: str = "strict",
+    attempts: int = _ATTEMPTS,
 ) -> str:
-    """GET a text body. Retries 429 and 5xx, plus ``retry_on``, at most four times."""
+    """GET a text body. Retries 429 and 5xx, plus ``retry_on``, at most ``attempts`` times."""
     fetch = opener or urllib.request.urlopen
     sent = headers or {}
     extra = frozenset({429}) if retry_on is None else frozenset(retry_on) | {429}
     delay = _BACKOFF_SECONDS
     last: _Retry | None = None
-    for attempt in range(1, _ATTEMPTS + 1):
+    for attempt in range(1, attempts + 1):
         try:
             return _once(url, sent, timeout, fetch, extra, errors)
         except _Retry as exc:
@@ -106,7 +107,7 @@ def get_text(
             logger.info("http retry status=%s attempt=%s", exc.status, attempt)
             if exc.delay is not None and exc.delay > _MAX_RETRY_AFTER:
                 break
-            if attempt == _ATTEMPTS:
+            if attempt == attempts:
                 break
             wait = delay if exc.delay is None or exc.delay < 0 else exc.delay
             sleep(wait)

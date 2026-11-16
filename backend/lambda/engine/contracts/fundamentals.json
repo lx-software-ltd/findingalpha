@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "flows": {
     "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"],
     "costOfRevenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
@@ -11,7 +11,8 @@
     "interestExpense": ["InterestExpense", "InterestExpenseDebt"],
     "depreciationAmortization": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
     "operatingCashFlow": ["NetCashProvidedByUsedInOperatingActivities"],
-    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"]
+    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "shareBasedCompensation": ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"]
   },
   "stocks": {
     "totalAssets": ["Assets"],
@@ -22,6 +23,10 @@
     "cash": ["CashAndCashEquivalentsAtCarryingValue"],
     "longTermDebt": ["LongTermDebtNoncurrent", "LongTermDebt"],
     "shortTermDebt": ["LongTermDebtCurrent", "DebtCurrent", "ShortTermBorrowings"],
-    "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"]
+    "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
+    "shortTermInvestments": ["ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesDebtSecuritiesCurrent"]
+  },
+  "shareFlows": {
+    "weightedDilutedShares": ["WeightedAverageNumberOfDilutedSharesOutstanding"]
   }
 }

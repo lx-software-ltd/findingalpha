@@ -170,17 +170,20 @@ Tests use trimmed recorded responses in `test_fixtures/`.
 pipe-separated `master` file (skip the header lines down to the row of
 dashes) into rows of `cik`, `company`, `form`, `filed`, `path`. A 404
 for a date means the index is not published yet or it was not a
-business day: return an empty list, do not fail.
+business day: return an empty list, do not fail. A 403 is the same
+empty day when that quarter's `index.json` does not list
+`master.<YYYYMMDD>.idx`. A listed file that returns 403 still fails.
 
 ### M04-T05 Point-in-time fundamentals
 
 `contracts/fundamentals.json` maps our field names to XBRL tags. For
 each period, the first tag that has a value wins, and a later tag
-fills periods the earlier tags do not cover:
+fills periods the earlier tags do not cover. `shareFlows` are share
+counts over a period, not dollars:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "flows": {
     "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"],
     "costOfRevenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
@@ -192,7 +195,8 @@ fills periods the earlier tags do not cover:
     "interestExpense": ["InterestExpense", "InterestExpenseDebt"],
     "depreciationAmortization": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
     "operatingCashFlow": ["NetCashProvidedByUsedInOperatingActivities"],
-    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"]
+    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
+    "shareBasedCompensation": ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"]
   },
   "stocks": {
     "totalAssets": ["Assets"],
@@ -203,7 +207,11 @@ fills periods the earlier tags do not cover:
     "cash": ["CashAndCashEquivalentsAtCarryingValue"],
     "longTermDebt": ["LongTermDebtNoncurrent", "LongTermDebt"],
     "shortTermDebt": ["LongTermDebtCurrent", "DebtCurrent", "ShortTermBorrowings"],
-    "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"]
+    "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
+    "shortTermInvestments": ["ShortTermInvestments", "MarketableSecuritiesCurrent", "AvailableForSaleSecuritiesDebtSecuritiesCurrent"]
+  },
+  "shareFlows": {
+    "weightedDilutedShares": ["WeightedAverageNumberOfDilutedSharesOutstanding"]
   }
 }
 ```
@@ -331,7 +339,9 @@ same thing; price, volume and size keep trading costs small.
 2. Join to the SEC ticker map. Drop symbols without a CIK.
 3. From the last 60 raw daily files: last close and median of
    `close * volume`. The median needs a bar in every session of that
-   window. A missing file for the last session fails the build.
+   window. A missing file for any session in the window fails the
+   build. SIC lookups stop with two minutes left and the build writes
+   nothing, so the cached codes finish on the next run.
 4. For survivors, make sure fundamentals exist. `refresh` runs as
    `universe_fundamentals_refresh` and the build writes nothing unless
    that refresh finishes. Read the SIC code from `submissions`, using
@@ -339,9 +349,13 @@ same thing; price, volume and size keep trading costs small.
 5. Apply the SIC exclusion (a blank code fails), the 10-K rule, and
    the history rule. History counts one full fiscal year per 10-K
    filing. The latest 10-K must be within `maxAnnualReportAgeDays`.
-6. One listing per CIK. Market cap = combined share count, times
-   splits after that count, times that listing's last close. Apply
-   the size rule. A result smaller than half the previous build
+6. One listing per CIK. Market cap uses one share count. A fresh
+   cover-page total is split-adjusted after its `end` date. A
+   balance-sheet total is split-adjusted after its `filed` date. A
+   count older than 450 days falls through to the weighted-average
+   diluted count, and if that is missing, to the sum of the class
+   counts on the latest 10-K or 10-Q cover page. Apply the size rule.
+   A result smaller than half the previous build
    (`maxMemberDropFraction`) is not written.
 7. Sector from `contracts/sic-sectors.json`: a list of
    `{ "from": 1300, "to": 1399, "sector": "Energy" }` ranges covering

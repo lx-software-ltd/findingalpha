@@ -57,8 +57,8 @@ def trim_facts(payload: dict[str, Any], maps: dict[str, dict[str, list[str]]] | 
     chosen = maps if maps is not None else fundamentals_pit.load_tag_maps()
     facts = payload.get("facts") if isinstance(payload.get("facts"), dict) else {}
     kept: dict[str, dict[str, Any]] = {}
-    for section in ("flows", "stocks"):
-        for tags in chosen[section].values():
+    for section in ("flows", "stocks", "shareFlows"):
+        for tags in (chosen.get(section) or {}).values():
             for tag in tags:
                 taxonomy = "dei" if tag.startswith("dei:") else "us-gaap"
                 source = facts.get(taxonomy) or {}
@@ -262,7 +262,8 @@ def coverage_report(
     maps = fundamentals_pit.load_tag_maps()
     flow_fields = list(maps["flows"])
     stock_fields = list(maps["stocks"])
-    counts = {field: 0 for field in flow_fields + stock_fields}
+    share_fields = list(maps.get("shareFlows") or {})
+    counts = {field: 0 for field in flow_fields + stock_fields + share_fields}
     padded = [_cik(cik) for cik in ciks]
     for cik in padded:
         key = _pit_key(cik)
@@ -275,10 +276,16 @@ def coverage_report(
         for field in stock_fields:
             if _fresh_stock(visible, field, day):
                 counts[field] += 1
+        for field in share_fields:
+            if _fresh_share(visible, field, day):
+                counts[field] += 1
     total = len(padded)
     flows = {field: (counts[field] / total if total else None) for field in flow_fields}
     stocks = {field: (counts[field] / total if total else None) for field in stock_fields}
-    report = _dynamo_ready({"asOf": day.isoformat(), "companies": total, "flows": flows, "stocks": stocks})
+    share_flows = {field: (counts[field] / total if total else None) for field in share_fields}
+    report = _dynamo_ready(
+        {"asOf": day.isoformat(), "companies": total, "flows": flows, "stocks": stocks, "shareFlows": share_flows}
+    )
     import store
 
     pk = f"UNIVERSE#{day.isoformat()}"
@@ -303,6 +310,13 @@ def _dynamo_ready(value: Any) -> Any:
 def _fresh_stock(rows: list[dict[str, Any]], field: str, day: date) -> bool:
     if fundamentals_pit.latest_stock(rows, field) is None:
         return False
+    ends = [str(row["end"]) for row in rows if row.get("field") == field and row.get("end")]
+    if not ends:
+        return False
+    return (day - date.fromisoformat(max(ends)[:10])).days <= STOCK_FRESH_DAYS
+
+
+def _fresh_share(rows: list[dict[str, Any]], field: str, day: date) -> bool:
     ends = [str(row["end"]) for row in rows if row.get("field") == field and row.get("end")]
     if not ends:
         return False

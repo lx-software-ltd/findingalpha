@@ -294,9 +294,11 @@ def _build(
     read_bars: object = None,
     refresh: object = None,
     read_actions: object = None,
+    read_cover: object = None,
     memory: _Memory | None = None,
     bucket: _Bucket | None = None,
     fact_reads: list[str] | None = None,
+    context: object = None,
 ) -> tuple[dict[str, object], _Bucket, _Memory]:
     chosen = sessions if sessions is not None else _sessions()
     memory = memory or _Memory()
@@ -338,7 +340,7 @@ def _build(
     ):
         result = universe.build(
             AS_OF,
-            _Context(),
+            context or _Context(),
             assets=assets,
             tickers=tickers,
             sessions=chosen,
@@ -347,6 +349,7 @@ def _build(
             read_submissions=submissions,
             refresh=refresh or (lambda _ciks, _context: {"status": "done"}),
             read_actions=read_actions,
+            read_cover=read_cover,
             bucket="data",
             client=bucket,
             ingest_enabled=lambda: True,
@@ -557,6 +560,117 @@ class UniverseReviewTest(unittest.TestCase):
         with patch("ingest_fundamentals.refresh", fake):
             universe_data.refresh_runner("data", None)([_cik(1)], None)
         self.assertEqual(seen["job"], "universe_fundamentals_refresh")
+
+    def test_a_missing_price_file_inside_the_window_writes_nothing(self) -> None:
+        sessions = _sessions()
+        bucket = _Bucket()
+
+        def bars(day: date) -> list[dict[str, object]] | None:
+            if day == sessions[10]:
+                return None
+            return [{"symbol": "PASS", "close": 10, "volume": 3_000_000, "date": day.isoformat()}]
+
+        with self.assertRaises(universe.PriceSessionMissing):
+            _build([_company("PASS")], sessions=sessions, read_bars=bars, bucket=bucket)
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+
+    def test_sic_lookups_stop_before_the_invocation_ends(self) -> None:
+        bucket = _Bucket()
+
+        class AlmostDone(_Context):
+            def get_remaining_time_in_millis(self) -> int:
+                return 60_000
+
+        result, _bucket, memory = _build([_company("PASS")], bucket=bucket, context=AlmostDone())
+        self.assertEqual(result["status"], "running")
+        self.assertGreaterEqual(result["pending"], 1)
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+        self.assertNotIn(("UNIVERSE#2024-06-03", "META"), memory.items)
+
+    def test_a_balance_sheet_count_ignores_a_split_before_the_filing(self) -> None:
+        rows = _history(SHARES, filed="2024-04-26")
+        rows[-1]["tag"] = "CommonStockSharesOutstanding"
+
+        def actions(day: date) -> list[dict[str, object]]:
+            if day.isoformat() != "2024-04-15":
+                return []
+            return [{"symbol": "SHEET", "type": "forward_split", "exDate": "2024-04-15", "splitFrom": 1, "splitTo": 10}]
+
+        _result, bucket, _memory = _build([_company("SHEET", facts=rows, shares=SMALL_SHARES)], read_actions=actions)
+        stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
+        self.assertEqual(stored[0]["sharesSource"], "balanceSheet")
+        self.assertEqual(stored[0]["marketCap"], SHARES * 10)
+
+    def test_a_stale_count_uses_one_weighted_average_duration(self) -> None:
+        rows = _history(SHARES)
+        rows[-1]["end"] = "2022-01-31"
+        rows[-1]["start"] = "2022-01-31"
+        rows.append(_weighted("2023-04-01", "2024-03-31", 300_000_000))
+        rows.append(_weighted("2024-01-01", "2024-03-31", 250_000_000))
+        _result, bucket, _memory = _build([_company("AVG", facts=rows)])
+        stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
+        self.assertEqual(stored[0]["sharesSource"], "weightedDiluted")
+        self.assertEqual(stored[0]["marketCap"], 250_000_000 * 10)
+
+    def test_a_missing_count_uses_the_cover_page_class_sum(self) -> None:
+        rows = _history(SHARES)
+        rows[-1]["end"] = "2022-01-31"
+        rows[-1]["start"] = "2022-01-31"
+
+        def cover(_cik: str, _on: date) -> dict[str, object]:
+            return {"filed": "2024-04-24", "end": "2024-04-17", "value": 300_000_000}
+
+        _result, bucket, _memory = _build([_company("CLASS", facts=rows)], read_cover=cover)
+        stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
+        self.assertEqual(stored[0]["sharesSource"], "coverClasses")
+        self.assertEqual(stored[0]["marketCap"], 300_000_000 * 10)
+        self.assertEqual(_result["shareSources"], {"coverClasses": 1})
+
+    def test_a_cover_page_is_downloaded_once_per_filing(self) -> None:
+        downloads: list[str] = []
+        payload = {
+            "filings": {
+                "recent": {
+                    "form": ["10-Q", "8-K"],
+                    "filingDate": ["2024-04-24", "2024-04-01"],
+                    "accessionNumber": ["0000000001-24-000001", "0000000001-24-000000"],
+                    "primaryDocument": ["cover.htm", "other.htm"],
+                }
+            }
+        }
+        document = (
+            '<xbrli:context id="c"><xbrli:instant>2024-04-17</xbrli:instant></xbrli:context>'
+            '<ix:nonFraction contextRef="c" name="dei:EntityCommonStockSharesOutstanding" scale="0">300</ix:nonFraction>'
+        )
+
+        def filing(_cik: str, accession: str, name: str) -> str:
+            downloads.append(f"{accession}:{name}")
+            return document
+
+        bucket = _Bucket()
+        with (
+            patch("sec_edgar.submissions", return_value=payload),
+            patch("sec_edgar.filing", side_effect=filing),
+        ):
+            reader = universe_data.cover_reader("data", bucket)
+            first = reader(_cik(1), AS_OF)
+            second = reader(_cik(1), AS_OF)
+        self.assertEqual(first["value"], 300)
+        self.assertEqual(second["accession"], "0000000001-24-000001")
+        self.assertEqual(downloads, ["0000000001-24-000001:cover.htm"])
+
+
+def _weighted(start: str, end: str, value: int) -> dict[str, object]:
+    return {
+        "field": "weightedDilutedShares",
+        "kind": "share",
+        "tag": "WeightedAverageNumberOfDilutedSharesOutstanding",
+        "start": start,
+        "end": end,
+        "value": value,
+        "filed": "2024-05-01",
+        "form": "10-Q",
+    }
 
 
 if __name__ == "__main__":

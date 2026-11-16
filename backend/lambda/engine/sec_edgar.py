@@ -32,6 +32,18 @@ def _quarter(month: int) -> int:
     return (month - 1) // 3 + 1
 
 
+def _listing_names(payload: Any) -> set[str]:
+    directory = payload.get("directory") if isinstance(payload, dict) else None
+    items = directory.get("item") if isinstance(directory, dict) else None
+    if isinstance(items, dict):
+        items = [items]
+    names: set[str] = set()
+    for item in items or []:
+        if isinstance(item, dict) and item.get("name"):
+            names.add(str(item["name"]))
+    return names
+
+
 def parse_master(text: str) -> list[dict[str, str]]:
     """Rows under the dashed line of a daily master index."""
     lines = text.splitlines()
@@ -84,11 +96,12 @@ class SecEdgar:
             raise MissingSetting("SEC_CONTACT_EMAIL")
         self._opener = opener
         self._limiter = limiter if limiter is not None else http_client.RateLimiter(_PER_SECOND)
+        self._quarters: dict[str, set[str]] = {}
 
     def _headers(self) -> dict[str, str]:
         return {"User-Agent": f"findingalpha {self._contact}"}
 
-    def _text(self, url: str, *, errors: str = "strict") -> str:
+    def _text(self, url: str, *, errors: str = "strict", attempts: int = 4) -> str:
         self._limiter.wait()
         return http_client.get_text(
             url,
@@ -96,6 +109,7 @@ class SecEdgar:
             opener=self._opener,
             retry_on=_RETRY,
             errors=errors,
+            attempts=attempts,
         )
 
     def _json(self, url: str) -> Any:
@@ -137,18 +151,47 @@ class SecEdgar:
     def company_facts(self, cik: str | int) -> dict[str, Any]:
         return self._json(f"{_DATA}/api/xbrl/companyfacts/CIK{_pad_cik(cik)}.json")
 
+    def filing(self, cik: str | int, accession: str, document: str) -> str:
+        """One primary document. The contact stays in the request header only."""
+        folder = str(accession).replace("-", "")
+        name = str(document).split("/")[-1]
+        url = f"{_WWW}/Archives/edgar/data/{int(_pad_cik(cik))}/{folder}/{name}"
+        return self._text(url, errors="fallback")
+
     def daily_index(self, on: date | str) -> list[dict[str, str]]:
-        """The day's master index. A 404 is an empty list."""
+        """The day's master index.
+
+        A 404 is an empty list. A 403 is an empty list when the quarter's
+        ``index.json`` does not name the file, which is how a closed SEC
+        day answers. A listed file that returns 403 is a real failure.
+        """
         day = on if isinstance(on, date) else date.fromisoformat(str(on)[:10])
-        name = day.strftime("%Y%m%d")
-        url = f"{_WWW}/Archives/edgar/daily-index/{day.year}/QTR{_quarter(day.month)}/master.{name}.idx"
+        name = f"master.{day.strftime('%Y%m%d')}.idx"
+        folder = f"{_WWW}/Archives/edgar/daily-index/{day.year}/QTR{_quarter(day.month)}"
+        url = f"{folder}/{name}"
         try:
-            text = self._text(url, errors="fallback")
+            text = self._text(url, errors="fallback", attempts=1)
         except http_client.HttpStatusError as exc:
             if exc.status == 404:
                 return []
-            raise
+            if exc.status == 403 and not self._listed(f"{folder}/index.json", name):
+                return []
+            if exc.status != 403 and not 500 <= exc.status <= 599:
+                raise
+            text = self._text(url, errors="fallback")
         return parse_master(text)
+
+    def _listed(self, url: str, filename: str) -> bool:
+        """True when the name is in the listing, or when the listing cannot be read."""
+        names = self._quarters.get(url)
+        if names is None:
+            try:
+                payload = self._json(url)
+            except (http_client.HttpStatusError, TypeError, ValueError):
+                return True
+            names = _listing_names(payload)
+            self._quarters[url] = names
+        return filename in names
 
 
 def _shared() -> SecEdgar:
@@ -168,6 +211,10 @@ def submissions(cik: str | int) -> dict[str, Any]:
 
 def company_facts(cik: str | int) -> dict[str, Any]:
     return _shared().company_facts(cik)
+
+
+def filing(cik: str | int, accession: str, document: str) -> str:
+    return _shared().filing(cik, accession, document)
 
 
 def daily_index(on: date | str) -> list[dict[str, str]]:
