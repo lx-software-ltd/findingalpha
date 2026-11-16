@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from unittest.mock import patch
 
 import chunked
@@ -115,6 +116,8 @@ class ChunkedTest(unittest.TestCase):
         saved = memory.items[("JOB#prices", "STATE")]
         self.assertEqual(saved["status"], "failed")
         self.assertEqual(saved["cursor"], 1)
+        self.assertEqual(saved["failures"], 1)
+        self.assertEqual(saved["failedCursor"], 1)
         self.assertNotIn("leaseUntil", saved)
 
     def test_a_second_caller_does_not_get_the_lease(self) -> None:
@@ -309,6 +312,70 @@ class ChunkedTest(unittest.TestCase):
         saved = memory.items[("JOB#prices", "STATE")]
         self.assertEqual(saved["status"], "paused")
         self.assertNotIn("leaseUntil", saved)
+
+    def test_a_failed_job_is_resumed_until_three_failures(self) -> None:
+        memory = _Memory()
+        for job, failures in (("decimal", Decimal("2")), ("once", 1), ("spent", 3), ("universe_build", None)):
+            item: dict[str, object] = {
+                "pk": f"JOB#{job}",
+                "sk": "STATE",
+                "status": "failed",
+                "gsi1pk": "JOBSTATE",
+                "gsi1sk": job,
+                "cursor": 1,
+            }
+            if failures is not None:
+                item["failures"] = failures
+            memory.put(item)
+        started: list[str] = []
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            chunked.resume_stalled(now=lambda: NOW, invoke=started.append)
+        self.assertEqual(started, ["decimal", "once"])
+
+    def test_the_same_cursor_counts_failures_and_a_later_one_resets(self) -> None:
+        memory = _Memory()
+        items = ["a", "b", "c"]
+
+        def fail_at(stop: str):
+            def process(item: str) -> None:
+                if item == stop:
+                    raise RuntimeError("bad row")
+
+            return process
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            for _ in range(2):
+                with self.assertRaises(RuntimeError):
+                    chunked.run("prices", items, fail_at("b"), _Context(200_000), now=lambda: NOW)
+            saved = memory.items[("JOB#prices", "STATE")]
+            self.assertEqual(saved["failures"], 2)
+            self.assertEqual(saved["cursor"], 1)
+            with self.assertRaises(RuntimeError):
+                chunked.run("prices", items, fail_at("c"), _Context(200_000), now=lambda: NOW)
+            saved = memory.items[("JOB#prices", "STATE")]
+        self.assertEqual(saved["cursor"], 2)
+        self.assertEqual(saved["failures"], 1)
+        self.assertEqual(saved["failedCursor"], 2)
+
+    def test_a_large_parameter_block_stays_in_the_state_row(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        class _Lambda:
+            def invoke(self, **kwargs: object) -> dict[str, str]:
+                calls.append(kwargs)
+                return {"StatusCode": "202"}
+
+        symbols = [f"{index:08d}" for index in range(30_000)]
+        with (
+            patch.dict(os.environ, {"AWS_LAMBDA_FUNCTION_NAME": "engine"}),
+            patch("boto3.client", return_value=_Lambda()),
+            patch("store.get", return_value={"params": {"symbols": symbols}}),
+        ):
+            chunked._invoke_self("backfill_prices")
+        payload = calls[0]["Payload"]
+        self.assertIsInstance(payload, bytes)
+        self.assertLess(len(payload), 1000)  # type: ignore[arg-type]
+        self.assertEqual(payload, b'{"job": "backfill_prices", "paramsInState": true}')
 
     def test_invoke_sends_the_stored_params(self) -> None:
         calls: list[dict[str, object]] = []

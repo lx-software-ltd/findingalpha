@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import logging
+import ssl
 import unittest
 import urllib.error
 from email.message import Message
@@ -131,6 +133,55 @@ class HttpClientTest(unittest.TestCase):
         self.assertEqual(raised.exception.status, 404)
         self.assertEqual(raised.exception.body, "missing")
         self.assertTrue(body.closed)
+
+    def test_a_dropped_connection_is_retried(self) -> None:
+        calls = {"n": 0}
+        slept: list[float] = []
+        secret = "secret-query"
+
+        def opener(_request: object, timeout: float) -> _Response:
+            del timeout
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise urllib.error.URLError(TimeoutError("timed out"))
+            return _Response(b"ok")
+
+        text = http_client.get_text(f"https://example.com/x?token={secret}", opener=opener, sleep=slept.append)
+        self.assertEqual(text, "ok")
+        self.assertEqual(calls["n"], 3)
+        self.assertEqual(slept, [0.5, 1.0])
+
+        def fail(_request: object, timeout: float) -> _Response:
+            del timeout
+            raise http.client.IncompleteRead(b"partial")
+
+        with self.assertRaises(http_client.HttpTransportError) as raised:
+            http_client.get_text(f"https://data.example.com/v2?token={secret}", opener=fail, sleep=lambda _s: None)
+        self.assertEqual(str(raised.exception), "connection failed host=data.example.com attempts=4")
+        self.assertNotIn(secret, str(raised.exception))
+
+        def certificate(_request: object, timeout: float) -> _Response:
+            del timeout
+            calls["n"] += 1
+            raise urllib.error.URLError(ssl.SSLError("certificate verify failed"))
+
+        calls["n"] = 0
+        with self.assertRaises(urllib.error.URLError):
+            http_client.get_text("https://example.com/x", opener=certificate, sleep=self.fail)
+        self.assertEqual(calls["n"], 1)
+
+    def test_the_status_text_keeps_the_message_only(self) -> None:
+        body = b'{"message":"invalid symbol: BAD","echo":"secret-query"}'
+
+        def opener(_request: object, timeout: float) -> _Response:
+            del timeout
+            raise _http_error(400, body)
+
+        with self.assertRaises(http_client.HttpStatusError) as raised:
+            http_client.get_text("https://example.com/x?token=secret-query", opener=opener, sleep=self.fail)
+        self.assertEqual(str(raised.exception), "HTTP 400 invalid symbol: BAD")
+        self.assertNotIn("secret-query", str(raised.exception))
+        self.assertEqual(raised.exception.body, body.decode())
 
     def test_retries_stop_after_four_attempts(self) -> None:
         calls = {"n": 0}

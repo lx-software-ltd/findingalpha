@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
+import ssl
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Callable
 
@@ -23,9 +26,42 @@ class HttpStatusError(Exception):
     """The server answered with a status that is not retried, or retries ran out."""
 
     def __init__(self, status: int, body: str) -> None:
-        super().__init__(f"HTTP {status}")
+        super().__init__(_status_text(status, body))
         self.status = status
         self.body = body
+
+
+class HttpTransportError(Exception):
+    """The connection failed on every attempt. The message names the host only."""
+
+    def __init__(self, host: str, attempts: int) -> None:
+        super().__init__(f"connection failed host={host} attempts={attempts}")
+        self.host = host
+        self.attempts = attempts
+
+
+def _status_text(status: int, body: str) -> str:
+    """Alpaca's ``message`` only. A raw body can echo a request, so it stays off the text."""
+    message = ""
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        parsed = None
+    if isinstance(parsed, dict) and isinstance(parsed.get("message"), str):
+        message = " ".join(parsed["message"].split())[:160]
+    if not message:
+        return f"HTTP {status}"
+    return f"HTTP {status} {message}"
+
+
+def _host(url: str) -> str:
+    return urllib.parse.urlsplit(url).hostname or "unknown"
+
+
+def _certificate(exc: BaseException) -> bool:
+    if isinstance(exc, ssl.SSLError):
+        return True
+    return isinstance(getattr(exc, "reason", None), ssl.SSLError)
 
 
 class _Retry(Exception):
@@ -93,17 +129,24 @@ def get_text(
     errors: str = "strict",
     attempts: int = _ATTEMPTS,
 ) -> str:
-    """GET a text body. Retries 429 and 5xx, plus ``retry_on``, at most ``attempts`` times."""
+    """GET a text body.
+
+    Retries 429 and 5xx, plus ``retry_on``, and a dropped connection.
+    At most ``attempts`` times. The error names the host, never the query.
+    """
     fetch = opener or urllib.request.urlopen
     sent = headers or {}
     extra = frozenset({429}) if retry_on is None else frozenset(retry_on) | {429}
     delay = _BACKOFF_SECONDS
     last: _Retry | None = None
+    transport: Exception | None = None
+    host = _host(url)
     for attempt in range(1, attempts + 1):
         try:
             return _once(url, sent, timeout, fetch, extra, errors)
         except _Retry as exc:
             last = exc
+            transport = None
             logger.info("http retry status=%s attempt=%s", exc.status, attempt)
             if exc.delay is not None and exc.delay > _MAX_RETRY_AFTER:
                 break
@@ -112,6 +155,18 @@ def get_text(
             wait = delay if exc.delay is None or exc.delay < 0 else exc.delay
             sleep(wait)
             delay *= 2
+        except (OSError, http.client.HTTPException) as exc:
+            if isinstance(exc, urllib.error.HTTPError) or _certificate(exc):
+                raise
+            last = None
+            transport = exc
+            logger.info("http retry attempt=%s error=%s", attempt, type(exc).__name__)
+            if attempt == attempts:
+                break
+            sleep(delay)
+            delay *= 2
+    if transport is not None:
+        raise HttpTransportError(host, attempts) from None
     assert last is not None
     raise HttpStatusError(last.status, last.body)
 

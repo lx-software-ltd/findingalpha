@@ -108,11 +108,12 @@ no:
 Tests first for each.
 
 - `http_client.py`: `get_json(url, headers, timeout)` and
-  `get_text(...)` on `urllib.request`. Retries on 429 and 5xx with
-  exponential backoff, honours `Retry-After`, at most 4 attempts.
-  Closes HTTP error bodies (see `_read_http_error` in the sibling
-  `http_common.py`). A `RateLimiter(per_second)` class that sleeps.
-  Never logs headers.
+  `get_text(...)` on `urllib.request`. Retries on 429, 5xx, and a
+  dropped connection, with exponential backoff. Honours `Retry-After`,
+  at most 4 attempts. Closes HTTP error bodies (see `_read_http_error`
+  in the sibling `http_common.py`). A `RateLimiter(per_second)` class
+  that sleeps. Never logs headers. A failure names the host, or
+  Alpaca's `message`, and never the query string.
 - `secrets_read.py`: `read_json_secret(secret_id, required_keys)`
   returns a dict or raises `NotConfigured`. Cache per container for 5
   minutes. Modelled on the sibling `secret_store.py`.
@@ -124,14 +125,21 @@ Tests first for each.
   in `reference/calendar/year=<yyyy>.json`.
 - `chunked.py`: long jobs that do not fit in 15 minutes.
   - State row `JOB#<job>` / `STATE`: `status` (`idle`, `running`,
-    `done`, `failed`), `cursor`, `total`, `leaseUntil`, `updatedAt`.
+    `paused`, `done`, `failed`), `cursor`, `total`, `leaseUntil`,
+    `updatedAt`, `failures`. `gsi1pk` is `JOBSTATE` and `gsi1sk` is
+    the job name. A parameter block over 200 KB stays on this row;
+    the resume event then carries `paramsInState` instead of a copy.
   - `run(job, items, process, context)`: take the lease with a
     conditional update (`leaseUntil` missing or in the past), process
     items from the cursor, save the cursor after each item, stop when
     `context.get_remaining_time_in_millis()` is under 120,000, release
     the lease. Mark `done` when the cursor reaches the end.
-  - The `tick` job (every 15 minutes) looks at every `STATE` row with
-    status `running` and no live lease and invokes that job again.
+  - The `tick` job (every 15 minutes) invokes a `running` row with no
+    live lease, a `paused` row, and a `failed` row whose `failures`
+    count is present and under three. A failed row with no count, such
+    as a universe build, waits for Run now. The switch for that job
+    must be on. After three counted failures, including a later Run now
+    that fails again, tick leaves the job alone.
   - Tests: resume from a cursor; a second caller does not get the
     lease; a failing item marks the job `failed` and keeps the cursor.
 
@@ -139,7 +147,10 @@ Tests first for each.
 
 `alpaca_data.py`: `list_assets()`, `daily_bars(symbols, start, end,
 adjustment)` (generator that follows `next_page_token`; batches of 200
-symbols per request), `corporate_actions(start, end)`,
+symbols per request; a 400 is split, and one symbol is skipped when
+SPY still answers for that window. A skipped symbol is not requested
+again by that client. More than 20 new skips in one request fail it),
+`corporate_actions(start, end)`,
 `news(symbols, start, end)`. Each returns plain dicts with our own
 field names:
 

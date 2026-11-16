@@ -22,11 +22,7 @@ def put(item: dict[str, Any]) -> None:
     _table().put_item(Item=item)
 
 
-def query_pk(pk: str, prefix: str = "") -> list[dict[str, Any]]:
-    kwargs: dict[str, Any] = {
-        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
-        "ExpressionAttributeValues": {":pk": pk, ":sk": prefix},
-    }
+def _query(kwargs: dict[str, Any]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     while True:
         page = _table().query(**kwargs)
@@ -35,22 +31,26 @@ def query_pk(pk: str, prefix: str = "") -> list[dict[str, Any]]:
         if not token:
             return items
         kwargs["ExclusiveStartKey"] = token
+
+
+def _prefixed(key_name: str, sort_name: str, key: str, prefix: str) -> dict[str, Any]:
+    """A key condition. An empty prefix is omitted: DynamoDB rejects it."""
+    values: dict[str, Any] = {":pk": key}
+    condition = f"{key_name} = :pk"
+    if prefix:
+        condition = f"{condition} AND begins_with({sort_name}, :sk)"
+        values[":sk"] = prefix
+    return {"KeyConditionExpression": condition, "ExpressionAttributeValues": values}
+
+
+def query_pk(pk: str, prefix: str = "") -> list[dict[str, Any]]:
+    return _query(_prefixed("pk", "sk", pk, prefix))
 
 
 def query_gsi1(gsi1pk: str, prefix: str = "") -> list[dict[str, Any]]:
-    kwargs: dict[str, Any] = {
-        "IndexName": "gsi1",
-        "KeyConditionExpression": "gsi1pk = :pk AND begins_with(gsi1sk, :sk)",
-        "ExpressionAttributeValues": {":pk": gsi1pk, ":sk": prefix},
-    }
-    items: list[dict[str, Any]] = []
-    while True:
-        page = _table().query(**kwargs)
-        items.extend(page.get("Items") or [])
-        token = page.get("LastEvaluatedKey")
-        if not token:
-            return items
-        kwargs["ExclusiveStartKey"] = token
+    kwargs = _prefixed("gsi1pk", "gsi1sk", gsi1pk, prefix)
+    kwargs["IndexName"] = "gsi1"
+    return _query(kwargs)
 
 
 def scan_pk_prefix(prefix: str) -> list[dict[str, Any]]:
@@ -73,13 +73,10 @@ def delete(pk: str, sk: str) -> None:
 
 
 def query_latest(pk: str, prefix: str, limit: int = 1) -> list[dict[str, Any]]:
-    page = _table().query(
-        KeyConditionExpression="pk = :pk AND begins_with(sk, :sk)",
-        ExpressionAttributeValues={":pk": pk, ":sk": prefix},
-        ScanIndexForward=False,
-        Limit=limit,
-    )
-    return list(page.get("Items") or [])
+    kwargs = _prefixed("pk", "sk", pk, prefix)
+    kwargs["ScanIndexForward"] = False
+    kwargs["Limit"] = limit
+    return list(_table().query(**kwargs).get("Items") or [])
 
 
 def query_gsi1_latest(gsi1pk: str, limit: int) -> list[dict[str, Any]]:

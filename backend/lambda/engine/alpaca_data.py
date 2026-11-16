@@ -11,6 +11,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import alpaca_bars
 import http_client
 import secrets_read
 
@@ -162,6 +163,19 @@ def _bar(symbol: str, row: object) -> dict[str, Any]:
     return {"symbol": symbol, "date": _session_date(str(row["t"])), **mapped}
 
 
+def _bar_rows(payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    bars = payload.get("bars")
+    if bars is None:
+        return
+    if not isinstance(bars, dict):
+        raise ValueError("bars response is not a symbol map")
+    for symbol, rows in bars.items():
+        if not isinstance(rows, list):
+            raise ValueError("bars response is not a symbol map")
+        for row in rows:
+            yield _bar(str(symbol), row)
+
+
 def _action(kind: str, row: object) -> dict[str, Any] | None:
     if not isinstance(row, dict):
         return None
@@ -302,6 +316,7 @@ class AlpacaData:
         self._opener = opener
         self._limiter = limiter if limiter is not None else http_client.RateLimiter(_PER_SECOND)
         self._ingest_enabled = ingest_enabled
+        self._skipped: set[str] = set()
 
     def __repr__(self) -> str:
         return "AlpacaData()"
@@ -372,27 +387,18 @@ class AlpacaData:
     def _daily_bars(self, symbols: list[str], start: str, end: str, adjustment: str) -> Iterator[dict[str, Any]]:
         if not symbols:
             return
-        params = {
-            "timeframe": "1Day",
-            "start": start,
-            "end": end,
-            "adjustment": adjustment,
-            "feed": _FEED,
-            "limit": "10000",
-        }
-        for batch in _chunks(symbols, _BATCH):
-            params["symbols"] = ",".join(batch)
-            for payload in self._pages(f"{_DATA}/v2/stocks/bars", params):
-                bars = payload.get("bars")
-                if bars is None:
-                    continue
-                if not isinstance(bars, dict):
-                    raise ValueError("bars response is not a symbol map")
-                for symbol, rows in bars.items():
-                    if not isinstance(rows, list):
-                        raise ValueError("bars response is not a symbol map")
-                    for row in rows:
-                        yield _bar(str(symbol), row)
+        yield from alpaca_bars.daily(
+            self._pages,
+            symbols,
+            start,
+            end,
+            adjustment,
+            feed=_FEED,
+            batch=_BATCH,
+            endpoint=f"{_DATA}/v2/stocks/bars",
+            rows_of=_bar_rows,
+            skipped=self._skipped,
+        )
 
     def corporate_actions(self, start: date | datetime | str, end: date | datetime | str) -> list[dict[str, Any]]:
         """Dividends and splits whose ``process_date`` is inside the window."""
@@ -470,9 +476,7 @@ def client_from_secret(
 
 
 def _open() -> AlpacaData:
-    if _CLIENT is not None:
-        return _CLIENT
-    return client_from_secret()
+    return _CLIENT if _CLIENT is not None else client_from_secret()
 
 
 def list_assets(status: str = "active") -> list[dict[str, Any]]:
@@ -480,10 +484,7 @@ def list_assets(status: str = "active") -> list[dict[str, Any]]:
 
 
 def daily_bars(
-    symbols: list[str] | tuple[str, ...],
-    start: date | datetime | str,
-    end: date | datetime | str,
-    adjustment: str,
+    symbols: list[str] | tuple[str, ...], start: date | datetime | str, end: date | datetime | str, adjustment: str
 ) -> Iterator[dict[str, Any]]:
     return _open().daily_bars(symbols, start, end, adjustment)
 
@@ -493,8 +494,6 @@ def corporate_actions(start: date | datetime | str, end: date | datetime | str) 
 
 
 def news(
-    symbols: list[str] | tuple[str, ...],
-    start: date | datetime | str,
-    end: date | datetime | str,
+    symbols: list[str] | tuple[str, ...], start: date | datetime | str, end: date | datetime | str
 ) -> list[dict[str, Any]]:
     return _open().news(symbols, start, end)

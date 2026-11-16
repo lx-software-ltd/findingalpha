@@ -42,7 +42,14 @@ def closed_session(now: datetime | None, calendar: list[date]) -> date | None:
 
 def _params(event: dict[str, Any]) -> dict[str, Any]:
     raw = event.get("params")
-    return raw if isinstance(raw, dict) else {}
+    if isinstance(raw, dict):
+        return raw
+    if not event.get("paramsInState"):
+        return {}
+    import store
+
+    saved = (store.get(f"JOB#{event.get('job')}", "STATE") or {}).get("params")
+    return saved if isinstance(saved, dict) else {}
 
 
 def _moment(now: datetime | None) -> datetime:
