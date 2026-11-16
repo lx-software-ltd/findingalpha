@@ -149,7 +149,7 @@ ROUTES = (
     Route("POST", "/jobs/", run_job, "jwt", match=_is_job_run, key_scope="operate", key_write=True),
     Route("GET", "/universe/latest", latest_universe, "jwt", key_scope="research"),
     Route("GET", "/system/status", status, "jwt", key_scope="system"),
-    Route("GET", "/api-keys", list_api_keys, "jwt"),
+    Route("GET", "/api-keys", list_api_keys, "jwt", key_scope="system"),
 )
 
 

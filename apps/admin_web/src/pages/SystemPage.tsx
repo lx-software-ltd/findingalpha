@@ -98,7 +98,7 @@ export function SystemPage() {
           <tr key={job.job}>
             <AdminCell column="job">{job.job}</AdminCell>
             <AdminCell column="schedule">{job.schedule}</AdminCell>
-            <AdminCell column="status">{job.lastRun?.status ?? "never"}</AdminCell>
+            <AdminCell column="status">{statusLabel(job.lastRun?.status, job.progress)}</AdminCell>
             <AdminCell column="started">{job.lastRun ? <DateTimeDisplay iso={job.lastRun.startedAt} /> : "—"}</AdminCell>
             <AdminCell column="duration">{job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}</AdminCell>
             <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
@@ -177,6 +177,15 @@ export function SystemPage() {
       />
     </div>
   );
+}
+
+function statusLabel(
+  status: string | undefined,
+  row: { cursor: number; total: number } | null | undefined,
+): string {
+  const name = status ?? "never";
+  if (!row || row.total <= 0) return name;
+  return `${name} · ${row.cursor} of ${row.total}`;
 }
 
 function progress(row: { cursor: number; total: number } | null | undefined): string {

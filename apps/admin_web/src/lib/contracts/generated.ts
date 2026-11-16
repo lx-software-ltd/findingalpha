@@ -23,7 +23,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "reconcile",
@@ -86,7 +86,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_prices",
@@ -95,7 +95,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_fundamentals",
@@ -104,7 +104,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "monthly_rebalance",

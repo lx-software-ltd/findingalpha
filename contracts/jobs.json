@@ -16,7 +16,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "reconcile",
@@ -79,7 +79,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_prices",
@@ -88,7 +88,7 @@
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_fundamentals",
@@ -97,7 +97,7 @@
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "monthly_rebalance",

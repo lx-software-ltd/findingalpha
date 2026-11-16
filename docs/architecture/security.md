@@ -58,8 +58,9 @@ off. It cannot turn one on. A denied read is 404. A denied write is
 token is ignored on `/public`.
 
 CORS stays the dashboard origin. Key callers are servers and do not
-send a browser preflight. `GET /api-keys` is the dashboard list and
-never returns the digest.
+send a browser preflight. `GET /api-keys` is the same list the
+dashboard shows. A key with the `system` scope can read it. The
+response never includes the digest.
 
 ## Edge
 

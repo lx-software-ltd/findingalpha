@@ -74,7 +74,7 @@ DECISIONS = {
     ("POST", "/jobs/"): "operate",
     ("GET", "/universe/latest"): "research",
     ("GET", "/system/status"): "system",
-    ("GET", "/api-keys"): None,
+    ("GET", "/api-keys"): "system",
 }
 
 
@@ -151,6 +151,7 @@ class PublicApiTest(unittest.TestCase):
         body = json.loads(response["body"])
         paths = {(row["method"], row["path"]) for row in body["routes"]}
         self.assertIn(("GET", "/public/system/status"), paths)
+        self.assertIn(("GET", "/public/api-keys"), paths)
         self.assertNotIn(("PUT", "/public/settings"), paths)
         self.assertNotIn(("GET", "/public/me"), paths)
         self.assertTrue(all(row["scope"] == "system" for row in body["routes"]))
@@ -200,30 +201,66 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(self.audit.call_args.args[0], "user-1")
 
-    def test_only_tick_is_key_runnable(self) -> None:
+    def test_key_run_matches_the_jobs_the_panel_can_start(self) -> None:
         payload = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "jobs.json").read_text())
         runnable = {job["name"] for job in payload["jobs"] if job["keyRun"]}
-        self.assertEqual(runnable, {"tick"})
-        blocked = {"broker_setup", "broker_smoke", "breaker_drill", "record_drill", "execute_holds"}
+        self.assertEqual(
+            runnable,
+            {"tick", "ingest_daily", "weekly_refresh", "backfill_prices", "backfill_fundamentals"},
+        )
+        blocked = {"broker_setup", "broker_smoke", "breaker_drill", "record_drill", "execute_holds", "screen"}
         for job in payload["jobs"]:
             if job["name"] in blocked:
                 self.assertFalse(job["keyRun"])
 
-    def test_a_key_can_start_only_a_key_run_job(self) -> None:
+    def test_a_key_can_start_the_same_ingest_jobs_as_the_panel(self) -> None:
         sent: list[str] = []
 
         def invoke(name: str, _sub: str) -> None:
             sent.append(name)
 
         with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write") as audit:
-            tick = api_handler.lambda_handler(_event("POST", "/public/jobs/tick/run", key=_key()), None)
+            prices = api_handler.lambda_handler(_event("POST", "/public/jobs/backfill_prices/run", key=_key()), None)
+            weekly = api_handler.lambda_handler(_event("POST", "/public/jobs/weekly_refresh/run", key=_key()), None)
             daily = api_handler.lambda_handler(_event("POST", "/public/jobs/ingest_daily/run", key=_key()), None)
+            facts = api_handler.lambda_handler(
+                _event("POST", "/public/jobs/backfill_fundamentals/run", key=_key()), None
+            )
+            screen = api_handler.lambda_handler(_event("POST", "/public/jobs/screen/run", key=_key()), None)
             drill = api_handler.lambda_handler(_event("POST", "/public/jobs/breaker_drill/run", key=_key()), None)
-        self.assertEqual(tick["statusCode"], 202)
-        self.assertEqual(daily["statusCode"], 404)
+        self.assertEqual(prices["statusCode"], 202)
+        self.assertEqual(weekly["statusCode"], 202)
+        self.assertEqual(daily["statusCode"], 202)
+        self.assertEqual(facts["statusCode"], 202)
+        self.assertEqual(screen["statusCode"], 404)
         self.assertEqual(drill["statusCode"], 404)
-        self.assertEqual(sent, ["tick"])
+        self.assertEqual(sent, ["backfill_prices", "weekly_refresh", "ingest_daily", "backfill_fundamentals"])
         self.assertEqual(audit.call_args.args[0], "apikey:abc123")
+
+    def test_a_key_sees_the_same_key_list_as_the_panel(self) -> None:
+        self.store.put(
+            {
+                "pk": "APIKEY#digestvalue",
+                "sk": "META",
+                "keyId": "abc123",
+                "label": "monitor",
+                "tier": "admin",
+                "scopes": ["system"],
+                "gsi1pk": "APIKEYS",
+                "gsi1sk": "2026-01-01T00:00:00+00:00#abc123",
+            }
+        )
+        response = api_handler.lambda_handler(
+            _event("GET", "/public/api-keys", key=_key(scopes="system", write="0")), None
+        )
+        text = response["body"]
+        self.assertEqual(response["statusCode"], 200)
+        self.assertNotIn("digestvalue", text)
+        self.assertEqual(json.loads(text)["keys"][0]["label"], "monitor")
+        hidden = api_handler.lambda_handler(
+            _event("GET", "/public/api-keys", key=_key(scopes="research", write="0")), None
+        )
+        self.assertEqual(hidden["statusCode"], 404)
 
 
 if __name__ == "__main__":

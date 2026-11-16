@@ -264,7 +264,8 @@ output. Both reach the same API. "owner only" means no key can reach
 it. A write needs the scope `operate`, `allowWrite` on the key, and
 `PublicApiWritesEnabled`. A settings write may only set switches to
 false. Turning a switch on, resetting a breaker, ticking an owner
-task, listing keys, and every real-money approval stay owner only.
+task, and every real-money approval stay owner only. A key with the
+`system` scope can list keys. The list never includes the digest.
 
 | Method and path | Purpose | Milestone | Key scope |
 | --- | --- | --- | --- |
@@ -277,7 +278,7 @@ task, listing keys, and every real-money approval stay owner only.
 | `PUT /owner-tasks/{taskId}` | Tick an owner task | M03 | owner only |
 | `GET /jobs/runs` | Recent job runs | M03 | `system` |
 | `GET /public` | The routes the calling key may use | M03A | any key |
-| `GET /api-keys` | Key list without digests | M03A | owner only |
+| `GET /api-keys` | Key list without digests | M03A | `system` |
 | `POST /jobs/{jobName}/run` | Start an allowed job. Returns 202 `{accepted: true}` | M04 | `operate`, jobs with `keyRun` only |
 | `GET /universe/latest` | Universe summary | M04 | `research` |
 | `GET /methodology` | The register with citation status | M05 | `research` |
@@ -323,11 +324,19 @@ cron syntax. Check both in the Scheduler console after the first deploy.
 
 A job that is switched off still writes a job run with status
 `skipped_disabled`, so the dashboard shows that it was asked to run.
+A run that stops with time left, or pauses, is `partial` and carries
+the cursor, for example `9 of 131, continues on the next tick`. A run
+that returns `missing_inputs` is `failed`. A clean finish is
+`succeeded`. `partial` is neither a success nor a failure.
 
 Jobs without a schedule, started from the dashboard through
 `POST /jobs/{jobName}/run` when `contracts/jobs.json` allows it:
-An API key can start a job only when the job has `keyRun: true`. Jobs
-that touch the broker or the drill never have it.
+An API key can start a job only when the job has `keyRun: true`.
+That flag is on for `tick` and for the ingest jobs the dashboard can
+start: `ingest_daily`, `weekly_refresh`, `backfill_prices`, and
+`backfill_fundamentals`. Jobs that touch the broker or the drill
+never have it. The system status reports `keyRun` and the saved
+`progress` for each job, the same fields the dashboard shows.
 
 | Job | Purpose | Milestone |
 | --- | --- | --- |

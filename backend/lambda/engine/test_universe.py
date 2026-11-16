@@ -670,8 +670,10 @@ class UniverseReviewTest(unittest.TestCase):
                 return None
             return [{"symbol": "PASS", "close": 10, "volume": 3_000_000, "date": day.isoformat()}]
 
-        with self.assertRaises(universe.PriceSessionMissing):
+        with self.assertRaises(universe.PriceSessionMissing) as caught:
             _build([_company("PASS")], sessions=sessions, read_bars=bars, bucket=bucket)
+        self.assertIn(sessions[10].isoformat(), str(caught.exception))
+        self.assertIn("backfill_prices", str(caught.exception))
         self.assertNotIn(("data", _MEMBERS), bucket.objects)
 
     def test_sic_lookups_stop_before_the_invocation_ends(self) -> None:

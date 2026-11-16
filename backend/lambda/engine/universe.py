@@ -274,7 +274,7 @@ def _prices(
     """Split on the last close, then on a full-window median dollar volume."""
     if not window:
         if rows:
-            raise PriceSessionMissing("no sessions")
+            raise PriceSessionMissing("Raw prices are missing. Run backfill_prices first.")
         return [], []
     needed = int(rules["dollarVolumeWindowSessions"])
     grouped: dict[str, list[tuple[date, float, float]]] = {}
@@ -294,7 +294,7 @@ def _prices(
     for day in window:
         bars = read(day)
         if rows and (bars is None or (day == last and not bars)):
-            raise PriceSessionMissing(day.isoformat())
+            raise PriceSessionMissing(f"Raw prices missing for {day.isoformat()}. Run backfill_prices first.")
         consume(day, list(bars or []))
     priced: list[dict[str, Any]] = []
     liquid: list[dict[str, Any]] = []

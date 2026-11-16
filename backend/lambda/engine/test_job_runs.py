@@ -61,6 +61,42 @@ class JobRunsTest(unittest.TestCase):
                 run.skip()
         self.assertEqual(table.items[-1]["status"], "skipped_disabled")
 
+    def test_a_continuing_chunk_is_partial(self) -> None:
+        table = _Table()
+        with patch("store.put", side_effect=lambda item: table.put_item(Item=item)):
+            with job_runs.record("backfill_prices") as run:
+                job_runs.apply_result(run, {"ok": True, "status": "running", "cursor": 9, "total": 131})
+        saved = table.items[-1]
+        self.assertEqual(saved["status"], "partial")
+        self.assertEqual(saved["errorMessage"], "9 of 131, continues on the next tick")
+        self.assertNotIn("errorClass", saved)
+
+    def test_a_pause_without_a_cursor_still_says_it_continues(self) -> None:
+        table = _Table()
+        with patch("store.put", side_effect=lambda item: table.put_item(Item=item)):
+            with job_runs.record("weekly_refresh") as run:
+                job_runs.apply_result(run, {"ok": True, "status": "paused"})
+        self.assertEqual(table.items[-1]["status"], "partial")
+        self.assertEqual(table.items[-1]["errorMessage"], "continues on the next tick")
+
+    def test_missing_inputs_is_a_failure(self) -> None:
+        table = _Table()
+        with patch("store.put", side_effect=lambda item: table.put_item(Item=item)):
+            with job_runs.record("weekly_refresh") as run:
+                job_runs.apply_result(run, {"ok": False, "status": "missing_inputs"})
+        saved = table.items[-1]
+        self.assertEqual(saved["status"], "failed")
+        self.assertEqual(saved["errorClass"], "missing_inputs")
+        self.assertEqual(saved["errorMessage"], "missing inputs")
+
+    def test_a_finished_chunk_stays_succeeded(self) -> None:
+        table = _Table()
+        with patch("store.put", side_effect=lambda item: table.put_item(Item=item)):
+            with job_runs.record("backfill_prices") as run:
+                job_runs.apply_result(run, {"ok": True, "status": "done", "cursor": 131, "total": 131})
+        self.assertEqual(table.items[-1]["status"], "succeeded")
+        self.assertNotIn("errorMessage", table.items[-1])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,6 +43,7 @@ def _write(run: JobRun) -> None:
     }
     if run.error_class:
         item["errorClass"] = run.error_class
+    if run.error_message:
         item["errorMessage"] = run.error_message[:300]
     if run.status != "running":
         item["finishedAt"] = timeutil.now_iso()
@@ -69,6 +70,44 @@ def record(job: str) -> Iterator[JobRun]:
         if run.status == "running":
             run.status = "succeeded"
         _safe_write(run)
+
+
+def apply_result(run: JobRun, result: object) -> None:
+    """A chunk that stopped is ``partial``. A refusal is ``failed``.
+
+    ``running`` and ``paused`` mean the job continues on a later tick.
+    ``missing_inputs`` and any other ``ok: false`` result are failures.
+    A finished result stays for the recorder to mark ``succeeded``.
+    """
+    if run.status != "running" or not isinstance(result, dict):
+        return
+    status = str(result.get("status") or "")
+    if status in {"running", "paused"}:
+        run.status = "partial"
+        run.error_message = _partial_message(result)
+        return
+    if status in {"missing_inputs", "failed"} or result.get("ok") is False:
+        run.status = "failed"
+        run.error_class = status or "failed"
+        run.error_message = "missing inputs" if status == "missing_inputs" else (status or "failed")
+
+
+def _partial_message(result: dict[str, Any]) -> str:
+    cursor = _count(result.get("cursor"))
+    total = _count(result.get("total"))
+    if cursor is None or total is None:
+        return "continues on the next tick"
+    return f"{cursor} of {total}, continues on the next tick"
+
+
+def _count(value: object) -> int | None:
+    from decimal import Decimal
+
+    if type(value) is int:
+        return value
+    if isinstance(value, Decimal) and value == int(value):
+        return int(value)
+    return None
 
 
 def _safe_write(run: JobRun) -> None:
