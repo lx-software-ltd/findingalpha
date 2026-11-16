@@ -1,6 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { FindingalphaAdminWebStack } from "../lib/findingalpha-admin-web-stack";
+import { tagReport } from "./resource-tags";
 
 const ENV = { region: "ap-southeast-1" };
 const API_ORIGIN = "https://csp-api-origin";
@@ -24,6 +25,18 @@ describe("findingalpha admin web stack", () => {
     cspApiConnectOrigin: API_ORIGIN,
   });
   const template = Template.fromStack(stack);
+
+  test("every taggable resource carries the organization and the project", () => {
+    const report = tagReport(app, stack);
+    expect(report.missing).toEqual([]);
+    // These types have no tag property in CloudFormation. A new type must
+    // carry both tags or be added here on purpose.
+    expect(report.untaggedTypes).toEqual([
+      "AWS::CloudFront::OriginAccessControl",
+      "AWS::CloudFront::ResponseHeadersPolicy",
+      "AWS::S3::BucketPolicy",
+    ]);
+  });
   const policies = template.findResources("AWS::S3::BucketPolicy") as Record<string, BucketPolicyResource>;
   const bucketLogicalId = stack.getLogicalId(stack.bucket.node.defaultChild as cdk.CfnElement);
 

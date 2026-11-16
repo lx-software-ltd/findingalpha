@@ -3,6 +3,7 @@ import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { Construct } from "constructs";
+import { tagStack } from "./tags";
 
 export interface AdminWebStackProps extends cdk.StackProps {
   readonly cspApiConnectOrigin: string;
@@ -14,6 +15,7 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props: AdminWebStackProps) {
     super(scope, id, props);
+    tagStack(this);
     const domainName = new cdk.CfnParameter(this, "AdminWebDomainName", {
       type: "String",
       description: "Dashboard hostname.",

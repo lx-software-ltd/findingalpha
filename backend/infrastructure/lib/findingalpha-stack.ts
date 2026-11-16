@@ -9,12 +9,14 @@ import { defineOutputs } from "./outputs";
 import { defineParameters } from "./parameters";
 import { defineSchedules } from "./schedules";
 import { defineSecrets } from "./secrets";
+import { tagStack } from "./tags";
 
 export class FindingalphaStack extends cdk.Stack {
   public readonly httpApiEndpoint: string;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+    tagStack(this);
     // Empty hostname and certificate parameters fail the length and ARN
     // checks. Both custom domains are created only when their parameters
     // are set. An acknowledgement on the stack covers those warnings,
