@@ -1,6 +1,6 @@
 # Plan: M04 data ingest
 
-**Status**: T02 and its follow-ups are on main. T04 (SEC client) and T05 (point-in-time fundamentals) are in this change. T01 and T03 stay blocked on the Alpaca paper key. The live coverage report stays in T07.
+**Status**: T02, T04, and T05 are on main. T01's memo is `docs/research/data-sources.md` (all four answers are yes, so bars use `feed=sip`). T03 is next. The live coverage report stays in T07.
 **Zone**: yellow. Red parts: new schedules and routes in CDK, and the
 first version of `contracts/methodology.json` (universe section).
 

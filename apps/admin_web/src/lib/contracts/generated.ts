@@ -581,7 +581,7 @@ export const roadmap = {
         {
           "id": "M04-T01",
           "title": "Spike and memo (no product code)",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T02",
