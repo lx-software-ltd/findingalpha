@@ -27,7 +27,8 @@ _EXCHANGES = frozenset({"NYSE", "NASDAQ"})
 _BACKFILL_JOB = "backfill_prices"
 _ADJUSTED_JOB = "refresh_adjusted"
 _RAW = re.compile(r"^prices/raw/date=(\d{4}-\d{2}-\d{2})/bars\.jsonl\.gz$")
-_PLACEHOLDER = re.compile(r"[0-9A-Z]{8}[0-9]")
+_PLACEHOLDER = re.compile(r"[0-9_]")
+_TICKER = re.compile(r"[A-Z]+(\.[A-Z]+)*")
 _PRICES = ("open", "high", "low", "close")
 Bars = Callable[[list[str], date, date, str], Any]
 Actions = Callable[[date, date], list[dict[str, Any]]]
@@ -86,14 +87,18 @@ def reused_symbols(assets: list[dict[str, Any]], *, include_inactive: bool) -> l
 def _with_spy(symbols: list[str]) -> list[str]:
     """Sorted symbols to request bars for, with SPY and without placeholders.
 
-    Alpaca lists rights, contingent value rights, and escrow shares under a
-    nine-character identifier that ends in a digit. The bars request rejects
+    A ticker is letters, with a dot before a class or unit suffix. Alpaca also
+    lists rights, escrow shares, and delisted names under identifiers such as
+    ``003CVR016``, ``B002455``, and ``ABCD_DELISTED``. The bars request rejects
     each one as an invalid symbol, and a saved symbol list can still hold them.
     """
     found = {str(symbol).strip() for symbol in symbols if str(symbol).strip()}
-    kept = {symbol for symbol in found if not _PLACEHOLDER.fullmatch(symbol)}
+    kept = {symbol for symbol in found if not _PLACEHOLDER.search(symbol)}
     if len(kept) < len(found):
         logger.info("bars placeholder symbols dropped count=%s", len(found) - len(kept))
+    unusual = sorted(symbol for symbol in kept if not _TICKER.fullmatch(symbol))
+    if unusual:
+        logger.info("bars symbols outside letters and dots count=%s sample=%s", len(unusual), unusual[:10])
     kept.add("SPY")
     return sorted(kept)
 
