@@ -19,7 +19,7 @@ export const jobs = {
     {
       "name": "ingest_daily",
       "scheduleName": "findingalpha-ingest-daily",
-      "cron": "0 6 ? * TUE-SAT *",
+      "cron": "0 12 ? * TUE-SAT *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,

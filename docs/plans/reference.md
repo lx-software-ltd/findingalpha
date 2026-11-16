@@ -304,7 +304,7 @@ Scheduler schedules (not `events.Rule`) with an IAM-role target.
 | Job | Schedule name | Cron | Time zone | Kill switch |
 | --- | --- | --- | --- | --- |
 | `kb_sync_check` | `findingalpha-kb-sync-check` | `30 5 * * ? *` | Asia/Hong_Kong | none |
-| `ingest_daily` | `findingalpha-ingest-daily` | `0 6 ? * TUE-SAT *` | Asia/Hong_Kong | `IngestEnabled` |
+| `ingest_daily` | `findingalpha-ingest-daily` | `0 12 ? * TUE-SAT *` | Asia/Hong_Kong | `IngestEnabled` |
 | `reconcile` | `findingalpha-reconcile` | `30 6 ? * TUE-SAT *` | Asia/Hong_Kong | `TradingEnabled` |
 | `daily_check` | `findingalpha-daily-check` | `40 6 ? * TUE-SAT *` | Asia/Hong_Kong | `TradingEnabled` |
 | `brief_compile` | `findingalpha-brief-compile` | `15 7 ? * TUE-SAT *` | Asia/Hong_Kong | none |

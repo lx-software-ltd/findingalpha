@@ -467,4 +467,6 @@ def build(
         "counts": counts,
         "sectors": sector_counts,
         "shareSources": share_sources,
+        "symbols": [str(row["symbol"]) for row in members],
+        "ciks": sorted({str(row["cik"]) for row in members}),
     }

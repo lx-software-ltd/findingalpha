@@ -142,7 +142,7 @@ All names are in [`reference.md`](reference.md).
 
 | When | What |
 | --- | --- |
-| Tue–Sat 06:00 | Ingest yesterday's US session: prices, corporate actions, filings, news |
+| Tue–Sat 12:00 | Ingest the US session that has closed: prices, corporate actions, filings, news |
 | Tue–Sat 06:30 | Reconcile ledger with broker, book dividends and interest, snapshot |
 | Tue–Sat 06:40 | Daily check: thesis breaks, risk limits, leverage step-down. May create holds |
 | Tue–Sat 07:15 | Compile the brief |

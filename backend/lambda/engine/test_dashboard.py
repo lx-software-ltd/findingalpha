@@ -124,6 +124,8 @@ class DashboardTest(unittest.TestCase):
         never = next(item for item in body["jobs"] if item["job"] == "ingest_daily")
         self.assertIsNone(never["lastRun"])
         self.assertTrue(never["manualRun"])
+        broker = next(item for item in body["jobs"] if item["job"] == "broker_setup")
+        self.assertFalse(broker["manualRun"])
         runs = json.loads(api_handler.lambda_handler(_event("GET", "/jobs/runs", limit="1"), None)["body"])["runs"]
         self.assertEqual(len(runs), 1)
         os.environ.pop("INGEST_ENABLED", None)

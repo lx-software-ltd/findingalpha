@@ -481,8 +481,22 @@ class PriceIngestTest(unittest.TestCase):
                 client=bucket,
                 ingest_enabled=lambda: True,
             )
-        self.assertEqual(seen, [["EXMPL", "ONLY", "SPY"]])
-        listed = s3io.get_json("data", "reference/symbol-reuse.json", client=bucket)
+            listed = s3io.get_json("data", "reference/symbol-reuse.json", client=bucket)
+            ingest_prices.backfill_raw(
+                DAY,
+                DAY,
+                [DAY],
+                _Context(),
+                symbols=["EXMPL", "ONLY", "SPY"],
+                assets=[],
+                fetch_bars=bars,
+                fetch_actions=lambda _start, _end: [],
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+            self.assertEqual(s3io.get_json("data", "reference/symbol-reuse.json", client=bucket), listed)
+        self.assertEqual(seen, [["EXMPL", "ONLY", "SPY"], ["EXMPL", "ONLY", "SPY"]])
         self.assertEqual(
             listed,
             [

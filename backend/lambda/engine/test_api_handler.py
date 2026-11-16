@@ -56,6 +56,9 @@ class ApiHandlerTest(unittest.TestCase):
         self.assertEqual(json.loads(allowed["body"]), {"accepted": True})
         self.assertEqual(sent, [("ingest_daily", "user-1")])
         self.assertEqual(missing["statusCode"], 404)
+        plain = api_handler.lambda_handler(_event("POST", "/jobs/broker_setup/run", "[admin]"), None)
+        self.assertEqual(plain["statusCode"], 404)
+        self.assertEqual(sent, [("ingest_daily", "user-1")])
 
     def test_the_latest_universe_is_the_newest_finished_row(self) -> None:
         from unittest.mock import patch

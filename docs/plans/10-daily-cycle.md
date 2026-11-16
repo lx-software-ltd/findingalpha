@@ -78,7 +78,7 @@ Times are Hong Kong unless stated. Example for a Monday US session.
 
 | Time | Job | What happens |
 | --- | --- | --- |
-| Tue 06:00 | `ingest_daily` | Monday's prices, corporate actions, filings, news |
+| Tue 12:00 | `ingest_daily` | Monday's prices, corporate actions, filings, news |
 | Tue 06:30 | `reconcile` | Fills, dividends, interest, comparison with the broker, snapshot |
 | Tue 06:40 | `daily_check` | Rules below. May create orders and holds |
 | Tue 07:15 | `brief_compile` | Builds the brief record |

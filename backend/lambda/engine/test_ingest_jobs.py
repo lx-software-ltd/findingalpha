@@ -122,6 +122,163 @@ class IngestJobsTest(unittest.TestCase):
         )
         self.assertEqual(result["status"], "missing_inputs")
 
+    def test_noon_in_hong_kong_takes_the_session_whose_index_is_out(self) -> None:
+        seen: list[date] = []
+
+        def raw(day: date, _symbols: list[str]) -> None:
+            seen.append(day)
+
+        def quiet(*_args: object, **_kwargs: object) -> dict[str, str]:
+            return {"status": "done"}
+
+        ingest_jobs.ingest_daily(
+            {},
+            None,
+            now=datetime(2024, 1, 9, 12, tzinfo=HKT),
+            sessions=[date(2024, 1, 8), date(2024, 1, 9)],
+            symbols=["EXMPL"],
+            ciks=["0000000001"],
+            raw=raw,
+            actions=quiet,
+            filings=quiet,
+            headlines=quiet,
+        )
+        ingest_jobs.ingest_daily(
+            {},
+            None,
+            now=datetime(2024, 6, 4, 12, tzinfo=HKT),
+            sessions=[date(2024, 6, 3), date(2024, 6, 4)],
+            symbols=["EXMPL"],
+            ciks=["0000000001"],
+            raw=raw,
+            actions=quiet,
+            filings=quiet,
+            headlines=quiet,
+        )
+        self.assertEqual(seen, [date(2024, 1, 8), date(2024, 6, 3)])
+
+    def test_news_is_not_sent_the_price_symbols(self) -> None:
+        seen: dict[str, list[str]] = {}
+
+        def headlines(symbols: list[str], _day: date) -> None:
+            seen["symbols"] = list(symbols)
+
+        ingest_jobs.ingest_daily(
+            {"params": {"day": "2024-06-03"}},
+            None,
+            sessions=[DAY],
+            symbols=["EXMPL", "FUND"],
+            ciks=["0000000001"],
+            raw=lambda *_args: None,
+            actions=lambda *_args: None,
+            filings=lambda *_args, **_kwargs: {"status": "done"},
+            headlines=headlines,
+        )
+        self.assertEqual(seen["symbols"], [])
+
+    def test_coverage_and_adjusted_prices_use_the_members(self) -> None:
+        seen: dict[str, object] = {}
+
+        def build(_day: date, _context: object, **kwargs: object) -> dict[str, object]:
+            exchanges = [row.get("exchange") for row in kwargs["assets"]]  # type: ignore[union-attr]
+            self.assertIn("ARCA", exchanges)
+            return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
+
+        def adjusted(symbols: list[str], _start: str, _end: date, _context: object) -> dict[str, str]:
+            seen["symbols"] = symbols
+            return {"status": "done"}
+
+        def coverage(ciks: list[str], _day: date) -> None:
+            seen["ciks"] = ciks
+
+        assets = [
+            ASSET,
+            {"symbol": "FUND", "exchange": "ARCA", "status": "active", "tradable": True, "marginable": True},
+        ]
+        ingest_jobs.weekly_refresh(
+            {},
+            None,
+            now=SATURDAY_OPEN,
+            sessions=[FRIDAY],
+            assets=assets,
+            tickers=TICKERS,
+            build=build,
+            adjusted=adjusted,
+            coverage=coverage,
+            note_build=lambda *_args: None,
+        )
+        self.assertEqual(seen["symbols"], ["EXMPL"])
+        self.assertEqual(seen["ciks"], ["0000000001"])
+
+    def test_a_stopped_coverage_report_leaves_the_adjusted_refresh(self) -> None:
+        from unittest.mock import patch
+
+        saved: dict[tuple[str, str], dict[str, object]] = {}
+
+        def put(item: dict[str, object]) -> None:
+            saved[(str(item["pk"]), str(item["sk"]))] = dict(item)
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
+
+        def coverage(_ciks: list[str], _day: date) -> None:
+            raise RuntimeError("stopped")
+
+        with patch("store.put", put), self.assertRaises(RuntimeError):
+            ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+                coverage=coverage,
+            )
+        row = saved[("JOB#refresh_adjusted", "STATE")]
+        self.assertEqual(row["status"], "running")
+        self.assertNotIn("leaseUntil", row)
+        self.assertEqual(row["params"]["symbols"], ["EXMPL"])
+
+    def test_a_build_waiting_on_facts_is_not_started_again(self) -> None:
+        from unittest.mock import patch
+
+        noted: list[str] = []
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            return {"status": "running", "pending": 2}
+
+        def note(_day: date, status: str) -> None:
+            noted.append(status)
+
+        waiting = {"status": "running"}
+        with patch("store.get", return_value=waiting):
+            result = ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+                note_build=note,
+            )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(noted, [])
+        waiting["status"] = "done"
+        with patch("store.get", return_value=waiting):
+            ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+                note_build=note,
+            )
+        self.assertEqual(noted, ["running"])
+
     def test_a_resumed_backfill_keeps_the_saved_end(self) -> None:
         seen: dict[str, str] = {}
 

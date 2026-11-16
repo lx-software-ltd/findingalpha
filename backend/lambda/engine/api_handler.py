@@ -38,9 +38,20 @@ def list_api_keys(_event: dict[str, Any]) -> dict[str, Any]:
     return list_keys()
 
 
-def _manual_jobs() -> set[str]:
+def _job_rows() -> list[dict[str, Any]]:
     raw = json.loads(_JOBS.read_text(encoding="utf-8"))
-    return {str(row["name"]) for row in raw.get("jobs") or [] if row.get("manualRun") is True}
+    jobs = raw.get("jobs") or []
+    return [row for row in jobs if isinstance(row, dict) and row.get("name")]
+
+
+def _key_caller(event: dict[str, Any]) -> bool:
+    return str(event.get("actor") or "").startswith("apikey:")
+
+
+def _engine_runs(name: str) -> bool:
+    import jobs_handler
+
+    return jobs_handler.handler_for(name) is not None
 
 
 def _job_name(event: dict[str, Any]) -> str:
@@ -58,7 +69,14 @@ def _job_name(event: dict[str, Any]) -> str:
 def run_job(event: dict[str, Any]) -> dict[str, Any]:
     """Start a job the contract allows. The engine runs it after this returns."""
     name = _job_name(event)
-    if name not in _manual_jobs():
+    row = next((item for item in _job_rows() if str(item.get("name")) == name), None)
+    if row is None:
+        return not_found()
+    if _key_caller(event):
+        allowed = row.get("keyRun") is True
+    else:
+        allowed = row.get("manualRun") is True and _engine_runs(name)
+    if not allowed:
         return not_found()
     sub = str(_claims(event).get("sub") or "")
     _invoke_engine(name, sub)

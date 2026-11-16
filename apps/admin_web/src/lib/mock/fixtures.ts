@@ -25,7 +25,7 @@ export const statusFixture = {
     },
     {
       job: "ingest_daily",
-      schedule: "0 6 ? * TUE-SAT * Asia/Hong_Kong",
+      schedule: "0 12 ? * TUE-SAT * Asia/Hong_Kong",
       lastRun: { status: "failed", startedAt: "2026-01-01T22:00:00.000Z", durationMs: 40, message: "timeout" },
       manualRun: true,
     },
