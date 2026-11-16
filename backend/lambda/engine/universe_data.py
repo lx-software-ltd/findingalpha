@@ -126,7 +126,7 @@ def _latest_filing(payload: dict[str, Any], on: date) -> tuple[str, str, str] | 
     return best
 
 
-def refresh_runner(bucket: str, client: Any) -> Callable[[list[str], Any], dict[str, Any]]:
+def refresh_runner(bucket: str, client: Any, on: date | None = None) -> Callable[[list[str], Any], dict[str, Any]]:
     """Refresh missing facts under this build's own job, not the backfill."""
 
     def run(ciks: list[str], context: Any) -> dict[str, Any]:
@@ -139,6 +139,7 @@ def refresh_runner(bucket: str, client: Any) -> Callable[[list[str], Any], dict[
             bucket=bucket,
             client=client,
             ingest_enabled=lambda: True,
+            as_of=None if on is None else on.isoformat(),
         )
 
     return run

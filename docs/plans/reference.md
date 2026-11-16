@@ -276,7 +276,7 @@ task, listing keys, and every real-money approval stay owner only.
 | `GET /jobs/runs` | Recent job runs | M03 | `system` |
 | `GET /public` | The routes the calling key may use | M03A | any key |
 | `GET /api-keys` | Key list without digests | M03A | owner only |
-| `POST /jobs/{jobName}/run` | Start an allowed job now. Returns a run id | M04 | `operate`, jobs with `keyRun` only |
+| `POST /jobs/{jobName}/run` | Start an allowed job. Returns 202 `{accepted: true}` | M04 | `operate`, jobs with `keyRun` only |
 | `GET /universe/latest` | Universe summary | M04 | `research` |
 | `GET /methodology` | The register with citation status | M05 | `research` |
 | `GET /screens/latest`, `GET /screens/{date}` | Shortlist and scores | M06 | `research` |
@@ -329,6 +329,8 @@ that touch the broker or the drill never have it.
 
 | Job | Purpose | Milestone |
 | --- | --- | --- |
+| `backfill_prices` | Raw bars from 2016-01-01 through the saved end date | M04 |
+| `backfill_fundamentals` | Company facts for every candidate CIK | M04 |
 | `screen` | Score the universe for one date. Also called by `monthly_rebalance` | M06 |
 | `backfill_monthly_stats` | Month-end statistics for the backtest | M06 |
 | `backtest` | One backtest run | M06 |

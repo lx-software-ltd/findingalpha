@@ -15,6 +15,7 @@ from alpaca_data import IngestDisabled
 _INDEX_FORMS = frozenset({"10-K", "10-Q", "8-K", "10-K/A", "10-Q/A", "8-K/A"})
 _REFRESH_FORMS = frozenset({"10-K", "10-Q", "10-K/A", "10-Q/A"})
 _CURSOR_PK = "JOB#ingest_filings"
+_FIRST_CATCH_UP = 5
 _CURSOR_SK = "CURSOR"
 STOCK_FRESH_DAYS = 450
 Facts = Callable[[str], dict[str, Any]]
@@ -99,6 +100,7 @@ def refresh(
     bucket: str | None = None,
     client: Any = None,
     ingest_enabled: Callable[[], bool] | None = None,
+    as_of: str | None = None,
 ) -> dict[str, Any]:
     """Trim each company file to the mapped tags and write the point-in-time rows."""
     _require(ingest_enabled)
@@ -106,13 +108,28 @@ def refresh(
     name = _bucket(bucket)
     maps = fundamentals_pit.load_tag_maps()
     items = [_cik(cik) for cik in ciks]
+    params: dict[str, Any] = {"ciks": items}
+    if as_of:
+        params["asOf"] = as_of
 
     def process(cik: str) -> None:
         trimmed = trim_facts(_load_facts(facts_of, cik), maps)
         s3io.put_gzip_json(name, _facts_key(cik), trimmed, client=client)
         s3io.put_jsonl_gz(name, _pit_key(cik), fundamentals_pit.normalise(trimmed, maps), client=client)
 
-    return chunked.run(job, items, process, context, params={"ciks": items})
+    result = chunked.run(
+        job,
+        items,
+        process,
+        context,
+        params=params,
+        enabled=ingest_enabled or _default_ingest,
+    )
+    if result.get("status") == "done" and job.startswith("ingest_filings_refresh#"):
+        import store
+
+        store.delete(f"JOB#{job}", "STATE")
+    return result
 
 
 def _load_facts(facts_of: Facts, cik: str) -> dict[str, Any]:
@@ -175,7 +192,11 @@ def daily(
             ingest_enabled=ingest_enabled,
         )
     cursor = _cursor()
-    pending = [day for day in sessions if day <= through and (cursor is None or day > cursor)]
+    eligible = [day for day in sessions if day <= through]
+    if cursor is None:
+        pending = eligible[-_FIRST_CATCH_UP:]
+    else:
+        pending = [day for day in eligible if day > cursor]
     filings = 0
     refreshed = 0
     status = "done"

@@ -265,6 +265,29 @@ class ChunkedTest(unittest.TestCase):
             chunked.run("prices", ["x", "y"], restarted.append, _Context(200_000), now=lambda: NOW)
         self.assertEqual(restarted, ["x", "y"])
 
+    def test_the_switch_is_read_before_the_next_item(self) -> None:
+        memory = _Memory()
+        seen: list[str] = []
+        checks = {"n": 0}
+
+        def enabled() -> bool:
+            checks["n"] += 1
+            return checks["n"] == 1
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            result = chunked.run(
+                "prices",
+                ["a", "b"],
+                seen.append,
+                _Context(200_000),
+                now=lambda: NOW,
+                enabled=enabled,
+            )
+        self.assertEqual(seen, ["a"])
+        self.assertEqual(result["status"], "paused")
+        self.assertEqual(result["cursor"], 1)
+        self.assertNotIn("leaseUntil", memory.items[("JOB#prices", "STATE")])
+
     def test_invoke_sends_the_stored_params(self) -> None:
         calls: list[dict[str, object]] = []
 

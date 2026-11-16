@@ -71,6 +71,8 @@ DECISIONS = {
     ("GET", "/settings"): "system",
     ("PUT", "/settings"): "operate",
     ("GET", "/jobs/runs"): "system",
+    ("POST", "/jobs/"): "operate",
+    ("GET", "/universe/latest"): "research",
     ("GET", "/system/status"): "system",
     ("GET", "/api-keys"): None,
 }

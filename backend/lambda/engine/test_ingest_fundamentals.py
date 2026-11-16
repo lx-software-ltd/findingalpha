@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import http_client
@@ -62,7 +62,7 @@ class FundamentalsIngestTest(unittest.TestCase):
     def test_refresh_trims_the_payload_and_writes_pit_rows(self) -> None:
         bucket = _Bucket()
         memory = _Memory()
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             result = ingest_fundamentals.refresh(
                 ["1"],
                 _Context(),
@@ -98,7 +98,7 @@ class FundamentalsIngestTest(unittest.TestCase):
             fetched.append(cik)
             return _facts()
 
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             waiting = ingest_fundamentals.daily(
                 [CIK],
                 DAY,
@@ -132,7 +132,7 @@ class FundamentalsIngestTest(unittest.TestCase):
         bucket = _Bucket()
         memory = _Memory()
         memory.put({"pk": "UNIVERSE#2024-06-03", "sk": "META", "members": 2, "gsi1pk": "UNIVERSE"})
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             ingest_fundamentals.refresh(
                 [CIK],
                 _Context(),
@@ -161,7 +161,7 @@ class FundamentalsIngestTest(unittest.TestCase):
                 raise http_client.HttpStatusError(404, "missing")
             return _facts()
 
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             result = ingest_fundamentals.refresh(
                 [CIK, "2"],
                 _Context(),
@@ -182,7 +182,7 @@ class FundamentalsIngestTest(unittest.TestCase):
         def denied(_cik: str) -> dict[str, object]:
             raise http_client.HttpStatusError(500, "down")
 
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             with self.assertRaises(http_client.HttpStatusError):
                 ingest_fundamentals.refresh(
                     ["3"],
@@ -204,7 +204,7 @@ class FundamentalsIngestTest(unittest.TestCase):
         def index(_day: date) -> list[dict[str, str]]:
             return [{"cik": CIK, "company": "Example", "form": "10-K", "filed": "2024-06-03", "path": "a"}]
 
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             waiting = ingest_fundamentals.daily(
                 [CIK],
                 DAY,
@@ -230,6 +230,30 @@ class FundamentalsIngestTest(unittest.TestCase):
         self.assertEqual(done["status"], "done")
         self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-06-03")
 
+    def test_the_first_catch_up_is_the_last_five_sessions(self) -> None:
+        bucket = _Bucket()
+        memory = _Memory()
+        fetched: list[date] = []
+        sessions = [date(2024, 5, 20) + timedelta(days=offset) for offset in range(10)]
+
+        def index(day: date) -> list[dict[str, str]]:
+            fetched.append(day)
+            return [{"cik": CIK, "company": "Example", "form": "8-K", "filed": day.isoformat(), "path": "a"}]
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            result = ingest_fundamentals.daily(
+                [CIK],
+                sessions[-1],
+                _Context(),
+                sessions=sessions,
+                fetch_index=index,
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+        self.assertEqual(result["status"], "done")
+        self.assertEqual(fetched, sessions[-5:])
+
     def test_catch_up_reads_the_cursor_and_continues_after_an_empty_index(self) -> None:
         bucket = _Bucket()
         memory = _Memory()
@@ -241,7 +265,7 @@ class FundamentalsIngestTest(unittest.TestCase):
             fetched.append(day)
             return [{"cik": CIK, "company": "Example", "form": "8-K", "filed": day.isoformat(), "path": "a"}]
 
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             result = ingest_fundamentals.daily(
                 [CIK],
                 date(2024, 6, 5),
@@ -266,7 +290,7 @@ class FundamentalsIngestTest(unittest.TestCase):
                 return []
             return [{"cik": CIK, "company": "Example", "form": "8-K", "filed": day.isoformat(), "path": "a"}]
 
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             held = ingest_fundamentals.daily(
                 [CIK],
                 date(2024, 6, 5),
@@ -305,7 +329,7 @@ class FundamentalsIngestTest(unittest.TestCase):
                 return []
             return [{"cik": CIK, "company": "Example", "form": "8-K", "filed": day.isoformat(), "path": "a"}]
 
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             result = ingest_fundamentals.daily(
                 [CIK],
                 date(2024, 12, 26),
@@ -336,7 +360,7 @@ class FundamentalsIngestTest(unittest.TestCase):
     def test_coverage_needs_the_universe_row_and_ignores_a_stale_stock(self) -> None:
         bucket = _Bucket()
         memory = _Memory()
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             report = ingest_fundamentals.coverage_report([CIK], DAY, bucket="data", client=bucket)
         self.assertEqual(report["companies"], 1)
         self.assertEqual(memory.items, {})
@@ -351,7 +375,7 @@ class FundamentalsIngestTest(unittest.TestCase):
         }
         s3io.put_jsonl_gz("data", "fundamentals/pit/cik=0000000002/facts.jsonl.gz", [stale], client=bucket)
         memory.put({"pk": "UNIVERSE#2024-06-03", "sk": "META", "members": 2, "gsi1pk": "UNIVERSE"})
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             ingest_fundamentals.refresh(
                 [CIK],
                 _Context(),

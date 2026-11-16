@@ -321,7 +321,7 @@ describe("findingalpha stack", () => {
 
   test("the only schedule is EventBridge Scheduler and a failed engine invoke does not retry", () => {
     synthesized.resourceCountIs("AWS::Events::Rule", 0);
-    synthesized.resourceCountIs("AWS::Scheduler::Schedule", 1);
+    synthesized.resourceCountIs("AWS::Scheduler::Schedule", 3);
     synthesized.hasResourceProperties("AWS::Scheduler::Schedule", {
       Name: "findingalpha-tick",
       ScheduleExpression: "rate(15 minutes)",

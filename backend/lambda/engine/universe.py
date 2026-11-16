@@ -339,7 +339,7 @@ def build(
     bars_of = read_bars or universe_data.bars_reader(name, client)
     facts_of = read_facts or universe_data.facts_reader(name, client)
     subs_of = read_submissions or universe_data.submissions_reader(name, client)
-    refresh_of = refresh or universe_data.refresh_runner(name, client)
+    refresh_of = refresh or universe_data.refresh_runner(name, client, day)
     cover_of = read_cover or universe_data.cover_reader(name, client)
     chosen = rules if rules is not None else load_rules()
     ranges = sectors if sectors is not None else load_sectors()

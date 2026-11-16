@@ -70,6 +70,9 @@ class _Memory:
     def put(self, item: dict[str, object]) -> None:
         self.items[(str(item["pk"]), str(item["sk"]))] = dict(item)
 
+    def delete(self, pk: str, sk: str) -> None:
+        self.items.pop((pk, sk), None)
+
     def update(
         self,
         pk: str,
@@ -178,6 +181,7 @@ def _bind(memory: _Memory):
         patch("store.get", memory.get),
         patch("store.put", memory.put),
         patch("store.update_conditional", memory.update_conditional),
+        patch("store.delete", memory.delete),
     )
 
 
@@ -354,6 +358,37 @@ class PriceIngestTest(unittest.TestCase):
             ingest_prices.ingest_raw_day(
                 DAY, ["SPY"], fetch_bars=refuse, fetch_actions=refuse, ingest_enabled=lambda: False
             )
+
+    def test_one_bad_print_does_not_fail_the_month(self) -> None:
+        bucket = _Bucket()
+        memory = _Memory()
+        sessions = [date(2024, 1, 31), date(2024, 2, 1)]
+
+        def bars(symbols: list[str], start: date, end: date, adjustment: str) -> list[dict[str, object]]:
+            del symbols, adjustment
+            rows = [_bar("SPY", day) for day in sessions if start <= day <= end]
+            if start.month == 1:
+                broken = _bar("GONE", date(2024, 1, 31))
+                broken["close"] = 0
+                rows.append(broken)
+            return rows
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+            result = ingest_prices.backfill_raw(
+                date(2024, 1, 31),
+                date(2024, 2, 1),
+                sessions,
+                _Context(),
+                symbols=["GONE"],
+                fetch_bars=bars,
+                fetch_actions=lambda _start, _end: [],
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+        self.assertEqual(result["status"], "done")
+        stored = list(s3io.get_jsonl_gz("data", "prices/raw/date=2024-01-31/bars.jsonl.gz", client=bucket))
+        self.assertEqual([row["symbol"] for row in stored], ["SPY"])
 
     def test_adjusted_parts_include_spy_and_bil(self) -> None:
         bucket = _Bucket()

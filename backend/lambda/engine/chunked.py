@@ -94,6 +94,7 @@ def run(
     *,
     now: Clock = timeutil.utc_now,
     params: dict[str, Any] | None = None,
+    enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Claim the job, process from the cursor, and stop with two minutes left.
 
@@ -114,6 +115,9 @@ def run(
     lease = moment + LEASE
     try:
         while cursor < total:
+            if enabled is not None and not enabled():
+                _save(job, "running", cursor, total, now(), None, digest, params)
+                return {"status": "paused", "cursor": cursor, "total": total}
             remaining = context.get_remaining_time_in_millis()
             if remaining < _STOP_WITH_MS_LEFT:
                 _save(job, "running", cursor, total, now(), None, digest, params)
