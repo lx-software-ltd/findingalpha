@@ -132,9 +132,18 @@ id is `findingalpha/alpaca-paper`. The value the owner stores is
 - Page size is the `limit` parameter. The documented default is 100.
   A window with one dividend and one split fit in one page. A request
   with `limit=1` returned `next_page_token`.
+- `start` and `end` select `process_date`, not the ex-date. A request
+  for 2024-06-10 returned 144 rows. All 144 had `process_date`
+  2024-06-10. Six had `ex_date` 2024-06-10. The other ex-dates on that
+  page ran back to about a month earlier. The client returns
+  `processDate` and `exDate` and does not drop rows. T06 files each
+  row under its ex-date.
 - Differs from the plan: the body is grouped by type, not a flat list.
   Our `cashPerShare` is `rate`. Our split ratio is `old_rate` to
-  `new_rate`. Our `payDate` is `payable_date`.
+  `new_rate`. Our `payDate` is `payable_date`. `special`, `foreign`,
+  and `sub_type` are kept, because a return of capital is not a
+  dividend. A reverse split may include `new_symbol`, kept as
+  `newSymbol`.
 
 ### News
 
@@ -197,8 +206,10 @@ id is `findingalpha/alpaca-paper`. The value the owner stores is
 
 ## Tests
 
-This spike has no product code and no unit test. M04-T03 tests the
-client against trimmed fixtures in
+Re-run the probe with `python3 scripts/probe_data_sources.py`. It reads
+`ALPACA_PAPER_KEY_ID`, `ALPACA_PAPER_SECRET_KEY`, and
+`SEC_CONTACT_EMAIL` from the environment and prints field names and
+counts. M04-T03 tests the client against trimmed fixtures in
 `backend/lambda/engine/test_fixtures/`. Those fixtures use invented
 names and `example.com`.
 
@@ -208,8 +219,9 @@ The Basic plan documents 200 historical requests a minute and history
 since 2016
 ([About Market Data](https://docs.alpaca.markets/us/docs/about-market-data-api)).
 The client stays at or under 150 a minute, which is the cap in
-`docs/plans/04-data-ingest.md`. SEC calls stay at or under 5 a second
-in `sec_edgar.py`.
+`docs/plans/04-data-ingest.md`. Containers share that cap through the
+`RATE#alpaca` / `MINUTE` row. A process also spaces its own calls.
+SEC calls stay at or under 5 a second in `sec_edgar.py`.
 
 ## History
 

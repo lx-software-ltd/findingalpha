@@ -8,9 +8,10 @@
         "rate": 0.25,
         "ex_date": "2024-05-10",
         "payable_date": "2024-05-16",
-        "process_date": "2024-05-10",
+        "process_date": "2024-05-16",
         "special": false,
-        "foreign": false
+        "foreign": true,
+        "sub_type": "return_of_capital"
       },
       {
         "symbol": "",
@@ -25,7 +26,8 @@
         "old_rate": 1,
         "new_rate": 4,
         "ex_date": "2024-06-10",
-        "payable_date": "2024-06-10"
+        "payable_date": "2024-06-10",
+        "process_date": "2024-06-12"
       }
     ],
     "cash_mergers": [

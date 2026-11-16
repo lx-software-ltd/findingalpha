@@ -145,16 +145,21 @@ field names:
 
 - Bar: `symbol`, `date`, `open`, `high`, `low`, `close`, `volume`,
   `vwap`.
-- Action: `symbol`, `type`, `exDate`, `payDate`, `cashPerShare`,
-  `splitFrom`, `splitTo`.
+- Action: `symbol`, `type`, `exDate`, `processDate`, `payDate`,
+  `cashPerShare`, `splitFrom`, `splitTo`, `special`, `foreign`,
+  `subType`, `newSymbol`.
 - News: `id`, `symbols`, `headline`, `summary`, `source`, `url`,
   `createdAt`. Do not store article bodies.
 
-`feed` is `sip` (T01). Bars are 200 symbols at a time and follow
-`next_page_token`. Corporate actions and news follow it too. The
-session date is the America/New_York date of the bar timestamp.
-`list_assets()` defaults to active US equities and accepts
-`inactive`.
+`feed` is `sip` (T01). Bars and news go out 200 symbols at a time and
+follow `next_page_token`. A repeated page token raises. The session
+date is the America/New_York date of the bar timestamp.
+`list_assets()` defaults to active US equities and accepts `inactive`.
+Each call reads the paper secret again (the secret cache is five
+minutes) and checks `IngestEnabled` before the request. The 150-a-minute
+cap is one shared counter in the records table, so containers share it.
+The Alpaca window for corporate actions is `process_date`, not the
+ex-date. The client returns both and does not drop rows.
 
 Tests use trimmed recorded responses in `test_fixtures/`.
 
@@ -248,8 +253,15 @@ Tests, with hand-made fixtures for an invented company:
 
 - `ingest_raw_day(date)`: bars with `adjustment=raw` for every active
   NYSE and NASDAQ asset, one file
-  `prices/raw/date=<date>/bars.jsonl.gz`. Corporate actions of the day
-  to `corporate-actions/date=<date>/actions.jsonl.gz`.
+  `prices/raw/date=<date>/bars.jsonl.gz`. Corporate actions whose
+  `exDate` is that session go to
+  `corporate-actions/date=<date>/actions.jsonl.gz`. Alpaca's `start`
+  and `end` select `process_date`, not the ex-date. On 10 June 2024
+  a one-day process window held 144 rows and only 6 had that ex-date;
+  the earliest ex-date on the page was about a month earlier. Ask for
+  a wider process window and keep rows by `exDate`. Keep `special`,
+  `foreign`, and `subType` so a return of capital is not booked as a
+  dividend. A reverse split's `newSymbol` links the old and new tickers.
 - Quality checks before writing: SPY is present; no bar with a price
   at or below zero; the number of bars is within 15% of the previous
   session's. On failure raise `DataQualityError` with the failing
