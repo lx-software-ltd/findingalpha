@@ -168,7 +168,7 @@ class UniverseTest(unittest.TestCase):
         self.assertEqual(sectors["version"], 2)
         self.assertEqual(sectors["status"], "confirmed")
         self.assertNotIn("symbolSectors", sectors)
-        self.assertEqual(json.loads(universe._RULES.read_text(encoding="utf-8"))["version"], 3)
+        self.assertEqual(json.loads(universe._RULES.read_text(encoding="utf-8"))["version"], 5)
         self.assertEqual(int(rules["minFundamentalsYears"]), 3)
         two_filings = _history(SHARES, years=("2022-12-31", "2023-12-31"))
         self.assertLess(len(set(universe._annual_filings(two_filings, "10-K").values())), 3)
@@ -760,6 +760,8 @@ class UniverseReviewTest(unittest.TestCase):
         self.assertEqual(first["value"], 300)
         self.assertEqual(second["accession"], "0000000001-24-000001")
         self.assertEqual(downloads, ["0000000001-24-000001:cover.htm"])
+        stored = s3io.get_json("data", f"reference/shares/cik={_cik(1)}.json", client=bucket)
+        self.assertEqual(stored["attempts"]["0000000001-24-000001"]["filed"], "2024-04-24")
 
     def test_an_empty_amendment_falls_back_to_the_previous_filing(self) -> None:
         downloads: list[str] = []

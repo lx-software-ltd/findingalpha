@@ -93,82 +93,122 @@ def _fact_rows(
     return rows
 
 
-def _preferred_by_end(company_facts: dict[str, Any], tags: list[str]) -> dict[str, dict[str, Any]]:
-    """One stock fact per balance-sheet date. The earlier tag wins; a later filing of that tag replaces it."""
-    best: dict[str, tuple[int, dict[str, Any]]] = {}
+def _role_facts(company_facts: dict[str, Any], tags: list[str]) -> list[dict[str, Any]]:
+    """Every filing of these tags. ``rank`` is the tag preference, lower first."""
+    found: list[dict[str, Any]] = []
     for rank, tag in enumerate(tags):
         for row in _fact_rows(company_facts, "longTermDebt", tag, "stock"):
-            current = best.get(row["end"])
-            if current is None or rank < current[0] or (rank == current[0] and row["filed"] > current[1]["filed"]):
-                best[row["end"]] = (rank, row)
-    return {end: row for end, (_rank, row) in best.items()}
+            item = dict(row)
+            item["rank"] = rank
+            found.append(item)
+    return found
 
 
-def _component(values: dict[str, dict[str, dict[str, Any]]], role: str, end: str) -> float | None:
-    row = values.get(role, {}).get(end)
+def _visible_fact(facts: list[dict[str, Any]], end: str, filed: str) -> dict[str, Any] | None:
+    """The preferred tag's latest filing on or before ``filed`` for this balance-sheet date."""
+    visible = [row for row in facts if row["end"] == end and row["filed"] <= filed]
+    if not visible:
+        return None
+    best = min(int(row["rank"]) for row in visible)
+    chosen = [row for row in visible if int(row["rank"]) == best]
+    return max(chosen, key=lambda row: str(row["filed"]))
+
+
+def _combine_debt(
+    noncurrent: float | None,
+    including: float | None,
+    portion: float | None,
+    current: float | None,
+    borrowings: float | None,
+) -> tuple[float | None, float | None]:
+    """Split one balance sheet without counting the same dollars twice.
+
+    ``LongTermDebt`` includes its current portion. ``DebtCurrent`` includes
+    that portion and short-term borrowings. When only those two totals exist,
+    the smaller one is treated as sitting inside the larger one, so the
+    current line is kept and the total is the larger figure. Borrowings that
+    sit in ``DebtCurrent`` and were never inside ``LongTermDebt`` are missed.
+    Counting both totals would count the current portion twice. A missing role
+    stays missing here. The snapshot turns an unreported debt tag into zero.
+    """
+    implied = (
+        including - noncurrent if noncurrent is not None and including is not None and including >= noncurrent else None
+    )
+    if noncurrent is not None:
+        long_term: float | None = noncurrent
+    elif including is not None and portion is not None and including >= portion:
+        long_term = including - portion
+    elif including is not None and current is not None and portion is None:
+        long_term = including - current if including >= current else 0
+    elif including is not None:
+        long_term = including
+    else:
+        long_term = None
+    if current is not None:
+        short_term: float | None = current
+    elif portion is not None or implied is not None or borrowings is not None:
+        short_term = float(portion if portion is not None else implied or 0) + float(borrowings or 0)
+    else:
+        short_term = None
+    return long_term, short_term
+
+
+def _debt_rows(company_facts: dict[str, Any], roles: dict[str, list[str]]) -> list[dict[str, Any]]:
+    """One debt row per balance-sheet date and filing date.
+
+    A later filing that repeats an old column does not replace the original
+    filing date. ``as_of`` then sees the value that was public on that day,
+    and a restatement only after it was filed.
+    """
+    facts = {role: _role_facts(company_facts, tags) for role, tags in roles.items()}
+    ends = {row["end"] for rows in facts.values() for row in rows}
+    emitted: list[dict[str, Any]] = []
+    for end in ends:
+        filed_dates = sorted({row["filed"] for rows in facts.values() for row in rows if row["end"] == end})
+        for filed in filed_dates:
+            chosen = {role: _visible_fact(rows, end, filed) for role, rows in facts.items()}
+            long_term, short_term = _combine_debt(
+                _amount(chosen.get("noncurrent")),
+                _amount(chosen.get("includingCurrent")),
+                _amount(chosen.get("currentPortion")),
+                _amount(chosen.get("debtCurrent")),
+                _amount(chosen.get("borrowings")),
+            )
+            stamp = next((row for row in chosen.values() if row is not None and row["filed"] == filed), None)
+            if stamp is None:
+                continue
+            label = _joined_tag(chosen)
+            if long_term is not None:
+                emitted.append(_debt_row(stamp, end, filed, "longTermDebt", long_term, label))
+            if short_term is not None:
+                emitted.append(_debt_row(stamp, end, filed, "shortTermDebt", short_term, label))
+    return emitted
+
+
+def _joined_tag(chosen: dict[str, dict[str, Any] | None]) -> str:
+    """Every tag that contributed, so a later reader can see the combination."""
+    tags = sorted({str(row.get("tag") or "") for row in chosen.values() if isinstance(row, dict) and row.get("tag")})
+    return "+".join(tags)
+
+
+def _amount(row: dict[str, Any] | None) -> float | None:
     if row is None:
         return None
     return float(row["value"])
 
 
-def _debt_rows(company_facts: dict[str, Any], roles: dict[str, list[str]]) -> list[dict[str, Any]]:
-    """Split debt without counting the current portion twice.
-
-    ``LongTermDebt`` already includes ``LongTermDebtCurrent``. ``DebtCurrent``
-    already includes the current portion and short-term borrowings, so those
-    are not added again. A missing role stays missing. It is not stored as zero.
-    """
-    values = {role: _preferred_by_end(company_facts, tags) for role, tags in roles.items()}
-    ends: set[str] = set()
-    for by_end in values.values():
-        ends.update(by_end)
-    rows: list[dict[str, Any]] = []
-    for end in ends:
-        noncurrent = _component(values, "noncurrent", end)
-        including = _component(values, "includingCurrent", end)
-        portion = _component(values, "currentPortion", end)
-        current = _component(values, "debtCurrent", end)
-        borrowings = _component(values, "borrowings", end)
-        inclusive = noncurrent is None and including is not None
-        long_term: float | None
-        if noncurrent is not None:
-            long_term = noncurrent
-        elif inclusive and portion is not None and including is not None and including >= portion:
-            long_term = including - portion
-        elif inclusive:
-            long_term = including
-        else:
-            long_term = None
-        short_term: float | None
-        if inclusive and portion is None:
-            short_term = borrowings
-        elif current is not None:
-            short_term = current
-        elif portion is not None or borrowings is not None:
-            short_term = (portion or 0) + (borrowings or 0)
-        else:
-            short_term = None
-        if long_term is not None:
-            rows.append(_debt_row(values, end, "longTermDebt", long_term))
-        if short_term is not None:
-            rows.append(_debt_row(values, end, "shortTermDebt", short_term))
-    return rows
-
-
-def _debt_row(values: dict[str, dict[str, dict[str, Any]]], end: str, field: str, value: float) -> dict[str, Any]:
-    used = [row for by_end in values.values() if (row := by_end.get(end)) is not None]
-    latest = max(used, key=lambda row: row["filed"])
+def _debt_row(stamp: dict[str, Any], end: str, filed: str, field: str, value: float, tag: str) -> dict[str, Any]:
     return {
         "field": field,
         "kind": "stock",
-        "tag": "+".join(sorted({str(row["tag"]) for row in used})),
+        "tag": tag,
         "start": end,
         "end": end,
         "value": value,
-        "filed": latest["filed"],
-        "form": latest["form"],
-        "fy": latest.get("fy"),
-        "fp": latest.get("fp"),
+        "filed": filed,
+        "form": stamp.get("form"),
+        "fy": stamp.get("fy"),
+        "fp": stamp.get("fp"),
     }
 
 

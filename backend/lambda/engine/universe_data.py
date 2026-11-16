@@ -89,13 +89,18 @@ def cover_reader(bucket: str, client: Any) -> Callable[[str, date], dict[str, An
             saved = known.get(accession)
             if isinstance(saved, dict):
                 if saved.get("value"):
-                    chosen = {"filed": filed, "accession": accession, **saved}
+                    chosen = {"accession": accession, **saved, "filed": str(saved.get("filed") or filed)}
                     break
                 continue
             parsed = share_count.parse_cover_shares(sec_edgar.filing(cik, accession, document)) or {}
-            known[accession] = {"end": parsed.get("end"), "value": parsed.get("value"), "source": "coverClasses"}
+            known[accession] = {
+                "end": parsed.get("end"),
+                "value": parsed.get("value"),
+                "source": "coverClasses",
+                "filed": filed,
+            }
             if parsed.get("value"):
-                chosen = {"filed": filed, "accession": accession, **known[accession]}
+                chosen = {"accession": accession, **known[accession]}
                 break
         s3io.put_json(bucket, key, {"attempts": known}, client=client)
         return chosen

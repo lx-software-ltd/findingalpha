@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import hashlib
 import importlib
+import inspect
 import json
 from pathlib import Path
 from typing import Any
 
 _PATH = Path(__file__).resolve().parent / "contracts" / "methodology.json"
 _FUNDAMENTALS = _PATH.parent / "fundamentals.json"
-_KEYS = {"version", "universe", "factors", "composite", "screen"}
+_KEYS = {"version", "universe", "factors", "composite", "screen", "fundamentals", "backtest"}
 _FACTOR_KEYS = {"id", "group", "direction", "formula", "implementation", "status"}
 _STATUSES = {"provisional", "cited"}
 _DIRECTIONS = {"higher", "lower"}
@@ -65,6 +67,9 @@ def validate(doc: dict[str, Any]) -> None:
         _status(factor, name)
     _status(doc["composite"], "composite")
     _status(doc["screen"], "screen")
+    _status(doc["fundamentals"], "fundamentals")
+    if doc["fundamentals"].get("unreportedDebt") not in {"zero", "missing"}:
+        raise MethodologyError("unreportedDebt")
     weights = doc["composite"].get("groupWeights")
     if not isinstance(weights, dict) or not weights:
         raise MethodologyError("group weights")
@@ -86,7 +91,35 @@ def validate(doc: dict[str, Any]) -> None:
         if str(name) not in groups:
             raise MethodologyError(f"group weight {name} has no factor")
     _screen(doc["screen"], {str(factor["id"]) for factor in factors})
+    _backtest(doc["backtest"])
     _implementations(factors)
+
+
+def _backtest(block: dict[str, Any]) -> None:
+    _status(block, "backtest")
+    month = str(block.get("firstScreenMonth") or "")
+    if len(month) != 7 or month[4] != "-" or not month[:4].isdigit() or not month[5:].isdigit():
+        raise MethodologyError("firstScreenMonth")
+    _whole(block.get("portfolioSize"), "portfolioSize")
+    if block.get("weighting") != "equal":
+        raise MethodologyError("weighting")
+    _whole(block.get("maxNamesPerSector"), "maxNamesPerSector")
+    delay = block.get("tradeDelaySessions")
+    if isinstance(delay, bool) or not isinstance(delay, int) or delay < 0:
+        raise MethodologyError("tradeDelaySessions")
+    cost = block.get("costBpsPerSide")
+    if not _number(cost) or float(cost) < 0:
+        raise MethodologyError("costBpsPerSide")
+    rate = block.get("dividendWithholdingRate")
+    if not _number(rate) or not 0 <= float(rate) <= 1:
+        raise MethodologyError("dividendWithholdingRate")
+    if not str(block.get("benchmark") or "").strip() or not str(block.get("cashProxy") or "").strip():
+        raise MethodologyError("benchmark")
+
+
+def implementation(path: str) -> Any:
+    """The factor function named by ``module.function``."""
+    return _callable(path)
 
 
 def _share(value: object) -> None:
@@ -139,7 +172,7 @@ def _implementations(factors: list[dict[str, Any]]) -> None:
         params = factor.get("parameters") or {}
         if not isinstance(params, dict):
             raise MethodologyError(f"{factor['id']} parameters")
-        for name in getattr(function, "required_parameters", ()):
+        for name in _parameters_read(function):
             if not _number(params.get(name)):
                 raise MethodologyError(f"{factor['id']} missing {name}")
     for module_name in _FACTOR_MODULES:
@@ -149,6 +182,68 @@ def _implementations(factors: list[dict[str, Any]]) -> None:
                 continue
             if f"{module_name}.{name}" not in named:
                 raise MethodologyError(f"unregistered {module_name}.{name}")
+
+
+def unreported_debt() -> str:
+    """The debt policy. Read from the cached register so a snapshot does not copy the file."""
+    load()
+    if _CACHE is None:
+        return ""
+    block = _CACHE[1].get("fundamentals") if isinstance(_CACHE[1], dict) else {}
+    policy = block.get("unreportedDebt") if isinstance(block, dict) else ""
+    return str(policy or "")
+
+
+def _parameters_read(function: Any) -> list[str]:
+    """Parameter names read from the mapping passed as the second argument.
+
+    ``params["name"]``, ``params.get("name")``, and an alias of that mapping
+    all count. The source file is the check.
+    """
+    try:
+        tree = ast.parse(inspect.getsource(function))
+    except (OSError, TypeError) as exc:
+        raise MethodologyError(f"{getattr(function, '__name__', 'factor')} source") from exc
+    func = next((node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)), None)
+    names = _param_names(func)
+    found: list[str] = []
+    for node in ast.walk(func or tree):
+        key = _param_key(node, names)
+        if key and key not in found:
+            found.append(key)
+    return found
+
+
+def _param_names(func: ast.FunctionDef | None) -> set[str]:
+    names = {"params"}
+    if func is not None and len(func.args.args) >= 2:
+        names.add(func.args.args[1].arg)
+    changed = True
+    while changed and func is not None:
+        changed = False
+        for node in ast.walk(func):
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target = node.targets[0]
+            if isinstance(target, ast.Name) and isinstance(node.value, ast.Name) and node.value.id in names:
+                if target.id not in names:
+                    names.add(target.id)
+                    changed = True
+    return names
+
+
+def _param_key(node: ast.AST, names: set[str]) -> str | None:
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id in names:
+        if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+            return node.slice.value
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute) or node.func.attr != "get":
+        return None
+    if not isinstance(node.func.value, ast.Name) or node.func.value.id not in names or not node.args:
+        return None
+    key = node.args[0]
+    if isinstance(key, ast.Constant) and isinstance(key.value, str):
+        return key.value
+    return None
 
 
 def _callable(path: str) -> Any:

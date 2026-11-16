@@ -72,6 +72,29 @@ def choose(rows: list[dict[str, Any]], on: date, *, max_age: int = MAX_AGE_DAYS)
     return Chosen(value, end, filed, "weightedDiluted")
 
 
+def cover_as_of(payload: dict[str, Any] | None, on: date) -> dict[str, Any] | None:
+    """The newest cached cover whose filing date is on or before ``on``."""
+    if not isinstance(payload, dict) or not isinstance(on, date):
+        return None
+    attempts = payload.get("attempts")
+    if not isinstance(attempts, dict):
+        return None
+    limit = on.isoformat()
+    best_filed = ""
+    best: dict[str, Any] | None = None
+    for row in attempts.values():
+        if not isinstance(row, dict) or _positive(row.get("value")) is None:
+            continue
+        filed = str(row.get("filed") or "")[:10]
+        if len(filed) < 10 or filed > limit or filed < best_filed:
+            continue
+        best_filed = filed
+        best = row
+    if best is None:
+        return None
+    return {"filed": best_filed, "end": best.get("end"), "value": best.get("value")}
+
+
 def from_cover(cover: dict[str, Any] | None, on: date, *, max_age: int = MAX_AGE_DAYS) -> Chosen | None:
     """A class sum from a filing cover page. An empty or stale page is ``None``."""
     if not isinstance(cover, dict):

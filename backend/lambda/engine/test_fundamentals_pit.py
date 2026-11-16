@@ -278,6 +278,56 @@ class NormaliseTest(unittest.TestCase):
         self.assertEqual(_debt_value(rows, "longTermDebt"), 80)
         self.assertEqual(_debt_value(rows, "shortTermDebt"), 25)
 
+    def test_a_later_repeat_does_not_hide_the_original_filing(self) -> None:
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "LongTermDebtNoncurrent": {
+                        "units": {
+                            "USD": [
+                                _usd("2023-12-31", 200, "2024-02-15"),
+                                _usd("2023-12-31", 260, "2025-02-15"),
+                                _usd("2024-03-31", 210, "2024-05-01", "10-Q"),
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        rows = normalise(facts, _debt_maps())
+        self.assertEqual(latest_stock(as_of(rows, "2024-06-01"), "longTermDebt"), 210)
+        self.assertEqual(_at(rows, "2024-06-01", "2023-12-31"), 200)
+        self.assertEqual(_at(rows, "2025-03-01", "2023-12-31"), 260)
+
+    def test_inclusive_debt_keeps_the_current_line_without_adding_it_twice(self) -> None:
+        nested = normalise(_debt_facts({"LongTermDebt": 100, "DebtCurrent": 45}), _debt_maps())
+        self.assertEqual(_debt_value(nested, "longTermDebt"), 55)
+        self.assertEqual(_debt_value(nested, "shortTermDebt"), 45)
+        implied = normalise(
+            _debt_facts({"LongTermDebtNoncurrent": 70, "LongTermDebt": 100}),
+            _debt_maps(),
+        )
+        self.assertEqual(_debt_value(implied, "longTermDebt"), 70)
+        self.assertEqual(_debt_value(implied, "shortTermDebt"), 30)
+
+    def test_a_notes_only_filing_is_not_treated_as_zero_debt(self) -> None:
+        rows = normalise(_debt_facts({"LongTermNotesPayable": 40}))
+        self.assertEqual(_debt_value(rows, "longTermDebt"), 40)
+
+    def test_commercial_paper_is_short_term_debt(self) -> None:
+        rows = normalise(_debt_facts({"CommercialPaper": 12}))
+        self.assertEqual(_debt_value(rows, "shortTermDebt"), 12)
+        self.assertIsNone(_debt_value(rows, "longTermDebt"))
+
+    def test_the_narrower_long_term_total_wins_over_the_lease_inclusive_tag(self) -> None:
+        rows = normalise(_debt_facts({"LongTermDebt": 100, "LongTermDebtAndCapitalLeaseObligations": 180}))
+        self.assertEqual(_debt_value(rows, "longTermDebt"), 100)
+
+    def test_a_combined_debt_row_names_every_tag_that_was_used(self) -> None:
+        rows = normalise(_debt_facts({"LongTermDebtNoncurrent": 80, "ShortTermBorrowings": 5}))
+        tags = next(row["tag"] for row in rows if row["field"] == "longTermDebt")
+        self.assertEqual(tags, "LongTermDebtNoncurrent+ShortTermBorrowings")
+
     def test_a_missing_debt_tag_is_left_missing(self) -> None:
         facts = _debt_facts({"LongTermDebt": 40, "Assets": 100})
         rows = normalise(facts, _debt_maps())
@@ -303,12 +353,21 @@ def _debt_maps() -> dict:
     }
 
 
+def _usd(end: str, value: float, filed: str, form: str = "10-K") -> dict:
+    return {"end": end, "val": value, "filed": filed, "form": form}
+
+
 def _debt_facts(values: dict[str, float]) -> dict:
     units = {
         tag: {"units": {"USD": [{"end": "2024-12-31", "val": value, "filed": "2025-02-01", "form": "10-K"}]}}
         for tag, value in values.items()
     }
     return {"facts": {"us-gaap": units}}
+
+
+def _at(rows: list[dict], on: str, end: str) -> float | None:
+    matched = [row["value"] for row in as_of(rows, on) if row["field"] == "longTermDebt" and row["end"] == end]
+    return matched[0] if matched else None
 
 
 def _debt_value(rows: list[dict], field: str) -> float | None:

@@ -6,6 +6,7 @@ import { RequireAuth } from "./components/RequireAuth";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { MethodologyPage } from "./pages/MethodologyPage";
 import { RoadmapPage } from "./pages/RoadmapPage";
+import { ScreenPage } from "./pages/ScreenPage";
 import { SystemPage } from "./pages/SystemPage";
 
 const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ export function App() {
                 <Route index element={<RoadmapPage />} />
                 <Route path="system" element={<SystemPage />} />
                 <Route path="methodology" element={<MethodologyPage />} />
+                <Route path="screen" element={<ScreenPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

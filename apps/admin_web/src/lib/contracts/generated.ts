@@ -138,7 +138,7 @@ export const jobs = {
       "scheduleName": "",
       "cron": "",
       "timeZone": "",
-      "killSwitch": "",
+      "killSwitch": "IngestEnabled",
       "manualRun": true,
       "keyRun": false
     },
@@ -147,7 +147,7 @@ export const jobs = {
       "scheduleName": "",
       "cron": "",
       "timeZone": "",
-      "killSwitch": "",
+      "killSwitch": "IngestEnabled",
       "manualRun": true,
       "keyRun": false
     },
@@ -156,7 +156,7 @@ export const jobs = {
       "scheduleName": "",
       "cron": "",
       "timeZone": "",
-      "killSwitch": "",
+      "killSwitch": "IngestEnabled",
       "manualRun": true,
       "keyRun": false
     },
@@ -245,7 +245,7 @@ export const jobs = {
 } as const;
 
 export const methodology = {
-  "version": 3,
+  "version": 5,
   "universe": {
     "status": "provisional",
     "confirmed": [
@@ -461,6 +461,24 @@ export const methodology = {
       }
     ],
     "shortlistSize": 60,
+    "citation": null
+  },
+  "fundamentals": {
+    "status": "provisional",
+    "unreportedDebt": "zero",
+    "citation": null
+  },
+  "backtest": {
+    "status": "provisional",
+    "firstScreenMonth": "2017-02",
+    "portfolioSize": 20,
+    "weighting": "equal",
+    "maxNamesPerSector": 5,
+    "tradeDelaySessions": 1,
+    "costBpsPerSide": 10,
+    "dividendWithholdingRate": 0.3,
+    "benchmark": "SPY",
+    "cashProxy": "BIL",
     "citation": null
   }
 } as const;
@@ -932,31 +950,33 @@ export const roadmap = {
       "title": "Screen and backtest",
       "plan": "docs/plans/06-screen-and-backtest.md",
       "zone": "yellow",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M05"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/31"
+      ],
       "steps": [
         {
           "id": "M06-T01",
           "title": "Screen",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T02",
           "title": "Monthly statistics table",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T03",
           "title": "Backtest engine",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T04",
           "title": "Metrics",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T05",
@@ -966,7 +986,7 @@ export const roadmap = {
         {
           "id": "M06-T06",
           "title": "API and dashboard",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },

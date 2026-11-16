@@ -47,7 +47,7 @@ def build(
     for field in maps.get("stocks") or {}:
         body[field] = fundamentals_pit.latest_stock(visible, field)
         body[f"{field}_avg"] = fundamentals_pit.average_stock(visible, field)
-    _zero_missing_debt(body, visible)
+    _apply_debt_policy(body, visible)
     body["closes"] = _closes(adjusted_bars, on, sessions)
     body["marketCap"] = _product(raw_close, shares_outstanding)
     body["enterpriseValue"] = _enterprise_value(body)
@@ -78,13 +78,6 @@ def _statement_ends(rows: list[dict[str, Any]]) -> list[str]:
     return sorted(ends)
 
 
-def _has_field(rows: list[dict[str, Any]], field: str, end: str | None = None) -> bool:
-    return any(
-        row.get("field") == field and row.get("kind") == "stock" and (end is None or row.get("end") == end)
-        for row in rows
-    )
-
-
 def _prior_statement(ends: list[str], latest: str) -> str | None:
     latest_day = date.fromisoformat(latest)
     target = latest_day - timedelta(days=365)
@@ -94,25 +87,41 @@ def _prior_statement(ends: list[str], latest: str) -> str | None:
     return min(earlier, key=lambda end: abs((date.fromisoformat(end) - target).days))
 
 
-def _zero_missing_debt(body: dict[str, Any], rows: list[dict[str, Any]]) -> None:
-    """An unreported debt tag is zero once a balance sheet for that period exists.
+def _debt_on(rows: list[dict[str, Any]], field: str, end: str) -> float | None:
+    found = [row for row in rows if row.get("field") == field and row.get("kind") == "stock" and row.get("end") == end]
+    if not found:
+        return None
+    return float(max(found, key=lambda row: str(row.get("filed")))["value"])
 
-    A tag that was reported on an older statement is left as reported.
-    The average uses zero for a prior statement that omits the tag.
+
+def _apply_debt_policy(body: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+    """Follow the register when a debt tag is missing.
+
+    ``unreportedDebt: zero`` means a balance sheet that never reports the
+    tag, or drops it after an older statement, has zero of that debt.
+    The average uses the same rule on the prior statement.
     """
+    import methodology
+
+    if methodology.unreported_debt() != "zero":
+        return
     ends = _statement_ends(rows)
     if not ends:
         return
     latest = ends[-1]
     prior = _prior_statement(ends, latest)
     for field in _DEBT_FIELDS:
-        if body.get(field) is None and not _has_field(rows, field):
+        filed_ends = [str(row.get("end")) for row in rows if row.get("field") == field and row.get("kind") == "stock"]
+        newest = max(filed_ends) if filed_ends else None
+        if newest is None or newest < latest:
             body[field] = 0
-        if body.get(f"{field}_avg") is not None or prior is None or body.get(field) is None:
+        on_latest = _debt_on(rows, field, latest)
+        if on_latest is not None:
+            body[field] = on_latest
+        if prior is None or body.get(field) is None:
             continue
-        if _has_field(rows, field, prior):
-            continue
-        body[f"{field}_avg"] = (float(body[field]) + 0) / 2
+        on_prior = _debt_on(rows, field, prior)
+        body[f"{field}_avg"] = (float(body[field]) + float(0 if on_prior is None else on_prior)) / 2
 
 
 def _closes(

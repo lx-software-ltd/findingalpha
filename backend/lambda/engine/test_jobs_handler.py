@@ -53,6 +53,64 @@ class JobsHandlerTest(unittest.TestCase):
         self.assertEqual(saved[-1]["status"], "partial")
         self.assertEqual(saved[-1]["errorMessage"], "1 of 4, continues on the next tick")
 
+    def test_a_monthly_failure_does_not_fail_the_weekly_refresh(self) -> None:
+        with (
+            patch("ingest_jobs.weekly_refresh", return_value={"ok": True, "status": "done"}),
+            patch("monthly_stats.append_latest", side_effect=RuntimeError("slow")),
+        ):
+            result = jobs_handler._weekly({}, None, None)
+        self.assertEqual(result["status"], "done")
+        self.assertEqual(result["monthly"]["status"], "failed")
+
+    def test_monthly_stats_wait_when_the_weekly_job_is_almost_out_of_time(self) -> None:
+        class Clock:
+            def get_remaining_time_in_millis(self) -> int:
+                return 1000
+
+        with patch("ingest_jobs.weekly_refresh", return_value={"ok": True, "status": "done"}):
+            result = jobs_handler._weekly({}, None, Clock())
+        self.assertEqual(result["status"], "done")
+        self.assertEqual(result["monthly"]["status"], "deferred")
+
+    def test_monthly_stats_run_while_adjusted_prices_are_still_refreshing(self) -> None:
+        with (
+            patch(
+                "ingest_jobs.weekly_refresh",
+                return_value={"ok": True, "status": "running", "build": {"status": "done"}},
+            ),
+            patch("monthly_stats.append_latest", return_value={"ok": True, "status": "done"}) as append,
+        ):
+            result = jobs_handler._weekly({}, None, None)
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(result["monthly"]["status"], "done")
+        append.assert_called_once()
+
+    def test_monthly_stats_wait_until_the_universe_build_finishes(self) -> None:
+        with (
+            patch(
+                "ingest_jobs.weekly_refresh",
+                return_value={"ok": True, "status": "running", "build": {"status": "running"}},
+            ),
+            patch("monthly_stats.append_latest", side_effect=AssertionError("too early")) as append,
+        ):
+            result = jobs_handler._weekly({}, None, None)
+        self.assertEqual(result["status"], "running")
+        self.assertNotIn("monthly", result)
+        append.assert_not_called()
+
+    def test_monthly_stats_run_again_when_the_adjusted_refresh_finishes(self) -> None:
+        with (
+            patch("ingest_jobs.resume_adjusted", return_value={"ok": True, "status": "done"}),
+            patch("monthly_stats.append_latest", return_value={"ok": True, "status": "done"}),
+        ):
+            result = jobs_handler._adjusted({}, None, None)
+        self.assertEqual(result["monthly"]["status"], "done")
+
+    def test_the_screen_jobs_follow_the_ingest_switch(self) -> None:
+        for name in ("screen", "backfill_monthly_stats", "backtest"):
+            self.assertEqual(jobs_handler.switch_for(name), "ingestEnabled")
+            self.assertIsNotNone(jobs_handler.handler_for(name))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -35,6 +35,23 @@ def _row(field: str, end: str, value: float, filed: str, *, tag: str, start: str
     }
 
 
+class CoverAsOfTest(unittest.TestCase):
+    def test_the_latest_cover_already_public_is_kept(self) -> None:
+        payload = {
+            "attempts": {
+                "old": {"filed": "2017-03-01", "end": "2017-02-28", "value": 10},
+                "new": {"filed": "2018-03-01", "end": "2018-02-28", "value": 40},
+                "blank": {"filed": "2017-01-01", "end": "2016-12-31"},
+            }
+        }
+        early = share_count.cover_as_of(payload, date(2017, 6, 1))
+        later = share_count.cover_as_of(payload, date(2018, 6, 1))
+        assert early is not None and later is not None
+        self.assertEqual(early["value"], 10)
+        self.assertEqual(later["value"], 40)
+        self.assertIsNone(share_count.cover_as_of({"attempts": {"old": {"end": "2017-02-28", "value": 10}}}, ON))
+
+
 class SplitFactorTest(unittest.TestCase):
     def test_splits_inside_the_window_multiply_and_the_edges_do_not(self) -> None:
         splits = [

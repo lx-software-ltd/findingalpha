@@ -221,6 +221,36 @@ class IngestJobsTest(unittest.TestCase):
         self.assertEqual(seen["symbols"], ["EXMPL"])
         self.assertEqual(seen["ciks"], ["0000000001"])
 
+    def test_adjusted_prices_add_a_name_that_was_liquid_and_still_has_a_cik(self) -> None:
+        from unittest.mock import patch
+
+        seen: dict[str, object] = {}
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
+
+        def adjusted(symbols: list[str], _start: str, _end: date, _context: object) -> dict[str, str]:
+            seen["symbols"] = symbols
+            return {"status": "done"}
+
+        tickers = {**TICKERS, "SMALL": {"cik": "0000000002", "name": "Small Co"}}
+        with patch("monthly_stats._covered_symbols", return_value=({"SMALL", "GONE"}, False)):
+            result = ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=tickers,
+                build=build,
+                adjusted=adjusted,
+                coverage=lambda *_args: None,
+                note_build=lambda *_args: None,
+            )
+        self.assertEqual(seen["symbols"], ["EXMPL", "SMALL"])
+        self.assertEqual(result["adjustedScope"], 2)
+        self.assertFalse(result["monthlyStatsMissing"])
+
     def test_a_stopped_coverage_report_leaves_the_adjusted_refresh(self) -> None:
         from unittest.mock import patch
 

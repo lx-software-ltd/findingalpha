@@ -421,31 +421,33 @@
       "title": "Screen and backtest",
       "plan": "docs/plans/06-screen-and-backtest.md",
       "zone": "yellow",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M05"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/31"
+      ],
       "steps": [
         {
           "id": "M06-T01",
           "title": "Screen",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T02",
           "title": "Monthly statistics table",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T03",
           "title": "Backtest engine",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T04",
           "title": "Metrics",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M06-T05",
@@ -455,7 +457,7 @@
         {
           "id": "M06-T06",
           "title": "API and dashboard",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },

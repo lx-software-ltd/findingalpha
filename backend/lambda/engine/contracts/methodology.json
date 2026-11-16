@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 5,
   "universe": {
     "status": "provisional",
     "confirmed": ["excludeSicRanges", "minFundamentalsYears"],
@@ -172,6 +172,24 @@
       { "id": "debtCeiling", "field": "netDebtToEbitda", "op": "<=", "value": 4, "passWhenNetCash": true }
     ],
     "shortlistSize": 60,
+    "citation": null
+  },
+  "fundamentals": {
+    "status": "provisional",
+    "unreportedDebt": "zero",
+    "citation": null
+  },
+  "backtest": {
+    "status": "provisional",
+    "firstScreenMonth": "2017-02",
+    "portfolioSize": 20,
+    "weighting": "equal",
+    "maxNamesPerSector": 5,
+    "tradeDelaySessions": 1,
+    "costBpsPerSide": 10,
+    "dividendWithholdingRate": 0.30,
+    "benchmark": "SPY",
+    "cashProxy": "BIL",
     "citation": null
   }
 }

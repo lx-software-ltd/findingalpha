@@ -14,6 +14,9 @@ SWITCHES: dict[str, str] = {
     "weekly_refresh": "ingestEnabled",
     "backfill_prices": "ingestEnabled",
     "backfill_fundamentals": "ingestEnabled",
+    "screen": "ingestEnabled",
+    "backfill_monthly_stats": "ingestEnabled",
+    "backtest": "ingestEnabled",
 }
 
 Handler = Callable[..., dict[str, Any]]
@@ -44,7 +47,36 @@ def _daily(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) ->
 
 
 def _weekly(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
-    return ingest_jobs.weekly_refresh(event, context)
+    result = ingest_jobs.weekly_refresh(event, context)
+    if result.get("status") == "done" or _build_finished(result):
+        result["monthly"] = _append_monthly(event, context)
+    return result
+
+
+def _build_finished(result: dict[str, Any]) -> bool:
+    """The universe build finished, even when adjusted prices are still running."""
+    build = result.get("build")
+    return isinstance(build, dict) and build.get("status") == "done"
+
+
+def _append_monthly(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Rewrite the open month without failing the weekly refresh that already finished.
+
+    A short remainder is left for the next weekly run. An error is recorded
+    on the result and does not change the weekly status.
+    """
+    remaining = 10**9
+    if context is not None and hasattr(context, "get_remaining_time_in_millis"):
+        remaining = int(context.get_remaining_time_in_millis())
+    if remaining < 120_000:
+        return {"ok": False, "status": "deferred"}
+    try:
+        import monthly_stats
+
+        return monthly_stats.append_latest(event, context)
+    except Exception as exc:
+        _log_event("error", tag="monthly_stats", error=type(exc).__name__)
+        return {"ok": False, "status": "failed"}
 
 
 def _prices(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
@@ -68,7 +100,28 @@ def _universe_build(event: dict[str, Any], _run: job_runs.JobRun, context: Any =
 
 
 def _adjusted(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
-    return ingest_jobs.resume_adjusted(event, context)
+    result = ingest_jobs.resume_adjusted(event, context)
+    if result.get("status") == "done":
+        result["monthly"] = _append_monthly(event, context)
+    return result
+
+
+def _screen(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    import screen
+
+    return screen.run(event, context)
+
+
+def _monthly(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    import monthly_stats
+
+    return monthly_stats.run(event, context)
+
+
+def _backtest(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    import backtest
+
+    return backtest.run(event, context)
 
 
 JOBS = {
@@ -81,6 +134,9 @@ JOBS = {
     ingest_jobs.UNIVERSE_REFRESH_JOB: _universe_refresh,
     ingest_jobs.UNIVERSE_BUILD_JOB: _universe_build,
     ingest_jobs.ADJUSTED_JOB: _adjusted,
+    "screen": _screen,
+    "backfill_monthly_stats": _monthly,
+    "backtest": _backtest,
 }
 
 

@@ -33,14 +33,43 @@ each debt stock minus the average cash.
 Debt tags are combined per balance-sheet date. `LongTermDebt` already
 includes `LongTermDebtCurrent`, and `DebtCurrent` already includes the
 current portion and short-term borrowings, so those are not added
-again. When a balance sheet is present and a debt tag was never filed,
-that component is zero. A prior statement that omits the tag counts as
-zero in the average. Coverage still counts only a tag that was filed.
+again. When only the two totals are filed, the smaller one is treated
+as part of the larger one. That keeps the current portion from being
+counted twice, and it misses borrowings that sit in `DebtCurrent` and
+were never inside `LongTermDebt`. Adding both totals would make the
+opposite mistake. A later filing that repeats an old column does not
+hide the original filing date. The stored tag lists every tag used in
+the combination.
+
+Notes payable, convertible notes, other long-term debt, commercial
+paper, and the lease-inclusive long-term total are read only when the
+narrower tag for that role is absent. They are alternatives, not extra
+dollars on top of a total. The lease-inclusive total includes leases.
+
+The register says `unreportedDebt` is `zero`. A balance sheet that
+never reports a debt tag, or that drops the tag after an older
+statement, counts as zero of that debt. Coverage still counts only a
+tag that was filed.
 
 Closes follow the market session calendar. A session with no print
 keeps the previous close, so a missing day does not move the 21, 200,
-or 252 session windows. A company with no sector is standardised
-against the whole universe.
+or 252 session windows. The screen keeps those closes and one earlier
+close, not the whole price history. A company with no SIC is excluded.
+A company whose SIC has no sector mapping is standardised with the
+other unmapped names.
+
+Market cap uses the share count that was public on the date, then
+applies splits after that count. A filing that arrives later does not
+change the earlier month. When the company-facts count is missing, a
+cached cover page is used if it was filed on or before that date.
+
+Adjusted prices include every name that passed the price and
+dollar-volume floors in any month since February 2017 and still has a
+CIK. A delisted name with no current CIK is absent. A reused ticker
+with no universe row is left out. A weekly refresh with no monthly
+stats prices only today's members and says so. A name never stored in
+a universe file uses today's CIK and the SIC cached from SEC
+submissions.
 
 ## Reported, and left out of the composite
 

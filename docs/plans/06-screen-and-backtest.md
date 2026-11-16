@@ -1,6 +1,6 @@
 # Plan: M06 screen and backtest
 
-**Status**: Draft
+**Status**: In progress. The screen, the monthly table, the backtest, the metrics, and the page are in. The three live runs and the memo wait until the price history is current and the fundamentals files exist. No result has been invented.
 **Zone**: yellow. Red parts: the `backtest` section of the register, new
 routes in CDK.
 
@@ -135,14 +135,18 @@ refresh appends the latest month.
 
 ### M06-T03 Backtest engine
 
-`backtest.py` runs in three phases. Phases A and B are chunked jobs.
-Phase C fits in one invocation.
+`backtest.py` runs as one chunked job: split years, then one factor
+part, then one month of holdings, then compact marks, then the equity
+curve. An unfinished month, whose month end is not the last session of
+that month, is not a formation date. A holding period whose exit
+session is after the newest stored bar is left out.
 
-**Phase A, factor tables.** For each adjusted-price part (100
-symbols): for each symbol and each month end from `firstScreenMonth`,
-build the snapshot as of that month end and compute every factor,
-`marketCap`, and the count of years of fundamentals history. Write
-`backtests/<runId>/factors/part=<nnn>.jsonl.gz`.
+**Factor tables.** For each adjusted-price part (100 symbols): for each
+symbol and each completed month end from `firstScreenMonth`, build the
+snapshot as of that month end and compute every factor, `marketCap`,
+and the count of years of fundamentals history. The share count is the
+filing public that day. Write
+`backtests/<runId>/factors/month=<yyyy-mm>/part=<nnn>.jsonl.gz`.
 
 **Phase B, monthly portfolios.** For each month end `d`:
 
@@ -260,11 +264,20 @@ test line.
 
 ## Known biases to state in the memo
 
-- **Survivorship.** The asset list is today's list. Companies that
-  went bankrupt or were delisted before today are missing unless
-  M04-T01 showed that inactive symbols have bars. Missing losers make
-  the backtest look better than reality.
-- **Sector and SIC code are today's**, not historical.
+- **Survivorship.** Adjusted prices include every name that passed the
+  price and dollar-volume floors in any month since February 2017 and
+  still has a CIK in the current SEC map. Build the monthly stats
+  before refreshing adjusted prices, or the wider list is empty, only
+  today's members are fetched, and the weekly result says the monthly
+  table was missing. A delisted name with no current CIK has no
+  adjusted prices and cannot be ranked. Missing those losers makes the
+  backtest look better than reality. A name that was never in a stored
+  universe file uses today's CIK and the SIC cached from SEC
+  submissions. A missing SIC excludes it, as the live universe does. A
+  reused ticker with no universe row is left out. The backtest reads
+  the ticker map saved at the start of the run.
+- **Sector and SIC code are the latest stored codes**, not the codes
+  at the time.
 - **Shares outstanding** come from filings and can lag buybacks and
   issues by a quarter.
 - **Trading at the close with a fixed cost** ignores market impact.
@@ -273,6 +286,13 @@ test line.
   price series over each holding period.
 - **Ten years is one market regime and a bit.** Most of it was a bull
   market led by large technology companies.
+- **Two debt totals.** When a filing has only `LongTermDebt` and
+  `DebtCurrent`, total debt is the larger figure. Borrowings that were
+  never inside `LongTermDebt` are missed. Adding both totals would
+  count the current portion twice.
+- **Fallback debt tags** (notes, convertibles, other long-term debt,
+  commercial paper, and the lease-inclusive total) apply only when the
+  narrower tag is missing, and they are not added together.
 
 ## Done when
 
