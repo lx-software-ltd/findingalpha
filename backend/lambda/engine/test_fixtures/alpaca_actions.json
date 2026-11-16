@@ -1,0 +1,39 @@
+{
+  "corporate_actions": {
+    "cash_dividends": [
+      {
+        "id": "div-1",
+        "symbol": "EXMPL",
+        "cusip": "000000000",
+        "rate": 0.25,
+        "ex_date": "2024-05-10",
+        "payable_date": "2024-05-16",
+        "process_date": "2024-05-10",
+        "special": false,
+        "foreign": false
+      },
+      {
+        "symbol": "",
+        "rate": 1,
+        "ex_date": "2024-05-01"
+      }
+    ],
+    "forward_splits": [
+      {
+        "id": "spl-1",
+        "symbol": "EXMPL",
+        "old_rate": 1,
+        "new_rate": 4,
+        "ex_date": "2024-06-10",
+        "payable_date": "2024-06-10"
+      }
+    ],
+    "cash_mergers": [
+      {
+        "acquiree_symbol": "EXMPL",
+        "rate": 10
+      }
+    ]
+  },
+  "next_page_token": "actions-2"
+}

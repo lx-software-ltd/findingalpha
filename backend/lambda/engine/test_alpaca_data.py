@@ -1,0 +1,331 @@
+"""Alpaca client against invented fixtures. No network."""
+
+from __future__ import annotations
+
+import io
+import json
+import logging
+import os
+import unittest
+import urllib.error
+import urllib.parse
+import urllib.request
+from email.message import Message
+from pathlib import Path
+
+import alpaca_data
+import secrets_read
+
+_FIXTURES = Path(__file__).resolve().parent / "test_fixtures"
+_KEY = "kid"
+_SECRET = "sek"
+
+
+class _Response:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def read(self) -> bytes:
+        return self._body
+
+    def __enter__(self) -> _Response:
+        return self
+
+    def __exit__(self, *_exc: object) -> bool:
+        return False
+
+
+class _Limiter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def wait(self) -> None:
+        self.calls += 1
+
+
+class _Script:
+    def __init__(self, bodies: list[bytes]) -> None:
+        self._bodies = list(bodies)
+        self.urls: list[str] = []
+        self.headers: list[tuple[str | None, str | None]] = []
+
+    def __call__(self, request: urllib.request.Request, timeout: float) -> _Response:
+        del timeout
+        self.urls.append(request.full_url)
+        self.headers.append((request.get_header("Apca-api-key-id"), request.get_header("Apca-api-secret-key")))
+        if not self._bodies:
+            raise AssertionError(request.full_url)
+        return _Response(self._bodies.pop(0))
+
+
+def _load(name: str) -> bytes:
+    return (_FIXTURES / name).read_bytes()
+
+
+def _query(url: str) -> dict[str, list[str]]:
+    return urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+
+
+def _client(*bodies: bytes) -> tuple[alpaca_data.AlpacaData, _Script, _Limiter]:
+    script = _Script(list(bodies))
+    limiter = _Limiter()
+    client = alpaca_data.AlpacaData(key_id=_KEY, secret_key=_SECRET, opener=script, limiter=limiter)
+    return client, script, limiter
+
+
+class _SecretClient:
+    def __init__(self, payload: str) -> None:
+        self.payload = payload
+        self.ids: list[str] = []
+
+    def get_secret_value(self, SecretId: str) -> dict[str, str]:
+        self.ids.append(SecretId)
+        return {"SecretString": self.payload}
+
+
+class AlpacaDataTest(unittest.TestCase):
+    def setUp(self) -> None:
+        alpaca_data._CLIENT = None
+        secrets_read.clear_cache()
+        self._secret_env = os.environ.pop("ALPACA_SECRET_ID", None)
+
+    def tearDown(self) -> None:
+        alpaca_data._CLIENT = None
+        secrets_read.clear_cache()
+        if self._secret_env is None:
+            os.environ.pop("ALPACA_SECRET_ID", None)
+        else:
+            os.environ["ALPACA_SECRET_ID"] = self._secret_env
+
+    def test_list_assets_maps_our_fields(self) -> None:
+        client, script, limiter = _client(_load("alpaca_assets.json"))
+        assets = client.list_assets()
+        self.assertEqual([row["symbol"] for row in assets], ["EXMPL", "SECND"])
+        self.assertEqual(assets[0]["name"], "EXAMPLE INDUSTRIES INC")
+        self.assertEqual(assets[0]["exchange"], "NASDAQ")
+        self.assertTrue(assets[0]["tradable"])
+        self.assertTrue(assets[0]["marginable"])
+        self.assertFalse(assets[0]["fractionable"])
+        self.assertEqual(assets[0]["assetClass"], "us_equity")
+        self.assertFalse(assets[1]["marginable"])
+        self.assertFalse(assets[1]["tradable"])
+        query = _query(script.urls[0])
+        self.assertTrue(script.urls[0].startswith(f"{alpaca_data._PAPER}/v2/assets?"))
+        self.assertEqual(query["status"], ["active"])
+        self.assertEqual(query["asset_class"], ["us_equity"])
+        self.assertEqual(script.headers[0], (_KEY, _SECRET))
+        self.assertEqual(limiter.calls, 1)
+        self.assertNotIn("11111111-1111-1111-1111-111111111111", json.dumps(assets))
+
+    def test_inactive_assets_and_a_bad_status(self) -> None:
+        client, script, limiter = _client(_load("alpaca_assets.json"))
+        self.assertEqual(client.list_assets("inactive")[0]["symbol"], "EXMPL")
+        self.assertEqual(_query(script.urls[0])["status"], ["inactive"])
+        with self.assertRaises(ValueError):
+            client.list_assets("all")
+        self.assertEqual(limiter.calls, 1)
+        broken, _broken_script, _broken_limiter = _client(b'{"bars":{}}')
+        with self.assertRaises(ValueError):
+            broken.list_assets()
+
+    def test_daily_bars_use_the_new_york_date_and_the_next_page(self) -> None:
+        client, script, limiter = _client(_load("alpaca_bars_page1.json"), _load("alpaca_bars_page2.json"))
+        bars = list(client.daily_bars(["aapl", "AAPL", " "], "2016-01-04", "2024-06-03", "raw"))
+        self.assertEqual(
+            bars,
+            [
+                {
+                    "symbol": "EXMPL",
+                    "date": "2024-06-03",
+                    "open": 10.5,
+                    "high": 11,
+                    "low": 10,
+                    "close": 10.25,
+                    "volume": 1000,
+                    "vwap": 10.4,
+                },
+                {
+                    "symbol": "EXMPL",
+                    "date": "2016-01-04",
+                    "open": 9,
+                    "high": 9.5,
+                    "low": 8.5,
+                    "close": 9.25,
+                    "volume": 900,
+                    "vwap": 9.1,
+                },
+            ],
+        )
+        self.assertEqual(len(script.urls), 2)
+        first = _query(script.urls[0])
+        second = _query(script.urls[1])
+        self.assertEqual(first["symbols"], ["AAPL"])
+        self.assertEqual(first["feed"], ["sip"])
+        self.assertEqual(first["adjustment"], ["raw"])
+        self.assertEqual(first["timeframe"], ["1Day"])
+        self.assertEqual(first["limit"], ["10000"])
+        self.assertEqual(first["start"], ["2016-01-04"])
+        self.assertEqual(first["end"], ["2024-06-03"])
+        self.assertNotIn("page_token", first)
+        self.assertEqual(second["page_token"], ["page-2"])
+        self.assertEqual(second["symbols"], ["AAPL"])
+        self.assertEqual(limiter.calls, 2)
+        self.assertNotIn("n", bars[0])
+
+    def test_daily_bars_batch_two_hundred_symbols(self) -> None:
+        empty = b'{"bars":{},"next_page_token":null}'
+        client, script, limiter = _client(empty, empty)
+        symbols = [f"S{index:03d}" for index in range(alpaca_data._BATCH + 1)]
+        self.assertEqual(list(client.daily_bars(symbols, "2024-06-03", "2024-06-03", "all")), [])
+        self.assertEqual(len(script.urls), 2)
+        self.assertEqual(len(_query(script.urls[0])["symbols"][0].split(",")), alpaca_data._BATCH)
+        self.assertEqual(_query(script.urls[1])["symbols"], ["S200"])
+        self.assertEqual(_query(script.urls[1])["adjustment"], ["all"])
+        self.assertNotIn("page_token", _query(script.urls[0]))
+        self.assertEqual(limiter.calls, 2)
+        quiet, quiet_script, _quiet_limiter = _client()
+        self.assertEqual(list(quiet.daily_bars([], "2024-06-03", "2024-06-03", "raw")), [])
+        self.assertEqual(list(quiet.daily_bars([" ", ""], "2024-06-03", "2024-06-03", "split")), [])
+        self.assertEqual(quiet_script.urls, [])
+        with self.assertRaises(ValueError):
+            list(quiet.daily_bars("AAPL", "2024-06-03", "2024-06-03", "raw"))
+        with self.assertRaises(ValueError):
+            list(quiet.daily_bars(["AAPL"], "2024-06-03", "2024-06-03", "adjusted"))
+
+    def test_a_bad_bars_shape_and_a_repeated_token_stop(self) -> None:
+        client, script, _limiter = _client(b'{"bars":[],"next_page_token":null}')
+        with self.assertRaises(ValueError):
+            list(client.daily_bars(["EXMPL"], "2024-06-03", "2024-06-03", "raw"))
+        repeated = b'{"bars":{},"next_page_token":"same"}'
+        again, again_script, _again_limiter = _client(repeated, repeated, repeated)
+        self.assertEqual(list(again.daily_bars(["EXMPL"], "2024-06-03", "2024-06-03", "raw")), [])
+        self.assertEqual(len(again_script.urls), 2)
+        self.assertEqual(len(script.urls), 1)
+
+    def test_corporate_actions_map_cash_and_splits(self) -> None:
+        client, script, limiter = _client(_load("alpaca_actions.json"), _load("alpaca_actions_next.json"))
+        actions = client.corporate_actions("2023-01-01", "2024-06-30")
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "symbol": "EXMPL",
+                    "type": "cash_dividend",
+                    "exDate": "2024-05-10",
+                    "payDate": "2024-05-16",
+                    "cashPerShare": 0.25,
+                    "splitFrom": None,
+                    "splitTo": None,
+                },
+                {
+                    "symbol": "EXMPL",
+                    "type": "forward_split",
+                    "exDate": "2024-06-10",
+                    "payDate": "2024-06-10",
+                    "cashPerShare": None,
+                    "splitFrom": 1,
+                    "splitTo": 4,
+                },
+                {
+                    "symbol": "EXMPL",
+                    "type": "reverse_split",
+                    "exDate": "2023-03-01",
+                    "payDate": "2023-03-01",
+                    "cashPerShare": None,
+                    "splitFrom": 10,
+                    "splitTo": 1,
+                },
+            ],
+        )
+        first = _query(script.urls[0])
+        self.assertEqual(first["types"], ["cash_dividend,forward_split,reverse_split"])
+        self.assertEqual(first["limit"], ["100"])
+        self.assertEqual(_query(script.urls[1])["page_token"], ["actions-2"])
+        self.assertEqual(limiter.calls, 2)
+        self.assertNotIn("cusip", json.dumps(actions))
+
+    def test_news_drops_the_body(self) -> None:
+        client, script, limiter = _client(_load("alpaca_news.json"), _load("alpaca_news_next.json"))
+        rows = client.news(["EXMPL"], "2024-06-03T00:00:00Z", "2024-06-04T00:00:00Z")
+        self.assertEqual(rows[0]["id"], 42)
+        self.assertEqual(rows[0]["symbols"], ["EXMPL", "SECND"])
+        self.assertEqual(rows[0]["headline"], "Example rises")
+        self.assertEqual(rows[0]["summary"], "Short summary")
+        self.assertEqual(rows[0]["source"], "Example Wire")
+        self.assertEqual(rows[0]["url"], "https://example.com/story")
+        self.assertEqual(rows[0]["createdAt"], "2024-06-03T14:00:00Z")
+        self.assertEqual(rows[1]["id"], 43)
+        self.assertEqual(set(rows[0]), {"id", "symbols", "headline", "summary", "source", "url", "createdAt"})
+        blob = json.dumps(rows)
+        self.assertNotIn("FULL BODY", blob)
+        self.assertNotIn("ALSO DROPPED", blob)
+        self.assertNotIn("A Writer", blob)
+        query = _query(script.urls[0])
+        self.assertEqual(query["symbols"], ["EXMPL"])
+        self.assertEqual(query["limit"], ["50"])
+        self.assertEqual(query["start"], ["2024-06-03T00:00:00Z"])
+        self.assertEqual(_query(script.urls[1])["page_token"], ["news-2"])
+        self.assertEqual(limiter.calls, 2)
+        quiet, quiet_script, _quiet_limiter = _client()
+        self.assertEqual(quiet.news([], "2024-06-03", "2024-06-04"), [])
+        self.assertEqual(quiet_script.urls, [])
+
+    def test_secret_headers_stay_out_of_the_log(self) -> None:
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        logger = logging.getLogger("http_client")
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        calls = {"n": 0}
+
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            calls["n"] += 1
+            if calls["n"] == 1:
+                headers = Message()
+                headers["Retry-After"] = "0"
+                raise urllib.error.HTTPError(request.full_url, 429, "slow", headers, io.BytesIO(b"slow"))
+            self.assertEqual(request.get_header("Apca-api-key-id"), "kid")
+            self.assertEqual(request.get_header("Apca-api-secret-key"), "sek")
+            return _Response(_load("alpaca_assets.json"))
+
+        try:
+            secret = _SecretClient('{"key_id":"kid","secret_key":"sek"}')
+            client = alpaca_data.client_from_secret(secret_client=secret, opener=opener, limiter=_Limiter())
+            self.assertEqual(secret.ids, ["findingalpha/alpaca-paper"])
+            self.assertEqual(client.list_assets()[0]["symbol"], "EXMPL")
+            self.assertEqual(repr(client), "AlpacaData()")
+            self.assertNotIn("sek", repr(client))
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(logging.NOTSET)
+        text = stream.getvalue()
+        self.assertIn("http retry", text)
+        self.assertNotIn("sek", text)
+        self.assertNotIn("kid", text)
+
+        def refuse(_request: object, timeout: float) -> _Response:
+            del timeout
+            raise AssertionError("requested")
+
+        with self.assertRaises(secrets_read.NotConfigured):
+            alpaca_data.AlpacaData(key_id="", secret_key="sek", opener=refuse)
+        with self.assertRaises(secrets_read.NotConfigured):
+            alpaca_data.AlpacaData(key_id="kid", secret_key="se\nk", opener=refuse)
+        secrets_read.clear_cache()
+        with self.assertRaises(secrets_read.NotConfigured):
+            alpaca_data.client_from_secret(secret_client=_SecretClient('{"key_id":"kid"}'), opener=refuse)
+        os.environ["ALPACA_SECRET_ID"] = "findingalpha/other"
+        secrets_read.clear_cache()
+        other = _SecretClient('{"key_id":"kid","secret_key":"sek"}')
+        alpaca_data.client_from_secret(secret_client=other, opener=opener, limiter=_Limiter())
+        self.assertEqual(other.ids, ["findingalpha/other"])
+
+    def test_module_functions_use_the_shared_client(self) -> None:
+        client, _script, _limiter = _client(_load("alpaca_assets.json"))
+        alpaca_data._CLIENT = client
+        self.assertEqual(alpaca_data.list_assets()[0]["symbol"], "EXMPL")
+
+
+if __name__ == "__main__":
+    unittest.main()

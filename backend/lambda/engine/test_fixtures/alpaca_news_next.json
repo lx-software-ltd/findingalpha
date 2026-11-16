@@ -1,0 +1,15 @@
+{
+  "news": [
+    {
+      "id": 43,
+      "headline": "Second",
+      "summary": "",
+      "content": "ALSO DROPPED",
+      "created_at": "2024-06-03T15:00:00Z",
+      "url": "https://example.com/second",
+      "symbols": ["EXMPL"],
+      "source": "Example Wire"
+    }
+  ],
+  "next_page_token": null
+}

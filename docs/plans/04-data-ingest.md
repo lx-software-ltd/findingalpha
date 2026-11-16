@@ -1,6 +1,6 @@
 # Plan: M04 data ingest
 
-**Status**: T02, T04, and T05 are on main. T01's memo is `docs/research/data-sources.md` (all four answers are yes, so bars use `feed=sip`). T03 is next. The live coverage report stays in T07.
+**Status**: T01 through T05 are done. The spike memo is `docs/research/data-sources.md` (all four answers are yes, so bars use `feed=sip`). The live coverage report stays in T07.
 **Zone**: yellow. Red parts: new schedules and routes in CDK, and the
 first version of `contracts/methodology.json` (universe section).
 
@@ -149,6 +149,12 @@ field names:
   `splitFrom`, `splitTo`.
 - News: `id`, `symbols`, `headline`, `summary`, `source`, `url`,
   `createdAt`. Do not store article bodies.
+
+`feed` is `sip` (T01). Bars are 200 symbols at a time and follow
+`next_page_token`. Corporate actions and news follow it too. The
+session date is the America/New_York date of the bar timestamp.
+`list_assets()` defaults to active US equities and accepts
+`inactive`.
 
 Tests use trimmed recorded responses in `test_fixtures/`.
 

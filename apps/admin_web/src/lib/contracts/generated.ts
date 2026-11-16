@@ -591,7 +591,7 @@ export const roadmap = {
         {
           "id": "M04-T03",
           "title": "Alpaca data client",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T04",
