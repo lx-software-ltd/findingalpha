@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Copy contracts/*.json into the engine and the admin SPA.
 
-`roadmap.json` stays out of the Lambda. An output whose parent folder
+`roadmap.json` stays out of the Lambda. `fundamentals.json` stays out
+of the admin bundle. An output whose parent folder
 does not exist yet is skipped with a note, so this script runs before
 those folders are created.
 """
@@ -14,6 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_LAMBDA = {"roadmap.json"}
+# The engine reads this. The dashboard does not, so it stays out of the bundle.
+SKIP_WEB = {"fundamentals.json"}
 
 
 def _contracts(root: Path) -> list[Path]:
@@ -73,6 +76,8 @@ def sync(root: Path) -> list[str]:
     if ts_path.parent.exists():
         payloads = []
         for path in files:
+            if path.name in SKIP_WEB:
+                continue
             payloads.append((path.name, json.loads(path.read_text(encoding="utf-8"))))
         text = _typescript(payloads)
         aliases = []

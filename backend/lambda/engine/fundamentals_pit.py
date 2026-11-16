@@ -93,17 +93,24 @@ def normalise(company_facts: dict[str, Any], maps: TagMaps | None = None) -> lis
     """Turn a companyfacts payload into rows.
 
     USD only, except share counts. 10-K, 10-Q and their amendments only.
-    The first tag that yields a row wins; later tags for that field are ignored.
+    For each period, the first tag that has a value wins. A later tag
+    still fills periods the earlier tags do not cover.
     """
     chosen = maps if maps is not None else load_tag_maps()
     rows: list[dict[str, Any]] = []
     for kind, section in (("flow", "flows"), ("stock", "stocks")):
         for field, tags in chosen[section].items():
-            for tag in tags:
-                found = _fact_rows(company_facts, field, tag, kind)
-                if found:
-                    rows.extend(found)
-                    break
+            best: dict[tuple[str, str], tuple[int, list[dict[str, Any]]]] = {}
+            for rank, tag in enumerate(tags):
+                grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+                for row in _fact_rows(company_facts, field, tag, kind):
+                    grouped.setdefault((row["start"], row["end"]), []).append(row)
+                for key, group in grouped.items():
+                    current = best.get(key)
+                    if current is None or rank < current[0]:
+                        best[key] = (rank, group)
+            for _rank, group in best.values():
+                rows.extend(group)
     return rows
 
 
@@ -124,6 +131,14 @@ def _class_of(row: dict[str, Any]) -> str | None:
     return period_class(_as_date(row["start"]) or date.min, _as_date(row["end"]) or date.min)
 
 
+def _year_to_date(row: dict[str, Any], fy_end: date) -> bool:
+    """A year-to-date value starts when the new fiscal year starts, not mid-year."""
+    start = _as_date(row["start"])
+    if start is None or _class_of(row) == "year":
+        return False
+    return abs((start - (fy_end + timedelta(days=1))).days) <= 10
+
+
 def ttm(rows_as_of: list[dict[str, Any]], field: str) -> float | None:
     """Trailing twelve months: FY + YTD - YTD_prev, or FY when no later year-to-date exists."""
     flows = [row for row in rows_as_of if row["field"] == field and row["kind"] == "flow"]
@@ -131,7 +146,9 @@ def ttm(rows_as_of: list[dict[str, Any]], field: str) -> float | None:
     if not annual:
         return None
     fy = max(annual, key=lambda row: row["end"])
-    later = [row for row in flows if _class_of(row) != "year" and row["end"] > fy["end"]]
+    fy_end = _as_date(fy["end"])
+    assert fy_end is not None
+    later = [row for row in flows if row["end"] > fy["end"] and _year_to_date(row, fy_end)]
     if not later:
         return float(fy["value"])
     ytd = max(later, key=lambda row: row["end"])

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import unittest
+import urllib.error
 import urllib.request
 from datetime import date
+from email.message import Message
 from pathlib import Path
 
 import http_client
@@ -65,9 +68,10 @@ class SecEdgarTest(unittest.TestCase):
         payload = (_FIXTURES / "sec_tickers.json").read_bytes()
         client = self._client({sec_edgar._TICKERS: payload})
         found = client.ticker_map()
-        self.assertEqual(set(found), {"EXMPL", "SECND"})
+        self.assertEqual(set(found), {"EXMPL", "SECND", "BRK-B", "BRK.B"})
         self.assertEqual(found["EXMPL"]["cik"], "0000000007")
         self.assertEqual(found["SECND"]["exchange"], "NASDAQ")
+        self.assertEqual(found["BRK-B"]["cik"], found["BRK.B"]["cik"])
         self.assertEqual(self.seen[0][1], f"findingalpha {_CONTACT}")
         self.assertEqual(self.limiter.calls, 1)
 
@@ -102,16 +106,18 @@ class SecEdgarTest(unittest.TestCase):
 
     def test_a_server_error_is_not_an_empty_index(self) -> None:
         url = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR3/master.20240701.idx"
+        seen: list[str] = []
 
-        def opener(request: object, timeout: float) -> _Response:
-            del request, timeout
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            seen.append(request.full_url)
             raise http_client.HttpStatusError(503, "down")
 
         client = sec_edgar.SecEdgar(contact=_CONTACT, opener=opener, limiter=self.limiter)
         with self.assertRaises(http_client.HttpStatusError) as raised:
             client.daily_index("2024-07-01")
         self.assertEqual(raised.exception.status, 503)
-        self.assertEqual(url.rsplit("/", 1)[-1], "master.20240701.idx")
+        self.assertEqual(seen, [url])
 
     def test_a_missing_contact_makes_no_request(self) -> None:
         def opener(_request: object, timeout: float) -> _Response:
@@ -127,6 +133,26 @@ class SecEdgarTest(unittest.TestCase):
         payload = (_FIXTURES / "sec_tickers.json").read_bytes()
         sec_edgar._CLIENT = self._client({sec_edgar._TICKERS: payload})
         self.assertEqual(sec_edgar.ticker_map()["EXMPL"]["name"], "EXAMPLE INDUSTRIES INC")
+
+    def test_a_throttle_is_retried_and_a_stray_byte_is_kept(self) -> None:
+        calls = {"n": 0}
+        index = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR1/master.20240103.idx"
+        body = b"-" * 20 + b"\n7|CAF\xe9 INC|10-Q|2024-01-03|edgar/data/7/x.txt\n"
+
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            calls["n"] += 1
+            if calls["n"] == 1:
+                headers = Message()
+                headers["Retry-After"] = "0"
+                raise urllib.error.HTTPError(request.full_url, 403, "slow", headers, io.BytesIO(b"slow"))
+            self.assertEqual(request.full_url, index)
+            return _Response(body)
+
+        client = sec_edgar.SecEdgar(contact=_CONTACT, opener=opener, limiter=self.limiter)
+        rows = client.daily_index("2024-01-03")
+        self.assertEqual(calls["n"], 2)
+        self.assertEqual(rows[0]["company"], "CAF\u00e9 INC")
 
     def test_the_contact_is_not_logged(self) -> None:
         records: list[logging.LogRecord] = []

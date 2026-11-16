@@ -163,8 +163,9 @@ business day: return an empty list, do not fail.
 
 ### M04-T05 Point-in-time fundamentals
 
-`contracts/fundamentals.json` maps our field names to XBRL tags, first
-match wins:
+`contracts/fundamentals.json` maps our field names to XBRL tags. For
+each period, the first tag that has a value wins, and a later tag
+fills periods the earlier tags do not cover:
 
 ```json
 {
@@ -214,9 +215,11 @@ lists from that report.
    annual value `FY`. Take the latest year-to-date value `YTD` that
    ends after that fiscal year end, and the year-to-date value for the
    same period one year earlier, `YTD_prev`. Then
-   `TTM = FY + YTD - YTD_prev`. If there is no later year-to-date
-   value, `TTM = FY`. If a needed piece is missing, return `None`.
-   Never guess.
+   `TTM = FY + YTD - YTD_prev`. A year-to-date value starts when the
+   new fiscal year starts, so a quarter that starts mid-year is not
+   one, even when it ends on the same day as the longer row. If there
+   is no later year-to-date value, `TTM = FY`. If a needed piece is
+   missing, return `None`. Never guess.
 5. `latest_stock(rows_as_of, field)`: the stock row with the latest
    `end`.
 6. `average_stock(rows_as_of, field)`: mean of the latest value and

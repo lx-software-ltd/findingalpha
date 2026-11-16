@@ -16,6 +16,8 @@ _DATA = "https://data.sec.gov"
 _WWW = "https://www.sec.gov"
 _TICKERS = f"{_WWW}/files/company_tickers_exchange.json"
 _PER_SECOND = 5
+# The SEC answers 403 when a caller is over its rate, not 429.
+_RETRY = frozenset({403})
 _CLIENT: SecEdgar | None = None
 
 
@@ -86,13 +88,19 @@ class SecEdgar:
     def _headers(self) -> dict[str, str]:
         return {"User-Agent": f"findingalpha {self._contact}"}
 
-    def _text(self, url: str) -> str:
+    def _text(self, url: str, *, errors: str = "strict") -> str:
         self._limiter.wait()
-        return http_client.get_text(url, self._headers(), opener=self._opener)
+        return http_client.get_text(
+            url,
+            self._headers(),
+            opener=self._opener,
+            retry_on=_RETRY,
+            errors=errors,
+        )
 
     def _json(self, url: str) -> Any:
         self._limiter.wait()
-        return http_client.get_json(url, self._headers(), opener=self._opener)
+        return http_client.get_json(url, self._headers(), opener=self._opener, retry_on=_RETRY)
 
     def ticker_map(self) -> dict[str, dict[str, str]]:
         """Ticker to CIK, name and exchange. Blank tickers are skipped."""
@@ -110,11 +118,17 @@ class SecEdgar:
             cik = row[index["cik"]]
             if not str(cik).strip().isdigit():
                 continue
-            found[ticker.upper()] = {
+            entry = {
                 "cik": _pad_cik(cik),
                 "name": str(row[index["name"]] or ""),
                 "exchange": str(row[index["exchange"]] or ""),
             }
+            canonical = ticker.upper()
+            found[canonical] = entry
+            # Share classes are written with a dash here and sometimes with a dot elsewhere.
+            alternate = canonical.replace("-", ".") if "-" in canonical else canonical.replace(".", "-")
+            if alternate != canonical and alternate not in found:
+                found[alternate] = entry
         return found
 
     def submissions(self, cik: str | int) -> dict[str, Any]:
@@ -129,7 +143,7 @@ class SecEdgar:
         name = day.strftime("%Y%m%d")
         url = f"{_WWW}/Archives/edgar/daily-index/{day.year}/QTR{_quarter(day.month)}/master.{name}.idx"
         try:
-            text = self._text(url)
+            text = self._text(url, errors="fallback")
         except http_client.HttpStatusError as exc:
             if exc.status == 404:
                 return []

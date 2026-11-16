@@ -53,14 +53,31 @@ def _retry_after(exc: urllib.error.HTTPError) -> float | None:
         return None
 
 
-def _once(url: str, headers: dict[str, str], timeout: float, opener: Opener) -> str:
+def _decode(payload: bytes, errors: str) -> str:
+    """``fallback`` is UTF-8, then Latin-1, so one stray byte does not fail the body."""
+    if errors == "fallback":
+        try:
+            return payload.decode("utf-8")
+        except UnicodeDecodeError:
+            return payload.decode("latin-1")
+    return payload.decode("utf-8", errors)
+
+
+def _once(
+    url: str,
+    headers: dict[str, str],
+    timeout: float,
+    opener: Opener,
+    retry_on: frozenset[int],
+    errors: str,
+) -> str:
     request = urllib.request.Request(url, headers=headers, method="GET")
     try:
         with opener(request, timeout=timeout) as response:
-            return response.read().decode("utf-8")
+            return _decode(response.read(), errors)
     except urllib.error.HTTPError as exc:
         payload = _read_http_error(exc).decode("utf-8", "replace")
-        if exc.code == 429 or 500 <= exc.code <= 599:
+        if exc.code in retry_on or 500 <= exc.code <= 599:
             raise _Retry(exc.code, payload, _retry_after(exc)) from None
         raise HttpStatusError(exc.code, payload) from None
 
@@ -72,15 +89,18 @@ def get_text(
     *,
     opener: Opener | None = None,
     sleep: Sleeper = time.sleep,
+    retry_on: frozenset[int] | None = None,
+    errors: str = "strict",
 ) -> str:
-    """GET a text body. Retries 429 and 5xx at most four times."""
+    """GET a text body. Retries 429 and 5xx, plus ``retry_on``, at most four times."""
     fetch = opener or urllib.request.urlopen
     sent = headers or {}
+    extra = frozenset({429}) if retry_on is None else frozenset(retry_on) | {429}
     delay = _BACKOFF_SECONDS
     last: _Retry | None = None
     for attempt in range(1, _ATTEMPTS + 1):
         try:
-            return _once(url, sent, timeout, fetch)
+            return _once(url, sent, timeout, fetch, extra, errors)
         except _Retry as exc:
             last = exc
             logger.info("http retry status=%s attempt=%s", exc.status, attempt)

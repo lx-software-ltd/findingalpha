@@ -85,6 +85,39 @@ class HttpClientTest(unittest.TestCase):
         self.assertEqual(slept, [])
         self.assertEqual(raised.exception.status, 429)
 
+    def test_forbidden_is_not_retried_unless_asked(self) -> None:
+        calls = {"n": 0}
+
+        def opener(_request: object, timeout: float) -> _Response:
+            del timeout
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise _http_error(403, b"slow", retry_after="0")
+            return _Response(b"ok")
+
+        with self.assertRaises(http_client.HttpStatusError):
+            http_client.get_text("https://example.com/x", opener=opener, sleep=self.fail)
+        self.assertEqual(calls["n"], 1)
+        calls["n"] = 0
+        text = http_client.get_text(
+            "https://example.com/x",
+            opener=opener,
+            sleep=lambda _seconds: None,
+            retry_on=frozenset({403}),
+        )
+        self.assertEqual(text, "ok")
+        self.assertEqual(calls["n"], 2)
+
+    def test_a_stray_byte_can_fall_back_to_latin1(self) -> None:
+        def opener(_request: object, timeout: float) -> _Response:
+            del timeout
+            return _Response(b"caf\xe9")
+
+        with self.assertRaises(UnicodeDecodeError):
+            http_client.get_text("https://example.com/x", opener=opener)
+        text = http_client.get_text("https://example.com/x", opener=opener, errors="fallback")
+        self.assertEqual(text, "café")
+
     def test_client_error_is_not_retried_and_the_body_is_closed(self) -> None:
         body = io.BytesIO(b"missing")
         headers = Message()
