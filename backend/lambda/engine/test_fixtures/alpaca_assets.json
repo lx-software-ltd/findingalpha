@@ -1,0 +1,36 @@
+[
+  {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "class": "us_equity",
+    "exchange": "NASDAQ",
+    "symbol": "EXMPL",
+    "name": "EXAMPLE INDUSTRIES INC",
+    "status": "active",
+    "tradable": true,
+    "marginable": true,
+    "shortable": true,
+    "easy_to_borrow": true,
+    "fractionable": false,
+    "attributes": []
+  },
+  {
+    "class": "us_equity",
+    "exchange": "NYSE",
+    "symbol": "SECND",
+    "name": "SECOND EXAMPLE LLC",
+    "status": "active",
+    "tradable": false,
+    "marginable": false,
+    "shortable": false,
+    "fractionable": true
+  },
+  {
+    "class": "us_equity",
+    "exchange": "NYSE",
+    "symbol": " ",
+    "name": "BLANK",
+    "status": "active",
+    "tradable": true,
+    "marginable": true
+  }
+]

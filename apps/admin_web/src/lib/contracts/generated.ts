@@ -575,13 +575,14 @@ export const roadmap = {
       "pullRequests": [
         "https://github.com/lx-software-ltd/findingalpha/pull/8",
         "https://github.com/lx-software-ltd/findingalpha/pull/9",
-        "https://github.com/lx-software-ltd/findingalpha/pull/11"
+        "https://github.com/lx-software-ltd/findingalpha/pull/11",
+        "https://github.com/lx-software-ltd/findingalpha/pull/12"
       ],
       "steps": [
         {
           "id": "M04-T01",
           "title": "Spike and memo (no product code)",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T02",
@@ -591,7 +592,7 @@ export const roadmap = {
         {
           "id": "M04-T03",
           "title": "Alpaca data client",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T04",
