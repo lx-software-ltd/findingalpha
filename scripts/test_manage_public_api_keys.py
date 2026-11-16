@@ -89,6 +89,92 @@ class ManageKeysTest(unittest.TestCase):
         self.assertNotIn('cat "$KEY_FILE"', text)
         self.assertIn("secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID", text)
 
+    def test_set_scopes_replaces_the_list(self) -> None:
+        table = type("Table", (), {})()
+        updates: list[dict] = []
+        item = {
+            "pk": "APIKEY#digest",
+            "sk": "META",
+            "keyId": "abc123",
+            "label": "monitor",
+            "tier": "admin",
+            "scopes": ["system"],
+        }
+
+        def update_item(**kwargs: object) -> None:
+            updates.append(kwargs)
+
+        table.update_item = update_item
+        args = type("Args", (), {"key_id": "abc123", "scopes": "system,operate"})()
+        printed = io.StringIO()
+        with (
+            patch.object(keys, "_table", return_value=table),
+            patch.object(keys, "_matches", return_value=[item]),
+            patch("sys.stdout", printed),
+        ):
+            keys.cmd_set_scopes(args)
+        self.assertEqual(len(updates), 1)
+        self.assertEqual(updates[0]["Key"], {"pk": "APIKEY#digest", "sk": "META"})
+        self.assertEqual(updates[0]["UpdateExpression"], "SET scopes = :s")
+        self.assertEqual(updates[0]["ExpressionAttributeValues"], {":s": ["operate", "system"]})
+        text = printed.getvalue()
+        self.assertIn("scopes system -> operate,system", text)
+        self.assertIn("label='monitor'", text)
+        self.assertIn("60 seconds", text)
+        self.assertNotIn("APIKEY#", text)
+        self.assertNotIn("digest", text)
+
+    def test_set_scopes_rejects_an_unknown_scope_and_a_missing_key(self) -> None:
+        with self.assertRaises(SystemExit) as unknown:
+            keys.cmd_set_scopes(type("Args", (), {"key_id": "abc123", "scopes": "finance"})())
+        self.assertIn("unknown scopes", str(unknown.exception))
+        with (
+            patch.object(keys, "_query_keys", return_value=[]),
+            self.assertRaises(SystemExit) as missing,
+        ):
+            keys.cmd_set_scopes(type("Args", (), {"key_id": "missing", "scopes": "system,operate"})())
+        self.assertIn("no API key", str(missing.exception))
+
+    def test_set_scopes_refuses_a_scope_the_tier_would_drop(self) -> None:
+        table = type("Table", (), {})()
+        updates: list[dict] = []
+        table.update_item = lambda **kwargs: updates.append(kwargs)
+        disabled = {
+            "pk": "APIKEY#digest",
+            "sk": "META",
+            "keyId": "abc123",
+            "label": "monitor",
+            "tier": "user",
+            "scopes": ["research"],
+        }
+        with (
+            patch.object(keys, "_table", return_value=table),
+            patch.object(keys, "_matches", return_value=[disabled]),
+            self.assertRaises(SystemExit) as disabled_tier,
+        ):
+            keys.cmd_set_scopes(type("Args", (), {"key_id": "abc123", "scopes": "research"})())
+        self.assertIn("not enabled", str(disabled_tier.exception))
+        limited = {**disabled, "tier": "admin", "scopes": ["system"]}
+        with (
+            patch.object(keys, "_table", return_value=table),
+            patch.object(keys, "_matches", return_value=[limited]),
+            patch.object(keys, "tier_record", return_value={"enabled": True, "scopes": ("system",)}),
+            self.assertRaises(SystemExit) as refused,
+        ):
+            keys.cmd_set_scopes(type("Args", (), {"key_id": "abc123", "scopes": "system,operate"})())
+        self.assertIn("cannot hold operate", str(refused.exception))
+        self.assertEqual(updates, [])
+
+    def test_workflow_can_replace_scopes_without_printing_a_key(self) -> None:
+        text = (ROOT / ".github" / "workflows" / "manage-api-keys.yml").read_text(encoding="utf-8")
+        self.assertIn("\n          - set-scopes\n", text)
+        self.assertIn("inputs.action == 'set-scopes'", text)
+        self.assertIn('set-scopes --key-id "$KEY_ID" --scopes "$SCOPES"', text)
+        self.assertIn("key_id and scopes are required for set-scopes", text)
+        scopes = text[text.index("      scopes:\n") : text.index("      allow_write:\n")]
+        self.assertNotIn("default:", scopes)
+        self.assertIn("Empty on create means system", scopes)
+
 
 if __name__ == "__main__":
     unittest.main()

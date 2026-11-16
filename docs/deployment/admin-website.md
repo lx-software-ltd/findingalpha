@@ -183,8 +183,12 @@ key can turn a switch on, tick an owner task, list keys, reset a
 breaker, start `weekly_refresh`, restart a finished backfill, or
 approve a real-money action.
 
-Mint, list, revoke, and the write flag are the **Manage Public API
-Keys** workflow. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
+Mint, list, revoke, the write flag, and the scope list are the
+**Manage Public API Keys** workflow. `set-scopes` replaces the whole
+list, so repeat every scope the key should keep. A scope that tier
+cannot hold is refused. `set-write` stays separate. The authorizer
+cache is 60 seconds, so a changed key can keep the old verdict until
+that expires. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
 environment first. A new key is not printed. The job summary holds an
 armored block. Save it as `key.asc` and decrypt it locally:
 
@@ -199,7 +203,10 @@ curl -X PUT -H "x-api-key: fapk_..." -H "content-type: application/json" \
   -d '{"ingestEnabled": false}' https://api.<domain>/public/settings
 ```
 
-The dashboard System page lists keys. It does not mint or revoke them.
+The dashboard System page lists keys, including each `keyId`. It does
+not mint, revoke, or change them. Run `list` in the workflow when the
+page is not open. `keyId` is the value `set-scopes` and `set-write`
+take.
 
 ## API hostname
 
