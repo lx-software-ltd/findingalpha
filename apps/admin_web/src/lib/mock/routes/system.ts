@@ -1,4 +1,4 @@
-import { ownerTasksFixture, runsFixture, settingsFixture, statusFixture } from "../fixtures";
+import { methodologyFixture, ownerTasksFixture, runsFixture, settingsFixture, statusFixture } from "../fixtures";
 import { json } from "./context";
 import type { MockCtx } from "./types";
 
@@ -88,6 +88,7 @@ export function handleSystem(ctx: MockCtx): Json | null {
     });
   }
   if (ctx.method === "GET" && ctx.path === "/jobs/runs") return json(200, runsFixture);
+  if (ctx.method === "GET" && ctx.path === "/methodology") return json(200, methodologyFixture);
   if (ctx.method === "GET" && ctx.path === "/universe/latest") {
     return json(200, {
       asOf: "2024-06-03",

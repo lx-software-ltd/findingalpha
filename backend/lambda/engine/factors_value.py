@@ -2,29 +2,28 @@
 
 from __future__ import annotations
 
+import factors_quality
 
-def enterprise_value(
-    market_cap: float | None,
-    long_term_debt: float | None,
-    short_term_debt: float | None,
-    cash: float | None,
-) -> float | None:
-    if None in (market_cap, long_term_debt, short_term_debt, cash):
+
+def _num(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    assert market_cap is not None and long_term_debt is not None and short_term_debt is not None and cash is not None
-    value = market_cap + long_term_debt + short_term_debt - cash
-    if value <= 0:
+    return float(value)
+
+
+def earnings_yield(snapshot: dict, _params: dict) -> float | None:
+    """operatingIncome_ttm / enterpriseValue."""
+    operating = _num(snapshot.get("operatingIncome_ttm"))
+    value = _num(snapshot.get("enterpriseValue"))
+    if operating is None or value is None or value <= 0:
         return None
-    return value
+    return operating / value
 
 
-def earnings_yield(operating_income_ttm: float | None, value: float | None) -> float | None:
-    if operating_income_ttm is None or not value:
+def fcf_yield(snapshot: dict, params: dict) -> float | None:
+    """(operatingCashFlow_ttm - capex_ttm) / enterpriseValue."""
+    flow = factors_quality.free_cash_flow_ttm(snapshot, params)
+    value = _num(snapshot.get("enterpriseValue"))
+    if flow is None or value is None or value <= 0:
         return None
-    return operating_income_ttm / value
-
-
-def fcf_yield(free_cash_flow: float | None, value: float | None) -> float | None:
-    if free_cash_flow is None or not value:
-        return None
-    return free_cash_flow / value
+    return flow / value

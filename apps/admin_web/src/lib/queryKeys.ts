@@ -5,4 +5,5 @@ export const queryKeys = {
   runs: ["job-runs"] as const,
   apiKeys: ["api-keys"] as const,
   universe: ["universe-latest"] as const,
+  methodology: ["methodology"] as const,
 };

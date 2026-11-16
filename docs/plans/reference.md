@@ -281,7 +281,7 @@ The key list never includes the digest.
 | `GET /api-keys` | Key list without digests | M03A | owner only |
 | `POST /jobs/{jobName}/run` | Start an allowed job. Returns 202 `{accepted: true}` | M04 | `operate`, jobs with `keyRun` only |
 | `GET /universe/latest` | Universe summary | M04 | `research` |
-| `GET /methodology` | The register with citation status | M05 | `research` |
+| `GET /methodology` | The register, its hash, and provisional and cited counts | M05 | `research` |
 | `GET /screens/latest`, `GET /screens/{date}` | Shortlist and scores | M06 | `research` |
 | `GET /backtests`, `GET /backtests/{runId}` | Backtest results | M06 | `research` |
 | `GET /kb/status`, `GET /kb/eval/latest` | Knowledge base | M07 | `research` |

@@ -37,6 +37,15 @@ class ApiHandlerTest(unittest.TestCase):
             {"sub", "email", "groups"},
         )
 
+    def test_methodology_returns_the_register_and_the_hash(self) -> None:
+        response = api_handler.lambda_handler(_event("GET", "/methodology", "[admin]"), None)
+        self.assertEqual(response["statusCode"], 200)
+        body = json.loads(response["body"])
+        self.assertEqual(len(body["hash"]), 16)
+        self.assertGreater(body["counts"]["provisional"], 0)
+        self.assertEqual(body["counts"]["cited"], 0)
+        self.assertIn("roic", {item["id"] for item in body["register"]["factors"]})
+
     def test_unknown_path_is_not_found(self) -> None:
         response = api_handler.lambda_handler(_event("GET", "/missing", "[admin]"), None)
         self.assertEqual(response["statusCode"], 404)

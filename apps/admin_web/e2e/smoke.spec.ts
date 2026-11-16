@@ -18,6 +18,13 @@ test("roadmap renders without horizontal scroll and the nav opens", async ({ pag
   }
 });
 
+test("methodology lists provisional factors", async ({ page }) => {
+  await page.goto("/methodology");
+  await expect(page.getByRole("heading", { name: "Methodology" })).toBeVisible();
+  await expect(page.getByText("provisional").first()).toBeVisible();
+  expect(await overflows(page)).toBe(false);
+});
+
 test("system shows the three tables", async ({ page }) => {
   await page.goto("/system");
   await expect(page.getByRole("heading", { name: "Switches" })).toBeVisible();

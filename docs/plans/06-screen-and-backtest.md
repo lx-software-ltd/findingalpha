@@ -60,6 +60,10 @@ apps/admin_web/src/pages/ScreenPage.tsx     (+ nav, mock, test)
 docs/research/backtest-2017-2026.md
 ```
 
+`screen.passes` and `screen.shortlist` already apply the M05 hard
+filters, including `passWhenNetCash` when the debt ratio is missing.
+This milestone adds the job, the stored shortlist, and the backtest.
+
 ## Invariants this change preserves
 
 - The screen and the backtest call the same `snapshot`, `factors_*` and

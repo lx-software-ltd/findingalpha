@@ -4,6 +4,7 @@ import { AuthProvider } from "./components/AuthProvider";
 import { AuthenticatedShell } from "./components/AuthenticatedShell";
 import { RequireAuth } from "./components/RequireAuth";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
+import { MethodologyPage } from "./pages/MethodologyPage";
 import { RoadmapPage } from "./pages/RoadmapPage";
 import { SystemPage } from "./pages/SystemPage";
 
@@ -22,6 +23,7 @@ export function App() {
               <Route element={<AuthenticatedShell />}>
                 <Route index element={<RoadmapPage />} />
                 <Route path="system" element={<SystemPage />} />
+                <Route path="methodology" element={<MethodologyPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

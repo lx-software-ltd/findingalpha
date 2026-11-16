@@ -245,7 +245,7 @@ export const jobs = {
 } as const;
 
 export const methodology = {
-  "version": 2,
+  "version": 3,
   "universe": {
     "status": "provisional",
     "confirmed": [
@@ -274,7 +274,194 @@ export const methodology = {
     "minMarketCapUsd": 2000000000,
     "minFundamentalsYears": 3,
     "maxAnnualReportAgeDays": 500,
-    "maxMemberDropFraction": 0.5
+    "maxMemberDropFraction": 0.5,
+    "citation": null
+  },
+  "factors": [
+    {
+      "id": "roic",
+      "name": "Return on invested capital",
+      "group": "quality",
+      "direction": "higher",
+      "formula": "NOPAT_ttm / average(investedCapital)",
+      "definitions": {
+        "NOPAT_ttm": "operatingIncome_ttm * (1 - taxRate)",
+        "taxRate": "clamp(incomeTax_ttm / pretaxIncome_ttm, 0, maxTaxRate); defaultTaxRate when pretaxIncome_ttm <= 0 or missing",
+        "investedCapital": "equity + longTermDebt + shortTermDebt - cash"
+      },
+      "parameters": {
+        "maxTaxRate": 0.35,
+        "defaultTaxRate": 0.21
+      },
+      "implementation": "factors_quality.roic",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "grossProfitability",
+      "name": "Gross profitability",
+      "group": "quality",
+      "direction": "higher",
+      "formula": "grossProfit_ttm / avg(totalAssets). If grossProfit is missing use revenue_ttm - costOfRevenue_ttm",
+      "parameters": {},
+      "implementation": "factors_quality.gross_profitability",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "fcfMargin",
+      "name": "Free cash flow margin",
+      "group": "quality",
+      "direction": "higher",
+      "formula": "(operatingCashFlow_ttm - capex_ttm) / revenue_ttm",
+      "parameters": {},
+      "implementation": "factors_quality.fcf_margin",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "accruals",
+      "name": "Accruals",
+      "group": "quality",
+      "direction": "lower",
+      "formula": "(netIncome_ttm - operatingCashFlow_ttm) / avg(totalAssets)",
+      "parameters": {},
+      "implementation": "factors_quality.accruals",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "netDebtToEbitda",
+      "name": "Net debt to EBITDA",
+      "group": "quality",
+      "direction": "lower",
+      "formula": "(longTermDebt + shortTermDebt - cash) / (operatingIncome_ttm + depreciationAmortization_ttm). None when the denominator is not positive",
+      "parameters": {},
+      "implementation": "factors_quality.net_debt_to_ebitda",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "interestCoverage",
+      "name": "Interest coverage",
+      "group": "quality",
+      "direction": "higher",
+      "formula": "operatingIncome_ttm / interestExpense_ttm, capped at coverageCap. Equals the cap when interest expense is zero or missing and debt is zero",
+      "parameters": {
+        "coverageCap": 100
+      },
+      "implementation": "factors_quality.interest_coverage",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "earningsYield",
+      "name": "Earnings yield",
+      "group": "value",
+      "direction": "higher",
+      "formula": "operatingIncome_ttm / enterpriseValue, where enterpriseValue = marketCap + longTermDebt + shortTermDebt - cash. None when enterprise value is not positive",
+      "parameters": {},
+      "implementation": "factors_value.earnings_yield",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "fcfYield",
+      "name": "Free cash flow yield",
+      "group": "value",
+      "direction": "higher",
+      "formula": "(operatingCashFlow_ttm - capex_ttm) / enterpriseValue",
+      "parameters": {},
+      "implementation": "factors_value.fcf_yield",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "momentum12_1",
+      "name": "Momentum 12-1",
+      "group": "trend",
+      "direction": "higher",
+      "formula": "close[t-21] / close[t-252] - 1",
+      "parameters": {},
+      "implementation": "factors_trend.momentum_12_1",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "aboveSma200",
+      "name": "Above the 200-session average",
+      "group": "trend",
+      "direction": "higher",
+      "formula": "close[t] / mean(close[t-199..t]) - 1",
+      "parameters": {},
+      "implementation": "factors_trend.above_sma200",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "volatility252",
+      "name": "Volatility",
+      "group": "reported",
+      "direction": "lower",
+      "formula": "Standard deviation of daily log returns over 252 sessions, times sqrt(252)",
+      "parameters": {},
+      "implementation": "factors_trend.volatility_252",
+      "status": "provisional",
+      "citation": null
+    },
+    {
+      "id": "freeCashFlow_ttm",
+      "name": "Free cash flow",
+      "group": "reported",
+      "direction": "higher",
+      "formula": "operatingCashFlow_ttm - capex_ttm",
+      "parameters": {},
+      "implementation": "factors_quality.free_cash_flow_ttm",
+      "status": "provisional",
+      "citation": null
+    }
+  ],
+  "composite": {
+    "status": "provisional",
+    "winsorisePercentiles": [
+      2.5,
+      97.5
+    ],
+    "standardise": "zscore_within_sector",
+    "minSectorSize": 10,
+    "groupWeights": {
+      "quality": 0.4,
+      "value": 0.3,
+      "trend": 0.3
+    },
+    "minFactorsPerGroupShare": 0.5,
+    "citation": null
+  },
+  "screen": {
+    "status": "provisional",
+    "hardFilters": [
+      {
+        "id": "positiveOperatingIncome",
+        "field": "operatingIncome_ttm",
+        "op": ">",
+        "value": 0
+      },
+      {
+        "id": "positiveFreeCashFlow",
+        "field": "freeCashFlow_ttm",
+        "op": ">",
+        "value": 0
+      },
+      {
+        "id": "debtCeiling",
+        "field": "netDebtToEbitda",
+        "op": "<=",
+        "value": 4,
+        "passWhenNetCash": true
+      }
+    ],
+    "shortlistSize": 60,
+    "citation": null
   }
 } as const;
 
@@ -695,46 +882,48 @@ export const roadmap = {
       "title": "Methodology register and factor library",
       "plan": "docs/plans/05-methodology-and-factors.md",
       "zone": "red",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M04"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/29"
+      ],
       "steps": [
         {
           "id": "M05-T01",
           "title": "Owner review memo",
-          "status": "todo"
+          "status": "doing"
         },
         {
           "id": "M05-T02",
           "title": "Register file and loader",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T03",
           "title": "Company snapshot",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T04",
           "title": "Factor functions",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T05",
           "title": "Registry test",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T06",
           "title": "Composite",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T07",
           "title": "API and dashboard page",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },

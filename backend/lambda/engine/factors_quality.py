@@ -3,96 +3,121 @@
 from __future__ import annotations
 
 
-def _need(*values: float | None) -> bool:
-    return all(value is not None for value in values)
-
-
-def roic(
-    operating_income_ttm: float | None,
-    income_tax_ttm: float | None,
-    pretax_income_ttm: float | None,
-    invested_capital: float | None,
-    *,
-    max_tax_rate: float,
-    default_tax_rate: float,
-) -> float | None:
-    if not _need(operating_income_ttm, invested_capital) or not invested_capital:
+def _num(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    if pretax_income_ttm is None or pretax_income_ttm <= 0 or income_tax_ttm is None:
-        tax_rate = default_tax_rate
+    return float(value)
+
+
+def _average_invested_capital(snapshot: dict) -> float | None:
+    equity = _num(snapshot.get("equity_avg"))
+    long_debt = _num(snapshot.get("longTermDebt_avg"))
+    short_debt = _num(snapshot.get("shortTermDebt_avg"))
+    cash = _num(snapshot.get("cash_avg"))
+    if equity is None or long_debt is None or short_debt is None or cash is None:
+        return None
+    return equity + long_debt + short_debt - cash
+
+
+def _latest_debt(snapshot: dict) -> float | None:
+    long_debt = _num(snapshot.get("longTermDebt"))
+    short_debt = _num(snapshot.get("shortTermDebt"))
+    if long_debt is None or short_debt is None:
+        return None
+    return long_debt + short_debt
+
+
+def roic(snapshot: dict, params: dict) -> float | None:
+    """NOPAT_ttm / average(investedCapital)."""
+    operating = _num(snapshot.get("operatingIncome_ttm"))
+    invested = _average_invested_capital(snapshot)
+    if operating is None or not invested:
+        return None
+    pretax = _num(snapshot.get("pretaxIncome_ttm"))
+    tax = _num(snapshot.get("incomeTax_ttm"))
+    if pretax is None or pretax <= 0 or tax is None:
+        rate = float(params["defaultTaxRate"])
     else:
-        tax_rate = min(max(income_tax_ttm / pretax_income_ttm, 0.0), max_tax_rate)
-    assert operating_income_ttm is not None and invested_capital is not None
-    return operating_income_ttm * (1 - tax_rate) / invested_capital
+        rate = min(max(tax / pretax, 0), float(params["maxTaxRate"]))
+    return operating * (1 - rate) / invested
 
 
-def gross_profitability(
-    gross_profit_ttm: float | None,
-    revenue_ttm: float | None,
-    cost_of_revenue_ttm: float | None,
-    average_assets: float | None,
-) -> float | None:
-    profit = gross_profit_ttm
-    if profit is None and _need(revenue_ttm, cost_of_revenue_ttm):
-        assert revenue_ttm is not None and cost_of_revenue_ttm is not None
-        profit = revenue_ttm - cost_of_revenue_ttm
-    if profit is None or not average_assets:
+roic.required_parameters = ("maxTaxRate", "defaultTaxRate")
+
+
+def gross_profitability(snapshot: dict, _params: dict) -> float | None:
+    """grossProfit_ttm / avg(totalAssets). If grossProfit is missing use revenue_ttm - costOfRevenue_ttm."""
+    profit = _num(snapshot.get("grossProfit_ttm"))
+    if profit is None:
+        revenue = _num(snapshot.get("revenue_ttm"))
+        cost = _num(snapshot.get("costOfRevenue_ttm"))
+        if revenue is None or cost is None:
+            return None
+        profit = revenue - cost
+    assets = _num(snapshot.get("totalAssets_avg"))
+    if not assets:
         return None
-    return profit / average_assets
+    return profit / assets
 
 
-def fcf_margin(operating_cash_flow_ttm: float | None, capex_ttm: float | None, revenue_ttm: float | None) -> float | None:
-    if not _need(operating_cash_flow_ttm, capex_ttm, revenue_ttm) or not revenue_ttm:
+def free_cash_flow_ttm(snapshot: dict, _params: dict) -> float | None:
+    """operatingCashFlow_ttm - capex_ttm."""
+    operating = _num(snapshot.get("operatingCashFlow_ttm"))
+    capex = _num(snapshot.get("capex_ttm"))
+    if operating is None or capex is None:
         return None
-    assert operating_cash_flow_ttm is not None and capex_ttm is not None and revenue_ttm is not None
-    return (operating_cash_flow_ttm - capex_ttm) / revenue_ttm
+    return operating - capex
 
 
-def accruals(
-    net_income_ttm: float | None,
-    operating_cash_flow_ttm: float | None,
-    average_assets: float | None,
-) -> float | None:
-    if not _need(net_income_ttm, operating_cash_flow_ttm) or not average_assets:
+def fcf_margin(snapshot: dict, params: dict) -> float | None:
+    """(operatingCashFlow_ttm - capex_ttm) / revenue_ttm."""
+    flow = free_cash_flow_ttm(snapshot, params)
+    revenue = _num(snapshot.get("revenue_ttm"))
+    if flow is None or not revenue:
         return None
-    assert net_income_ttm is not None and operating_cash_flow_ttm is not None and average_assets is not None
-    return (net_income_ttm - operating_cash_flow_ttm) / average_assets
+    return flow / revenue
 
 
-def net_debt_to_ebitda(
-    long_term_debt: float | None,
-    short_term_debt: float | None,
-    cash: float | None,
-    operating_income_ttm: float | None,
-    depreciation_ttm: float | None,
-) -> float | None:
-    if not _need(long_term_debt, short_term_debt, cash, operating_income_ttm, depreciation_ttm):
+def accruals(snapshot: dict, _params: dict) -> float | None:
+    """(netIncome_ttm - operatingCashFlow_ttm) / avg(totalAssets)."""
+    income = _num(snapshot.get("netIncome_ttm"))
+    operating = _num(snapshot.get("operatingCashFlow_ttm"))
+    assets = _num(snapshot.get("totalAssets_avg"))
+    if income is None or operating is None or not assets:
         return None
-    assert None not in (long_term_debt, short_term_debt, cash, operating_income_ttm, depreciation_ttm)
-    denominator = operating_income_ttm + depreciation_ttm  # type: ignore[operator]
-    if denominator <= 0:
-        return None
-    return (long_term_debt + short_term_debt - cash) / denominator  # type: ignore[operator]
+    return (income - operating) / assets
 
 
-def interest_coverage(
-    operating_income_ttm: float | None,
-    interest_expense_ttm: float | None,
-    debt: float | None,
-    *,
-    coverage_cap: float,
-) -> float | None:
-    if operating_income_ttm is None:
+def net_debt_to_ebitda(snapshot: dict, _params: dict) -> float | None:
+    """(longTermDebt + shortTermDebt - cash) / (operatingIncome_ttm + depreciationAmortization_ttm)."""
+    long_debt = _num(snapshot.get("longTermDebt"))
+    short_debt = _num(snapshot.get("shortTermDebt"))
+    cash = _num(snapshot.get("cash"))
+    operating = _num(snapshot.get("operatingIncome_ttm"))
+    depreciation = _num(snapshot.get("depreciationAmortization_ttm"))
+    if None in (long_debt, short_debt, cash, operating, depreciation):
         return None
-    if not interest_expense_ttm:
+    assert long_debt is not None and short_debt is not None and cash is not None
+    assert operating is not None and depreciation is not None
+    ebitda = operating + depreciation
+    if ebitda <= 0:
+        return None
+    return (long_debt + short_debt - cash) / ebitda
+
+
+def interest_coverage(snapshot: dict, params: dict) -> float | None:
+    """operatingIncome_ttm / interestExpense_ttm, capped at coverageCap."""
+    operating = _num(snapshot.get("operatingIncome_ttm"))
+    if operating is None:
+        return None
+    interest = _num(snapshot.get("interestExpense_ttm"))
+    debt = _latest_debt(snapshot)
+    cap = float(params["coverageCap"])
+    if not interest:
         if debt == 0:
-            return coverage_cap
+            return cap
         return None
-    return min(operating_income_ttm / interest_expense_ttm, coverage_cap)
+    return min(operating / interest, cap)
 
 
-def free_cash_flow_ttm(operating_cash_flow_ttm: float | None, capex_ttm: float | None) -> float | None:
-    if not _need(operating_cash_flow_ttm, capex_ttm):
-        return None
-    assert operating_cash_flow_ttm is not None and capex_ttm is not None
-    return operating_cash_flow_ttm - capex_ttm
+interest_coverage.required_parameters = ("coverageCap",)

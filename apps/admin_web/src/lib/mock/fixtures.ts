@@ -45,6 +45,38 @@ export const statusFixture = {
   ],
 };
 
+export const methodologyFixture = {
+  hash: "abc123abc123abcd",
+  counts: { entries: 3, provisional: 3, cited: 0 },
+  register: {
+    factors: [
+      {
+        id: "roic",
+        name: "Return on invested capital",
+        group: "quality",
+        direction: "higher",
+        formula: "NOPAT_ttm / average(investedCapital)",
+        parameters: { maxTaxRate: 0.35, defaultTaxRate: 0.21 },
+        status: "provisional",
+        citation: null,
+      },
+    ],
+    composite: {
+      status: "provisional",
+      groupWeights: { quality: 0.4, value: 0.3, trend: 0.3 },
+      winsorisePercentiles: [2.5, 97.5],
+      minSectorSize: 10,
+      minFactorsPerGroupShare: 0.5,
+      standardise: "zscore_within_sector",
+    },
+    screen: {
+      status: "provisional",
+      shortlistSize: 60,
+      hardFilters: [{ id: "debtCeiling", field: "netDebtToEbitda", op: "<=", value: 4 }],
+    },
+  },
+};
+
 export const runsFixture = {
   runs: [
     { job: "ingest_daily", status: "failed", startedAt: "2026-01-01T22:00:00.000Z", durationMs: 40, message: "timeout" },
