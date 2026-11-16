@@ -3,6 +3,8 @@
 **Status**: In review
 **Zone**: red (`contracts/methodology.json`, `contracts/sic-sectors.json`). The build is yellow.
 
+Corrections after review are in `docs/plans/m04-universe-fixes.md`: annual years are per 10-K filing, one listing per company, and a short or collapsed build is not written. The sector ranges are unchanged.
+
 ## Goal
 
 Build the list of stocks the screen may consider, and record how many

@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import unittest
 from datetime import date, timedelta
+from decimal import Decimal
+from unittest.mock import patch
 
 import s3io
 import universe
+import universe_data
 from test_ingest_prices import _bind, _Bucket, _Context, _Memory
 
 AS_OF = date(2024, 6, 3)
@@ -53,8 +56,15 @@ def _history(
     filed: str = "2024-02-01",
     form: str = "10-K",
     years: tuple[str, ...] = ("2021-12-31", "2022-12-31", "2023-12-31"),
+    same_filing: bool = False,
 ) -> list[dict[str, object]]:
-    return [_annual(end, filed, form) for end in years] + [_shares(shares, filed, form)]
+    """One 10-K per fiscal year, unless ``same_filing`` puts every column on one date."""
+    rows: list[dict[str, object]] = []
+    for end in years:
+        when = filed if same_filing or end == years[-1] else f"{int(end[:4]) + 1}-02-15"
+        rows.append(_annual(end, when, form))
+    rows.append(_shares(shares, filed, form))
+    return rows
 
 
 class UniverseTest(unittest.TestCase):
@@ -116,7 +126,7 @@ class UniverseTest(unittest.TestCase):
         }
         facts: dict[str, list[dict[str, object]] | None] = {
             _cik(1): _history(SHARES),
-            _cik(3): _history(SHARES, filed="2024-07-01"),
+            _cik(3): _history(SHARES, filed="2024-07-01", same_filing=True),
             _cik(4): _history(SHARES),
             _cik(5): _history(SHARES, form="10-Q"),
             _cik(6): _history(SHARES, years=("2022-12-31", "2023-12-31")),
@@ -162,7 +172,13 @@ class UniverseTest(unittest.TestCase):
         bucket = _Bucket()
         memory = _Memory()
         memory.put({"pk": "UNIVERSE#2024-06-03", "sk": "META", "coverage": {"asOf": "2024-06-03"}, "members": 1})
-        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+        with (
+            _bind(memory)[0],
+            _bind(memory)[1],
+            _bind(memory)[2],
+            patch("store.update", memory.update),
+            patch("store.query_gsi1", memory.query_gsi1),
+        ):
             result = universe.build(
                 AS_OF,
                 _Context(),
@@ -235,6 +251,312 @@ class UniverseTest(unittest.TestCase):
                 refresh=refuse,
                 ingest_enabled=lambda: False,
             )
+
+
+_AUTO = object()
+_MEMBERS = "universe/date=2024-06-03/members.jsonl.gz"
+
+
+def _sessions(days: int = 60) -> list[date]:
+    return [AS_OF - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
+
+
+def _company(
+    symbol: str,
+    cik: int = 1,
+    *,
+    close: float = 10,
+    volume: float = 3_000_000,
+    sic: str | None = "7372",
+    shares: int = SHARES,
+    facts: object = _AUTO,
+    same_filing: bool = False,
+    filed: str = "2024-02-01",
+    years: tuple[str, ...] = ("2021-12-31", "2022-12-31", "2023-12-31"),
+    bar_days: int | None = None,
+) -> dict[str, object]:
+    stored = _history(shares, filed=filed, years=years, same_filing=same_filing) if facts is _AUTO else facts
+    return {
+        "symbol": symbol,
+        "cik": _cik(cik),
+        "close": close,
+        "volume": volume,
+        "sic": sic,
+        "facts": stored,
+        "bar_days": bar_days,
+    }
+
+
+def _build(
+    companies: list[dict[str, object]],
+    *,
+    sessions: list[date] | None = None,
+    read_bars: object = None,
+    refresh: object = None,
+    read_actions: object = None,
+    memory: _Memory | None = None,
+    bucket: _Bucket | None = None,
+    fact_reads: list[str] | None = None,
+) -> tuple[dict[str, object], _Bucket, _Memory]:
+    chosen = sessions if sessions is not None else _sessions()
+    memory = memory or _Memory()
+    bucket = bucket or _Bucket()
+    facts = {str(company["cik"]): company["facts"] for company in companies if company["facts"] is not None}
+    sics = {str(company["cik"]): company["sic"] for company in companies}
+
+    def bars(day: date) -> list[dict[str, object]]:
+        if read_bars is not None:
+            return read_bars(day)  # type: ignore[operator]
+        rows = []
+        for company in companies:
+            limit = company["bar_days"]
+            if isinstance(limit, int) and day not in chosen[-limit:]:
+                continue
+            rows.append(
+                {
+                    "symbol": company["symbol"],
+                    "close": company["close"],
+                    "volume": company["volume"],
+                    "date": day.isoformat(),
+                }
+            )
+        return rows
+
+    def submissions(cik: str) -> dict[str, object]:
+        return {"sic": sics.get(cik)}
+
+    assets = [_asset(str(company["symbol"])) for company in companies]
+    tickers = {
+        str(company["symbol"]): {"cik": company["cik"], "name": f"Example {company['symbol']}"} for company in companies
+    }
+    with (
+        _bind(memory)[0],
+        _bind(memory)[1],
+        _bind(memory)[2],
+        patch("store.update", memory.update),
+        patch("store.query_gsi1", memory.query_gsi1),
+    ):
+        result = universe.build(
+            AS_OF,
+            _Context(),
+            assets=assets,
+            tickers=tickers,
+            sessions=chosen,
+            read_bars=bars,
+            read_facts=_counted_facts(facts, fact_reads),
+            read_submissions=submissions,
+            refresh=refresh or (lambda _ciks, _context: {"status": "done"}),
+            read_actions=read_actions,
+            bucket="data",
+            client=bucket,
+            ingest_enabled=lambda: True,
+        )
+    return result, bucket, memory
+
+
+def _counted_facts(facts: dict[str, object], reads: list[str] | None):
+    def read(cik: str) -> object:
+        if reads is not None:
+            reads.append(cik)
+        return facts.get(cik)
+
+    return read
+
+
+def _symbols(bucket: _Bucket) -> list[str]:
+    if ("data", _MEMBERS) not in bucket.objects:
+        return []
+    return [str(row["symbol"]) for row in s3io.get_jsonl_gz("data", _MEMBERS, client=bucket)]
+
+
+class UniverseReviewTest(unittest.TestCase):
+    def test_one_ten_k_does_not_count_its_comparative_years(self) -> None:
+        result, bucket, _memory = _build([_company("ONCE", same_filing=True)])
+        self.assertEqual(result["counts"]["annualReport"], 1)
+        self.assertEqual(result["counts"]["history"], 0)
+        self.assertEqual(_symbols(bucket), [])
+
+    def test_an_amendment_does_not_add_a_fiscal_year(self) -> None:
+        rows = _history(SHARES, years=("2022-12-31", "2023-12-31"))
+        rows.append(_annual("2023-12-31", "2024-03-01", "10-K/A"))
+        result, bucket, _memory = _build([_company("AMEND", facts=rows)])
+        self.assertEqual(result["counts"]["annualReport"], 1)
+        self.assertEqual(result["counts"]["history"], 0)
+        self.assertEqual(_symbols(bucket), [])
+
+    def test_a_ten_k_older_than_the_contract_age_does_not_qualify(self) -> None:
+        def filings(age: int) -> list[dict[str, object]]:
+            latest = AS_OF - timedelta(days=age)
+            rows = [
+                _annual(str(2018 + index) + "-12-31", (latest - timedelta(days=365 * (2 - index))).isoformat())
+                for index in range(3)
+            ]
+            rows.append(_shares(SHARES, latest.isoformat()))
+            return rows
+
+        kept, fresh_bucket, _memory = _build([_company("FRESH", facts=filings(500))])
+        dropped, stale_bucket, _memory = _build([_company("STALE", facts=filings(501))])
+        self.assertEqual(_symbols(fresh_bucket), ["FRESH"])
+        self.assertEqual(kept["counts"]["annualReport"], 1)
+        self.assertEqual(dropped["counts"]["annualReport"], 0)
+        self.assertEqual(_symbols(stale_bucket), [])
+
+    def test_two_classes_become_one_listing_with_combined_shares(self) -> None:
+        shared = _history(120_000_000)
+        shared.append(_shares(100_000_000))
+        result, bucket, _memory = _build(
+            [
+                _company("CLB", volume=4_000_000, facts=shared),
+                _company("CLASS", volume=5_000_000, facts=shared),
+            ]
+        )
+        self.assertEqual(result["counts"]["withCik"], 2)
+        self.assertEqual(result["counts"]["price"], 1)
+        self.assertEqual(result["counts"]["dollarVolume"], 1)
+        self.assertEqual(_symbols(bucket), ["CLASS"])
+        stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
+        self.assertEqual(stored[0]["marketCap"], 220_000_000 * 10)
+
+    def test_a_short_listing_fails_the_volume_rule(self) -> None:
+        result, bucket, _memory = _build([_company("NEW", volume=50_000_000, bar_days=5)])
+        self.assertEqual(result["counts"]["price"], 1)
+        self.assertEqual(result["counts"]["dollarVolume"], 0)
+        self.assertEqual(_symbols(bucket), [])
+
+    def test_a_split_after_the_share_count_adjusts_market_cap(self) -> None:
+        def actions(day: date) -> list[dict[str, object]]:
+            if day.isoformat() != "2024-04-15":
+                return []
+            return [
+                {
+                    "symbol": "SPLIT",
+                    "type": "forward_split",
+                    "exDate": "2024-04-15",
+                    "splitFrom": 1,
+                    "splitTo": 10,
+                },
+                {
+                    "symbol": "SPLIT",
+                    "type": "cash_dividend",
+                    "exDate": "2024-04-15",
+                    "splitFrom": None,
+                    "splitTo": None,
+                },
+            ]
+
+        result, bucket, _memory = _build(
+            [_company("SPLIT", shares=SMALL_SHARES)],
+            read_actions=actions,
+        )
+        self.assertEqual(result["members"], 1)
+        stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
+        self.assertEqual(stored[0]["marketCap"], SMALL_SHARES * 10 * 10)
+
+    def test_a_blank_sic_fails_and_an_unmapped_code_stays_other(self) -> None:
+        result, bucket, _memory = _build([_company("BLANK", cik=1, sic=None), _company("ODD", cik=2, sic="50")])
+        self.assertEqual(result["counts"]["fundamentals"], 2)
+        self.assertEqual(result["counts"]["sic"], 1)
+        self.assertEqual(_symbols(bucket), ["ODD"])
+        stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
+        self.assertEqual(stored[0]["sector"], "Other")
+
+    def test_a_missing_last_price_file_writes_nothing(self) -> None:
+        sessions = _sessions()
+        bucket = _Bucket()
+
+        def bars(day: date) -> list[dict[str, object]]:
+            if day == sessions[-1]:
+                return []
+            return [{"symbol": "PASS", "close": 10, "volume": 3_000_000, "date": day.isoformat()}]
+
+        with self.assertRaises(universe.PriceSessionMissing):
+            _build([_company("PASS")], sessions=sessions, read_bars=bars, bucket=bucket)
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+
+    def test_a_short_calendar_writes_nothing(self) -> None:
+        bucket = _Bucket()
+        with self.assertRaises(universe.PriceWindowShort):
+            _build([_company("PASS")], sessions=_sessions(10), bucket=bucket)
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+
+    def test_an_unfinished_refresh_writes_nothing(self) -> None:
+        bucket = _Bucket()
+
+        def refresh(ciks: list[str], _context: object) -> dict[str, object]:
+            self.assertEqual(ciks, [_cik(1)])
+            return {"status": "running", "cursor": 0, "total": 1}
+
+        result, _bucket, memory = _build([_company("NEED", facts=None)], refresh=refresh, bucket=bucket)
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(result["pending"], 1)
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+        self.assertNotIn(("UNIVERSE#2024-06-03", "META"), memory.items)
+
+    def test_half_the_previous_build_is_kept_and_less_is_refused(self) -> None:
+        allowed = _Memory()
+        allowed.put(
+            {
+                "pk": "UNIVERSE#2024-05-31",
+                "sk": "META",
+                "gsi1pk": "UNIVERSE",
+                "gsi1sk": "2024-05-31",
+                "members": 2,
+                "counts": {"marketCap": 2},
+            }
+        )
+        kept, _bucket, _memory = _build([_company("PASS")], memory=allowed)
+        self.assertEqual(kept["members"], 1)
+
+        refused = _Memory()
+        refused.put(
+            {
+                "pk": "UNIVERSE#2024-05-31",
+                "sk": "META",
+                "gsi1pk": "UNIVERSE",
+                "gsi1sk": "2024-05-31",
+                "members": Decimal("4"),
+                "counts": {"marketCap": 4},
+                "coverage": {"asOf": "2024-05-31"},
+            }
+        )
+        bucket = _Bucket()
+        with self.assertRaises(universe_data.UniverseShrink):
+            _build([_company("PASS")], memory=refused, bucket=bucket)
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+        self.assertEqual(refused.items[("UNIVERSE#2024-05-31", "META")]["members"], Decimal("4"))
+        self.assertEqual(refused.items[("UNIVERSE#2024-05-31", "META")]["coverage"], {"asOf": "2024-05-31"})
+
+    def test_sic_is_cached_and_a_blank_code_is_not(self) -> None:
+        calls: list[str] = []
+        bucket = _Bucket()
+
+        def submissions(cik: str) -> dict[str, str]:
+            calls.append(cik)
+            return {"sic": "" if cik.endswith("2") else "7372"}
+
+        with patch("sec_edgar.submissions", submissions):
+            reader = universe_data.submissions_reader("data", bucket)
+            self.assertEqual(reader(_cik(1))["sic"], "7372")
+            self.assertEqual(reader(_cik(1))["sic"], "7372")
+            self.assertIsNone(reader(_cik(2))["sic"])
+            self.assertIsNone(reader(_cik(2))["sic"])
+        self.assertEqual(calls, [_cik(1), _cik(2), _cik(2)])
+
+    def test_each_company_file_is_read_once(self) -> None:
+        reads: list[str] = []
+        _build([_company("PASS", cik=1), _company("ALSO", cik=2)], fact_reads=reads)
+        self.assertEqual(reads, [_cik(1), _cik(2)])
+
+    def test_the_refresh_job_is_not_the_backfill(self) -> None:
+        seen: dict[str, str] = {}
+
+        def fake(_ciks: list[str], _context: object, **kwargs: object) -> dict[str, str]:
+            seen["job"] = str(kwargs["job"])
+            return {"status": "done"}
+
+        with patch("ingest_fundamentals.refresh", fake):
+            universe_data.refresh_runner("data", None)([_cik(1)], None)
+        self.assertEqual(seen["job"], "universe_fundamentals_refresh")
 
 
 if __name__ == "__main__":

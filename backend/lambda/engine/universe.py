@@ -2,7 +2,7 @@
 
 Thresholds come from ``contracts/methodology.json``. Sectors come from
 ``contracts/sic-sectors.json``. Both are provisional until the owner
-confirms them.
+confirms them. Bucket and table IO lives in ``universe_data``.
 """
 
 from __future__ import annotations
@@ -13,16 +13,24 @@ from pathlib import Path
 from typing import Any, Callable
 
 import fundamentals_pit
-import s3io
+import universe_data
 from alpaca_data import IngestDisabled
 
 _RULES = Path(__file__).resolve().parent / "contracts" / "methodology.json"
 _SECTORS = Path(__file__).resolve().parent / "contracts" / "sic-sectors.json"
-_ANNUAL = frozenset({"10-K", "10-K/A"})
 Bars = Callable[[date], list[dict[str, Any]]]
 Facts = Callable[[str], list[dict[str, Any]] | None]
 Submissions = Callable[[str], dict[str, Any]]
 Refresh = Callable[[list[str], Any], dict[str, Any]]
+Actions = Callable[[date], list[dict[str, Any]]]
+
+
+class PriceSessionMissing(RuntimeError):
+    """The last session has no prices, so the previous universe is left as it is."""
+
+
+class PriceWindowShort(RuntimeError):
+    """The session list is shorter than the dollar-volume window."""
 
 
 def _require(check: Callable[[], bool] | None) -> None:
@@ -68,6 +76,8 @@ def load_rules(path: Path | None = None) -> dict[str, Any]:
         "dollarVolumeWindowSessions",
         "minMarketCapUsd",
         "minFundamentalsYears",
+        "maxAnnualReportAgeDays",
+        "maxMemberDropFraction",
     )
     missing = [name for name in required if name not in section]
     if missing:
@@ -87,9 +97,8 @@ def load_sectors(path: Path | None = None) -> list[dict[str, Any]]:
 def sector_for(sic: object, ranges: list[dict[str, Any]] | None = None) -> str:
     """The sector for one SIC code. An unmapped code is ``Other``."""
     chosen = ranges if ranges is not None else load_sectors()
-    try:
-        code = int(str(sic).strip())
-    except (TypeError, ValueError):
+    code = _sic_code(sic)
+    if code is None:
         return "Other"
     for row in chosen:
         if int(row["from"]) <= code <= int(row["to"]):
@@ -118,17 +127,61 @@ def _window(days: list[date], on: date, count: int) -> list[date]:
     return chosen[-count:]
 
 
-def _excluded(sic: object, ranges: list[list[int]]) -> bool:
+def _sic_code(sic: object) -> int | None:
     try:
-        code = int(str(sic).strip())
+        text = str(sic).strip()
+        if not text:
+            return None
+        return int(text)
     except (TypeError, ValueError):
-        return False
+        return None
+
+
+def _excluded(sic: object, ranges: list[list[int]]) -> bool:
+    code = _sic_code(sic)
+    if code is None:
+        return True
     return any(int(low) <= code <= int(high) for low, high in ranges)
 
 
-def _annual_ends(rows: list[dict[str, Any]], form: str) -> set[str]:
+def _full_year(row: dict[str, Any]) -> bool:
+    if row.get("kind") != "flow":
+        return False
+    try:
+        start = date.fromisoformat(str(row.get("start"))[:10])
+        end = date.fromisoformat(str(row.get("end"))[:10])
+    except (TypeError, ValueError):
+        return False
+    return fundamentals_pit.period_class(start, end) == "year"
+
+
+def _annual_filings(rows: list[dict[str, Any]], form: str) -> dict[str, str]:
+    """Map each 10-K filing date to that filing's latest full fiscal year.
+
+    Comparative columns share the filing date, so only the latest year
+    in the filing counts. An amendment is its own filing of the same year.
+    """
     forms = {form, f"{form}/A"}
-    return {str(row["end"]) for row in rows if row.get("form") in forms and row.get("end")}
+    found: dict[str, str] = {}
+    for row in rows:
+        if row.get("form") not in forms or not _full_year(row):
+            continue
+        filed = str(row.get("filed") or "")[:10]
+        end = str(row.get("end") or "")[:10]
+        if not filed or not end:
+            continue
+        current = found.get(filed)
+        if current is None or end > current:
+            found[filed] = end
+    return found
+
+
+def _recent_annual(rows: list[dict[str, Any]], form: str, on: date, max_age: int) -> bool:
+    filings = _annual_filings(rows, form)
+    if not filings:
+        return False
+    latest = date.fromisoformat(max(filings))
+    return (on - latest).days <= max_age
 
 
 def _screen_assets(assets: list[dict[str, Any]], rules: dict[str, Any]) -> list[dict[str, Any]]:
@@ -165,19 +218,44 @@ def _joined(assets: list[dict[str, Any]], tickers: dict[str, dict[str, Any]]) ->
     return rows
 
 
+def _prefer(row: dict[str, Any], current: dict[str, Any]) -> bool:
+    volume = float(row["medianDollarVolume"])
+    other = float(current["medianDollarVolume"])
+    if volume != other:
+        return volume > other
+    return str(row["symbol"]) < str(current["symbol"])
+
+
+def _one_listing(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One row per CIK: the listing with the higher median dollar volume."""
+    best: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        current = best.get(row["cik"])
+        if current is None or _prefer(row, current):
+            best[row["cik"]] = row
+    return [best[key] for key in sorted(best)]
+
+
 def _prices(
     rows: list[dict[str, Any]],
     read: Bars,
     window: list[date],
     rules: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Split on the last close, then on median dollar volume."""
+    """Split on the last close, then on a full-window median dollar volume."""
     if not window:
+        if rows:
+            raise PriceSessionMissing("no sessions")
         return [], []
     last = window[-1]
+    last_bars = list(read(last))
+    if rows and not last_bars:
+        raise PriceSessionMissing(last.isoformat())
+    needed = int(rules["dollarVolumeWindowSessions"])
     grouped: dict[str, list[tuple[date, float, float]]] = {}
-    for day in window:
-        for bar in read(day):
+
+    def consume(day: date, bars: list[dict[str, Any]]) -> None:
+        for bar in bars:
             if not isinstance(bar, dict):
                 continue
             close = _number(bar.get("close"))
@@ -186,8 +264,14 @@ def _prices(
             if close is None or volume is None or close <= 0 or volume < 0:
                 continue
             grouped.setdefault(symbol, []).append((day, close, volume))
+
+    consume(last, last_bars)
+    for day in window:
+        if day != last:
+            consume(day, list(read(day)))
     priced: list[dict[str, Any]] = []
     liquid: list[dict[str, Any]] = []
+    floor = float(rules["minMedianDollarVolumeUsd"])
     for row in rows:
         series = grouped.get(row["symbol"], [])
         close = next((price for day, price, _volume in series if day == last), None)
@@ -195,11 +279,10 @@ def _prices(
             continue
         carried = dict(row)
         carried["close"] = close
+        carried["medianDollarVolume"] = _median([price * volume for _day, price, volume in series])
         priced.append(carried)
-        median = _median([price * volume for _day, price, volume in series])
-        if median < float(rules["minMedianDollarVolumeUsd"]):
+        if len(series) < needed or carried["medianDollarVolume"] < floor:
             continue
-        carried["medianDollarVolume"] = median
         liquid.append(carried)
     return priced, liquid
 
@@ -208,6 +291,37 @@ def _visible(rows: list[dict[str, Any]] | None, on: date) -> list[dict[str, Any]
     if not rows:
         return []
     return fundamentals_pit.as_of(rows, on.isoformat())
+
+
+def _share_count(rows: list[dict[str, Any]]) -> tuple[float, date] | None:
+    """Total shares at the latest count date. Classes filed that day are added."""
+    stocks = [
+        row for row in rows if row.get("field") == "sharesOutstanding" and row.get("kind") == "stock" and row.get("end")
+    ]
+    if not stocks:
+        return None
+    latest_end = max(str(row["end"]) for row in stocks)
+    at_end = [row for row in stocks if str(row["end"]) == latest_end]
+    latest_filed = max(str(row.get("filed") or "") for row in at_end)
+    values: list[float] = []
+    for row in at_end:
+        if str(row.get("filed") or "") != latest_filed:
+            continue
+        number = _number(row.get("value"))
+        if number is None or number <= 0 or number in values:
+            continue
+        values.append(number)
+    if not values:
+        return None
+    return sum(values), date.fromisoformat(latest_end[:10])
+
+
+def _factor(events: dict[str, list[tuple[date, float]]], symbol: str, after: date, through: date) -> float:
+    factor = 1.0
+    for ex, ratio in events.get(symbol, []):
+        if after < ex <= through:
+            factor *= ratio
+    return factor
 
 
 def build(
@@ -221,6 +335,7 @@ def build(
     read_facts: Facts | None = None,
     read_submissions: Submissions | None = None,
     refresh: Refresh | None = None,
+    read_actions: Actions | None = None,
     bucket: str | None = None,
     client: Any = None,
     ingest_enabled: Callable[[], bool] | None = None,
@@ -233,42 +348,73 @@ def build(
     import config
 
     name = bucket if bucket is not None else config.data_bucket_name()
-    bars_of = read_bars or _bars_reader(name, client)
-    facts_of = read_facts or _facts_reader(name, client)
-    subs_of = read_submissions or _default_submissions
-    refresh_of = refresh or _refresh_reader(name, client)
+    bars_of = read_bars or universe_data.bars_reader(name, client)
+    facts_of = read_facts or universe_data.facts_reader(name, client)
+    subs_of = read_submissions or universe_data.submissions_reader(name, client)
+    refresh_of = refresh or universe_data.refresh_runner(name, client)
     chosen = rules if rules is not None else load_rules()
     ranges = sectors if sectors is not None else load_sectors()
     listed = _screen_assets(assets, chosen)
     joined = _joined(listed, tickers)
-    window = _window(sessions, day, int(chosen["dollarVolumeWindowSessions"]))
+    needed = int(chosen["dollarVolumeWindowSessions"])
+    window = _window(sessions, day, needed)
+    if joined and len(window) < needed:
+        raise PriceWindowShort(day.isoformat())
     priced, liquid = _prices(joined, bars_of, window, chosen)
-    missing = sorted({row["cik"] for row in liquid if facts_of(row["cik"]) is None})
+    priced_companies = _one_listing(priced)
+    companies = _one_listing(liquid)
+    loaded: dict[str, list[dict[str, Any]] | None] = {}
+
+    def facts_once(cik: str) -> list[dict[str, Any]] | None:
+        if cik not in loaded:
+            loaded[cik] = facts_of(cik)
+        return loaded[cik]
+
+    missing = sorted({row["cik"] for row in companies if facts_once(row["cik"]) is None})
     if missing:
-        refresh_of(missing, context)
+        outcome = refresh_of(missing, context) or {}
+        if not isinstance(outcome, dict) or outcome.get("status") != "done":
+            status = str(outcome.get("status") or "running") if isinstance(outcome, dict) else "running"
+            return {"asOf": day.isoformat(), "status": status, "pending": len(missing)}
+        for cik in missing:
+            loaded.pop(cik, None)
     kept: list[dict[str, Any]] = []
-    for row in liquid:
-        visible = _visible(facts_of(row["cik"]), day)
+    for row in companies:
+        visible = _visible(facts_once(row["cik"]), day)
         if not visible:
             continue
         carried = dict(row)
         carried["sic"] = subs_of(row["cik"]).get("sic")
         carried["rows"] = visible
         kept.append(carried)
-    with_facts = kept
-    allowed = [row for row in with_facts if not _excluded(row["sic"], chosen["excludeSicRanges"])]
     annual_form = str(chosen["requireAnnualReportForm"])
-    reporting = [row for row in allowed if _annual_ends(row["rows"], annual_form)]
+    allowed = [row for row in kept if not _excluded(row["sic"], chosen["excludeSicRanges"])]
+    max_age = int(chosen["maxAnnualReportAgeDays"])
+    reporting = [row for row in allowed if _recent_annual(row["rows"], annual_form, day, max_age)]
     seasoned = [
-        row for row in reporting if len(_annual_ends(row["rows"], annual_form)) >= int(chosen["minFundamentalsYears"])
+        row
+        for row in reporting
+        if len(set(_annual_filings(row["rows"], annual_form).values())) >= int(chosen["minFundamentalsYears"])
     ]
-    sized: list[dict[str, Any]] = []
-    floor = float(chosen["minMarketCapUsd"])
+    prepared: list[tuple[dict[str, Any], float, date]] = []
+    earliest: date | None = None
     for row in seasoned:
-        shares = fundamentals_pit.latest_stock(row["rows"], "sharesOutstanding")
+        shares = _share_count(row["rows"])
         if shares is None:
             continue
-        cap = shares * float(row["close"])
+        value, ended = shares
+        prepared.append((row, value, ended))
+        if earliest is None or ended < earliest:
+            earliest = ended
+    events = (
+        universe_data.split_events(day, earliest, sessions, read_actions, name, client)
+        if prepared and earliest is not None
+        else {}
+    )
+    floor = float(chosen["minMarketCapUsd"])
+    sized: list[dict[str, Any]] = []
+    for row, shares, ended in prepared:
+        cap = shares * _factor(events, row["symbol"], ended, day) * float(row["close"])
         if cap < floor:
             continue
         carried = dict(row)
@@ -291,9 +437,9 @@ def build(
     counts = {
         "assets": len(listed),
         "withCik": len(joined),
-        "price": len(priced),
-        "dollarVolume": len(liquid),
-        "fundamentals": len(with_facts),
+        "price": len(priced_companies),
+        "dollarVolume": len(companies),
+        "fundamentals": len(kept),
         "sic": len(allowed),
         "annualReport": len(reporting),
         "history": len(seasoned),
@@ -302,69 +448,13 @@ def build(
     sector_counts: dict[str, int] = {}
     for row in members:
         sector_counts[row["sector"]] = sector_counts.get(row["sector"], 0) + 1
-    _write(day, members, counts, sector_counts, name, client)
-    return {"asOf": day.isoformat(), "members": len(members), "counts": counts, "sectors": sector_counts}
-
-
-def _write(
-    day: date,
-    members: list[dict[str, Any]],
-    counts: dict[str, int],
-    sectors: dict[str, int],
-    bucket: str | None,
-    client: Any,
-) -> None:
-    import store
-
-    s3io.put_jsonl_gz(bucket, f"universe/date={day.isoformat()}/members.jsonl.gz", members, client=client)
-    pk = f"UNIVERSE#{day.isoformat()}"
-    existing = store.get(pk, "META") or {}
-    item: dict[str, Any] = {
-        "pk": pk,
-        "sk": "META",
-        "gsi1pk": "UNIVERSE",
-        "gsi1sk": day.isoformat(),
+    universe_data.write_universe(
+        day, members, counts, sector_counts, name, client, float(chosen["maxMemberDropFraction"])
+    )
+    return {
         "asOf": day.isoformat(),
+        "status": "done",
         "members": len(members),
         "counts": counts,
-        "sectors": sectors,
+        "sectors": sector_counts,
     }
-    if "coverage" in existing:
-        item["coverage"] = existing["coverage"]
-    store.put(item)
-
-
-def _bars_reader(bucket: str, client: Any) -> Bars:
-    def read(day: date) -> list[dict[str, Any]]:
-        key = f"prices/raw/date={day.isoformat()}/bars.jsonl.gz"
-        if not s3io.exists(bucket, key, client=client):
-            return []
-        return list(s3io.get_jsonl_gz(bucket, key, client=client))
-
-    return read
-
-
-def _facts_reader(bucket: str, client: Any) -> Facts:
-    def read(cik: str) -> list[dict[str, Any]] | None:
-        key = f"fundamentals/pit/cik={cik}/facts.jsonl.gz"
-        if not s3io.exists(bucket, key, client=client):
-            return None
-        return list(s3io.get_jsonl_gz(bucket, key, client=client))
-
-    return read
-
-
-def _default_submissions(cik: str) -> dict[str, Any]:
-    import sec_edgar
-
-    payload = sec_edgar.submissions(cik)
-    return payload if isinstance(payload, dict) else {}
-
-
-def _refresh_reader(bucket: str, client: Any) -> Refresh:
-    def run(ciks: list[str], context: Any) -> dict[str, Any]:
-        import ingest_fundamentals
-
-        return ingest_fundamentals.refresh(ciks, context, bucket=bucket, client=client, ingest_enabled=lambda: True)
-
-    return run

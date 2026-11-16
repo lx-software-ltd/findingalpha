@@ -246,7 +246,9 @@ export const methodology = {
     "minMedianDollarVolumeUsd": 20000000,
     "dollarVolumeWindowSessions": 60,
     "minMarketCapUsd": 2000000000,
-    "minFundamentalsYears": 3
+    "minFundamentalsYears": 3,
+    "maxAnnualReportAgeDays": 500,
+    "maxMemberDropFraction": 0.5
   }
 } as const;
 
