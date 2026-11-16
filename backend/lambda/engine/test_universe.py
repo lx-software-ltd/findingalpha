@@ -291,6 +291,7 @@ def _company(
 def _build(
     companies: list[dict[str, object]],
     *,
+    on: date = AS_OF,
     sessions: list[date] | None = None,
     read_bars: object = None,
     refresh: object = None,
@@ -340,7 +341,7 @@ def _build(
         patch("store.query_gsi1", memory.query_gsi1),
     ):
         result = universe.build(
-            AS_OF,
+            on,
             context or _Context(),
             assets=assets,
             tickers=tickers,
@@ -659,6 +660,64 @@ class UniverseReviewTest(unittest.TestCase):
         self.assertEqual(first["value"], 300)
         self.assertEqual(second["accession"], "0000000001-24-000001")
         self.assertEqual(downloads, ["0000000001-24-000001:cover.htm"])
+
+    def test_an_empty_amendment_falls_back_to_the_previous_filing(self) -> None:
+        downloads: list[str] = []
+        payload = {
+            "filings": {
+                "recent": {
+                    "form": ["10-Q/A", "10-Q"],
+                    "filingDate": ["2024-05-01", "2024-04-24"],
+                    "accessionNumber": ["0000000001-24-000002", "0000000001-24-000001"],
+                    "primaryDocument": ["amend.htm", "cover.htm"],
+                }
+            }
+        }
+        documents = {
+            "amend.htm": "<html>no shares</html>",
+            "cover.htm": (
+                '<xbrli:context id="c"><xbrli:instant>2024-04-17</xbrli:instant></xbrli:context>'
+                '<ix:nonFraction contextRef="c" name="dei:EntityCommonStockSharesOutstanding" scale="0">300</ix:nonFraction>'
+            ),
+        }
+
+        def filing(_cik: str, accession: str, name: str) -> str:
+            downloads.append(f"{accession}:{name}")
+            return documents[name]
+
+        bucket = _Bucket()
+        with (
+            patch("sec_edgar.submissions", return_value=payload),
+            patch("sec_edgar.filing", side_effect=filing),
+        ):
+            reader = universe_data.cover_reader("data", bucket)
+            first = reader(_cik(1), AS_OF)
+            second = reader(_cik(1), AS_OF)
+        self.assertEqual(first["value"], 300)
+        self.assertEqual(first["accession"], "0000000001-24-000001")
+        self.assertEqual(second["accession"], first["accession"])
+        self.assertEqual(downloads, ["0000000001-24-000002:amend.htm", "0000000001-24-000001:cover.htm"])
+
+    def test_empty_inputs_do_not_publish_a_universe(self) -> None:
+        bucket = _Bucket()
+        result = universe.build(
+            AS_OF,
+            _Context(),
+            assets=[],
+            tickers={},
+            sessions=_sessions(),
+            bucket="data",
+            client=bucket,
+            ingest_enabled=lambda: True,
+        )
+        self.assertEqual(result["status"], "missing_inputs")
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+
+    def test_the_price_date_is_the_last_session(self) -> None:
+        _result, _bucket, memory = _build([_company("PASS")], on=date(2024, 6, 4))
+        saved = memory.items[("UNIVERSE#2024-06-04", "META")]
+        self.assertEqual(saved["asOf"], "2024-06-04")
+        self.assertEqual(saved["lastPriceDate"], "2024-06-03")
 
 
 def _weighted(start: str, end: str, value: int) -> dict[str, object]:

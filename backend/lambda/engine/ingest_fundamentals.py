@@ -129,6 +129,7 @@ def refresh(
         import store
 
         store.delete(f"JOB#{job}", "STATE")
+        _save_cursor(date.fromisoformat(job.split("#", 1)[1]))
     return result
 
 

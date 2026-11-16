@@ -344,6 +344,8 @@ def build(
     chosen = rules if rules is not None else load_rules()
     ranges = sectors if sectors is not None else load_sectors()
     listed = _screen_assets(assets, chosen)
+    if not listed or not tickers or not sessions:
+        return {"asOf": day.isoformat(), "status": "missing_inputs", "members": 0}
     joined = _joined(listed, tickers)
     needed = int(chosen["dollarVolumeWindowSessions"])
     window = _window(sessions, day, needed)
@@ -456,6 +458,7 @@ def build(
         client,
         float(chosen["maxMemberDropFraction"]),
         share_sources,
+        window[-1] if window else None,
     )
     return {
         "asOf": day.isoformat(),

@@ -367,7 +367,16 @@ def refresh_adjusted(
 ) -> dict[str, Any]:
     """Full history in parts of 100. SPY and BIL are always included."""
     with _hold(ingest_enabled):
-        return _refresh_adjusted(symbols, start, end, context, fetch_bars=fetch_bars, bucket=bucket, client=client)
+        return _refresh_adjusted(
+            symbols,
+            start,
+            end,
+            context,
+            fetch_bars=fetch_bars,
+            bucket=bucket,
+            client=client,
+            enabled=ingest_enabled or _default_ingest,
+        )
 
 
 def _refresh_adjusted(
@@ -379,6 +388,7 @@ def _refresh_adjusted(
     fetch_bars: Bars | None,
     bucket: str | None,
     client: Any,
+    enabled: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     start_day = _as_date(start)
     end_day = _as_date(end)
@@ -402,6 +412,7 @@ def _refresh_adjusted(
         process,
         context,
         params={"start": start_day.isoformat(), "end": end_day.isoformat(), "symbols": chosen},
+        enabled=enabled,
     )
     if result.get("status") == "done":
         _drop_stale_parts(name, len(parts), client)

@@ -66,10 +66,24 @@ describe("SystemPage", () => {
     expect(await screen.findByText(/Universe 2024-06-03, 4 names/)).toBeTruthy();
     expect(screen.getByText(/2 of 8/)).toBeTruthy();
     expect(screen.getByText("revenue")).toBeTruthy();
+    expect(screen.getByText("50%")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Run now" }));
     expect(screen.getByText("Run ingest_daily now?")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Run" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Accepted ingest_daily.");
     expect(fetchJson).toHaveBeenCalledWith("/jobs/ingest_daily/run", { method: "POST" });
+  });
+
+  it("renders before a universe exists", async () => {
+    fetchJson.mockImplementation((path: string) => {
+      if (path === "/system/status") return Promise.resolve({ switches: [], brokerMode: "paper", jobs: [] });
+      if (String(path).startsWith("/jobs/runs")) return Promise.resolve({ runs: [] });
+      if (path === "/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
+      if (path === "/universe/latest") return Promise.resolve({ asOf: null, members: 0, counts: {} });
+      return Promise.resolve({});
+    });
+    renderPage();
+    expect(await screen.findByText(/Universe —, 0 names/)).toBeTruthy();
+    expect(screen.getByText(/Price backfill —/)).toBeTruthy();
   });
 });

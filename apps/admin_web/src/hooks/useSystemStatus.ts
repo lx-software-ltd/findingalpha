@@ -34,9 +34,10 @@ export type UniverseLatest = {
   readonly coverage?: {
     readonly flows?: Readonly<Record<string, number | null>>;
     readonly stocks?: Readonly<Record<string, number | null>>;
+    readonly shareFlows?: Readonly<Record<string, number | null>>;
   };
   readonly lastPriceDate: string | null;
-  readonly backfill: {
+  readonly backfill?: {
     readonly prices: { readonly status?: string; readonly cursor: number; readonly total: number } | null;
     readonly fundamentals: { readonly status?: string; readonly cursor: number; readonly total: number } | null;
   };

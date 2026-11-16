@@ -96,3 +96,19 @@ def previous_session(
 def new_york_today(now: datetime | None = None) -> date:
     moment = now or datetime.now(NEW_YORK)
     return moment.astimezone(NEW_YORK).date()
+
+
+def fetch_alpaca_year(year: int) -> list[str]:
+    """Session dates for one calendar year from the Alpaca trading calendar."""
+    import alpaca_data
+
+    client = alpaca_data._open()
+    payload = client._json(
+        alpaca_data._url(
+            f"{alpaca_data._PAPER}/v2/calendar",
+            {"start": f"{year}-01-01", "end": f"{year}-12-31"},
+        )
+    )
+    if not isinstance(payload, list):
+        raise ValueError("calendar response is not a list")
+    return [str(row["date"])[:10] for row in payload if isinstance(row, dict) and row.get("date")]

@@ -230,6 +230,23 @@ class FundamentalsIngestTest(unittest.TestCase):
         self.assertEqual(done["status"], "done")
         self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-06-03")
 
+    def test_a_finished_filings_refresh_moves_the_cursor(self) -> None:
+        bucket = _Bucket()
+        memory = _Memory()
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
+            result = ingest_fundamentals.refresh(
+                [CIK],
+                _Context(),
+                job="ingest_filings_refresh#2024-06-03",
+                fetch_facts=lambda _cik: _facts(),
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+        self.assertEqual(result["status"], "done")
+        self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-06-03")
+        self.assertNotIn(("JOB#ingest_filings_refresh#2024-06-03", "STATE"), memory.items)
+
     def test_the_first_catch_up_is_the_last_five_sessions(self) -> None:
         bucket = _Bucket()
         memory = _Memory()

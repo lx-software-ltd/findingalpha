@@ -23,10 +23,19 @@ def _noop(_event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None) -
     return {"ok": True}
 
 
+def _may_resume(job: str) -> bool:
+    switch = switch_for(job)
+    if not switch:
+        return True
+    import kill_switch
+
+    return kill_switch.is_enabled(switch)
+
+
 def _tick(_event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None) -> dict[str, Any]:
     import chunked
 
-    chunked.resume_stalled()
+    chunked.resume_stalled(enabled=_may_resume)
     return {"ok": True}
 
 
@@ -54,6 +63,14 @@ def _universe_refresh(event: dict[str, Any], _run: job_runs.JobRun, context: Any
     return ingest_jobs.resume_universe(event, context)
 
 
+def _universe_build(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.resume_build(event, context)
+
+
+def _adjusted(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    return ingest_jobs.resume_adjusted(event, context)
+
+
 JOBS = {
     "noop": _noop,
     "tick": _tick,
@@ -62,6 +79,8 @@ JOBS = {
     "backfill_prices": _prices,
     "backfill_fundamentals": _fundamentals,
     ingest_jobs.UNIVERSE_REFRESH_JOB: _universe_refresh,
+    ingest_jobs.UNIVERSE_BUILD_JOB: _universe_build,
+    ingest_jobs.ADJUSTED_JOB: _adjusted,
 }
 
 
@@ -76,7 +95,11 @@ def handler_for(job: str) -> Handler | None:
 
 
 def switch_for(job: str) -> str:
-    if job.startswith(ingest_jobs.FILINGS_JOB_PREFIX) or job == ingest_jobs.UNIVERSE_REFRESH_JOB:
+    if job.startswith(ingest_jobs.FILINGS_JOB_PREFIX) or job in {
+        ingest_jobs.UNIVERSE_REFRESH_JOB,
+        ingest_jobs.UNIVERSE_BUILD_JOB,
+        ingest_jobs.ADJUSTED_JOB,
+    }:
         return "ingestEnabled"
     return SWITCHES.get(job, "")
 

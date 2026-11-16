@@ -86,25 +86,24 @@ def latest_universe(_event: dict[str, Any]) -> dict[str, Any]:
     import store
 
     rows = [row for row in store.query_gsi1("UNIVERSE") if isinstance(row.get("counts"), dict)]
-    if not rows:
-        return _json_response(200, {"asOf": None, "members": 0, "counts": {}})
-    latest = max(rows, key=lambda row: str(row.get("gsi1sk") or ""))
-    return _json_response(
-        200,
-        {
-            "asOf": latest.get("asOf") or latest.get("gsi1sk"),
-            "members": latest.get("members"),
-            "counts": latest.get("counts"),
-            "sectors": latest.get("sectors") or {},
-            "shareSources": latest.get("shareSources") or {},
-            "coverage": latest.get("coverage") or {},
-            "lastPriceDate": latest.get("lastPriceDate"),
-            "backfill": {
-                "prices": _progress("backfill_prices"),
-                "fundamentals": _progress("backfill_fundamentals"),
-            },
+    latest = max(rows, key=lambda row: str(row.get("gsi1sk") or "")) if rows else {}
+    return _json_response(200, _universe_payload(latest))
+
+
+def _universe_payload(latest: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "asOf": latest.get("asOf") or latest.get("gsi1sk"),
+        "members": latest.get("members") or 0,
+        "counts": latest.get("counts") or {},
+        "sectors": latest.get("sectors") or {},
+        "shareSources": latest.get("shareSources") or {},
+        "coverage": latest.get("coverage") or {},
+        "lastPriceDate": latest.get("lastPriceDate"),
+        "backfill": {
+            "prices": _progress("backfill_prices"),
+            "fundamentals": _progress("backfill_fundamentals"),
         },
-    )
+    }
 
 
 def _progress(job: str) -> dict[str, Any] | None:

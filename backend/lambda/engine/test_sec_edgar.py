@@ -175,6 +175,30 @@ class SecEdgarTest(unittest.TestCase):
         self.assertEqual(client.daily_index("2024-11-11"), [])
         self.assertEqual(seen, [master, listing])
 
+    def test_a_listing_cached_before_publication_is_read_again(self) -> None:
+        listing = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/index.json"
+        body = b"-" * 20 + b"\n7|EXAMPLE INC|10-Q|2024-11-12|edgar/data/7/x.txt\n"
+        listings = {"n": 0}
+        masters = {"n": 0}
+
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            if request.full_url == listing:
+                listings["n"] += 1
+                name = "master.20241112.idx" if listings["n"] > 1 else "master.20241111.idx"
+                return _Response(f'{{"directory":{{"item":[{{"name":"{name}"}}]}}}}'.encode())
+            masters["n"] += 1
+            if masters["n"] < 3:
+                headers = Message()
+                raise urllib.error.HTTPError(request.full_url, 403, "slow", headers, io.BytesIO(b"slow"))
+            return _Response(body)
+
+        client = sec_edgar.SecEdgar(contact=_CONTACT, opener=opener, limiter=self.limiter)
+        self.assertEqual(client.daily_index("2024-11-12"), [])
+        rows = client.daily_index("2024-11-12")
+        self.assertEqual(rows[0]["form"], "10-Q")
+        self.assertEqual(listings["n"], 2)
+
     def test_a_403_for_a_listed_master_still_fails(self) -> None:
         master = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/master.20241112.idx"
         listing = "https://www.sec.gov/Archives/edgar/daily-index/2024/QTR4/index.json"

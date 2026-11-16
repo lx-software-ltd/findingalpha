@@ -69,6 +69,23 @@ class MarketCalendarTest(unittest.TestCase):
         self.assertEqual(again, days)
         self.assertEqual(fetched, [2026])
 
+    def test_the_alpaca_calendar_route_returns_session_dates(self) -> None:
+        class Client:
+            def __init__(self) -> None:
+                self.url = ""
+
+            def _json(self, url: str) -> list[dict[str, str]]:
+                self.url = url
+                return [{"date": "2024-06-03"}, {"closed": True}]
+
+        client = Client()
+        with patch("alpaca_data._open", return_value=client):
+            days = market_calendar.fetch_alpaca_year(2024)
+        self.assertEqual(days, ["2024-06-03"])
+        self.assertIn("/v2/calendar", client.url)
+        self.assertIn("start=2024-01-01", client.url)
+        self.assertIn("end=2024-12-31", client.url)
+
 
 if __name__ == "__main__":
     unittest.main()

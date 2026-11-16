@@ -28,7 +28,11 @@ export function SystemPage() {
     { key: "run", header: "Run" },
   ];
   const data = universe.data;
-  const coverage = { ...(data?.coverage?.flows ?? {}), ...(data?.coverage?.stocks ?? {}) };
+  const coverage = {
+    ...(data?.coverage?.flows ?? {}),
+    ...(data?.coverage?.stocks ?? {}),
+    ...(data?.coverage?.shareFlows ?? {}),
+  };
 
   return (
     <div>
@@ -80,12 +84,12 @@ export function SystemPage() {
         <thead><tr><th>Field</th><th>Share</th></tr></thead>
         <tbody>
           {Object.entries(coverage).map(([field, share]) => (
-            <tr key={field}><td>{field}</td><td>{share === null || share === undefined ? "—" : share}</td></tr>
+            <tr key={field}><td>{field}</td><td>{percent(share)}</td></tr>
           ))}
         </tbody>
       </table>
       <p>
-        Price backfill {progress(data?.backfill.prices)}. Fundamentals backfill {progress(data?.backfill.fundamentals)}.
+        Price backfill {progress(data?.backfill?.prices)}. Fundamentals backfill {progress(data?.backfill?.fundamentals)}.
       </p>
       <h2 className="h5">Jobs</h2>
       {accepted ? <p role="status">Accepted {accepted}.</p> : null}
@@ -178,4 +182,9 @@ export function SystemPage() {
 function progress(row: { cursor: number; total: number } | null | undefined): string {
   if (!row || row.total === 0) return "—";
   return `${row.cursor} of ${row.total}`;
+}
+
+function percent(share: number | null | undefined): string {
+  if (typeof share !== "number" || Number.isNaN(share)) return "—";
+  return `${Math.round(share * 1000) / 10}%`;
 }

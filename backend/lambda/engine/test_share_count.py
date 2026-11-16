@@ -113,6 +113,17 @@ class CoverPageTest(unittest.TestCase):
         self.assertEqual(share_count.parse_cover_shares(scaled)["value"], 5_000_000)
         self.assertIsNone(share_count.parse_cover_shares("<html></html>"))
 
+    def test_a_company_wide_total_is_not_added_to_the_classes(self) -> None:
+        document = """
+        <xbrli:context id="total"><xbrli:period><xbrli:instant>2024-04-17</xbrli:instant></xbrli:period></xbrli:context>
+        <xbrli:context id="class-a"><xbrli:entity><xbrli:segment><xbrldi:explicitMember dimension="us-gaap:StatementClassOfStockAxis">A</xbrldi:explicitMember></xbrli:segment></xbrli:entity><xbrli:period><xbrli:instant>2024-04-17</xbrli:instant></xbrli:period></xbrli:context>
+        <ix:nonFraction contextRef="total" name="dei:EntityCommonStockSharesOutstanding" scale="0">100</ix:nonFraction>
+        <ix:nonFraction contextRef="class-a" name="dei:EntityCommonStockSharesOutstanding" scale="0">60</ix:nonFraction>
+        """
+        parsed = share_count.parse_cover_shares(document)
+        assert parsed is not None
+        self.assertEqual(parsed["value"], 100)
+
 
 if __name__ == "__main__":
     unittest.main()

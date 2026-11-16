@@ -88,6 +88,17 @@ class ApiHandlerTest(unittest.TestCase):
         self.assertEqual(body["backfill"]["prices"], {"status": "running", "cursor": 2, "total": 8})
         self.assertIsNone(body["backfill"]["fundamentals"])
 
+    def test_an_empty_universe_still_has_backfill_progress(self) -> None:
+        from unittest.mock import patch
+
+        with patch("store.query_gsi1", return_value=[]), patch("store.get", return_value=None):
+            response = api_handler.lambda_handler(_event("GET", "/universe/latest", "[admin]"), None)
+        body = json.loads(response["body"])
+        self.assertEqual(body["asOf"], None)
+        self.assertEqual(body["members"], 0)
+        self.assertIn("backfill", body)
+        self.assertIsNone(body["backfill"]["prices"])
+
 
 if __name__ == "__main__":
     unittest.main()

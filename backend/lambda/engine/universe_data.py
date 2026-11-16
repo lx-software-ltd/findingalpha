@@ -73,42 +73,42 @@ _COVER_FORMS = frozenset({"10-K", "10-Q", "10-K/A", "10-Q/A"})
 
 
 def cover_reader(bucket: str, client: Any) -> Callable[[str, date], dict[str, Any] | None]:
-    """Class totals from the latest 10-K or 10-Q cover. One filing is parsed once."""
+    """Class totals from a 10-K or 10-Q cover. An empty amendment is not the last try."""
 
     def read(cik: str, on: date) -> dict[str, Any] | None:
         import sec_edgar
         import share_count
 
         payload = sec_edgar.submissions(cik)
-        filing = _latest_filing(payload, on)
-        if filing is None:
-            return None
-        filed, accession, document = filing
         key = f"reference/shares/cik={cik}.json"
-        if s3io.exists(bucket, key, client=client):
-            cached = s3io.get_json(bucket, key, client=client)
-            if isinstance(cached, dict) and str(cached.get("accession") or "") == accession:
-                return cached
-        parsed = share_count.parse_cover_shares(sec_edgar.filing(cik, accession, document)) or {}
-        stored = {
-            "filed": filed,
-            "accession": accession,
-            "end": parsed.get("end"),
-            "value": parsed.get("value"),
-            "source": "coverClasses",
-        }
-        s3io.put_json(bucket, key, stored, client=client)
-        return stored
+        cached = s3io.get_json(bucket, key, client=client) if s3io.exists(bucket, key, client=client) else {}
+        attempts = cached.get("attempts") if isinstance(cached, dict) else None
+        known = dict(attempts) if isinstance(attempts, dict) else {}
+        chosen: dict[str, Any] | None = None
+        for filed, accession, document in _cover_filings(payload, on):
+            saved = known.get(accession)
+            if isinstance(saved, dict):
+                if saved.get("value"):
+                    chosen = {"filed": filed, "accession": accession, **saved}
+                    break
+                continue
+            parsed = share_count.parse_cover_shares(sec_edgar.filing(cik, accession, document)) or {}
+            known[accession] = {"end": parsed.get("end"), "value": parsed.get("value"), "source": "coverClasses"}
+            if parsed.get("value"):
+                chosen = {"filed": filed, "accession": accession, **known[accession]}
+                break
+        s3io.put_json(bucket, key, {"attempts": known}, client=client)
+        return chosen
 
     return read
 
 
-def _latest_filing(payload: dict[str, Any], on: date) -> tuple[str, str, str] | None:
+def _cover_filings(payload: dict[str, Any], on: date) -> list[tuple[str, str, str]]:
     filings = payload.get("filings") if isinstance(payload, dict) else None
     recent = filings.get("recent") if isinstance(filings, dict) else None
     if not isinstance(recent, dict):
-        return None
-    best: tuple[str, str, str] | None = None
+        return []
+    found: list[tuple[str, str, str]] = []
     limit = on.isoformat()
     rows = zip(
         recent.get("form") or [],
@@ -121,9 +121,9 @@ def _latest_filing(payload: dict[str, Any], on: date) -> tuple[str, str, str] | 
         day = str(filed)[:10]
         if str(form) not in _COVER_FORMS or not day or day > limit or not accession or not document:
             continue
-        if best is None or day > best[0]:
-            best = (day, str(accession), str(document))
-    return best
+        found.append((day, str(accession), str(document)))
+    found.sort(reverse=True)
+    return found
 
 
 def refresh_runner(bucket: str, client: Any, on: date | None = None) -> Callable[[list[str], Any], dict[str, Any]]:
@@ -183,6 +183,7 @@ def write_universe(
     client: Any,
     drop_fraction: float,
     share_sources: dict[str, int] | None = None,
+    price_date: date | None = None,
 ) -> None:
     """Write members, then set this build's fields. Coverage on the row is not replaced."""
     _refuse_shrink(day, len(members), drop_fraction)
@@ -203,7 +204,7 @@ def write_universe(
             ":counts": counts,
             ":sectors": sectors,
             ":shareSources": share_sources or {},
-            ":lastPriceDate": day.isoformat(),
+            ":lastPriceDate": (price_date or day).isoformat(),
         },
         {
             "#gsi1pk": "gsi1pk",

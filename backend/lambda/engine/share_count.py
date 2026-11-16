@@ -107,23 +107,27 @@ def shares_as_of(
 
 
 def parse_cover_shares(document: str) -> dict[str, Any] | None:
-    """Sum class counts on the latest cover instant. Preferred stock is ignored."""
-    instants = _instants(document)
+    """The latest cover instant. A company-wide total wins over a class sum."""
+    contexts = _contexts(document)
     by_context: dict[str, tuple[date, float]] = {}
     for attrs, text in _FACT.findall(document):
         fields = _attrs(attrs)
         if fields.get("name") != _COVER_NAME:
             continue
         context = fields.get("contextref") or fields.get("contextRef") or ""
-        instant = instants.get(context)
+        found = contexts.get(context)
         value = _scaled(text, fields.get("scale"))
-        if not context or instant is None or value is None or value <= 0:
+        if not context or found is None or value is None or value <= 0:
             continue
-        by_context.setdefault(context, (instant, value))
+        by_context.setdefault(context, (found[0], value))
     if not by_context:
         return None
     latest = max(instant for instant, _value in by_context.values())
-    total = sum(value for instant, value in by_context.values() if instant == latest)
+    plain = [
+        value for context, (instant, value) in by_context.items() if instant == latest and not contexts[context][1]
+    ]
+    classes = [value for instant, value in by_context.values() if instant == latest]
+    total = sum(plain or classes)
     if total <= 0:
         return None
     return {"end": latest.isoformat(), "value": total}
@@ -147,15 +151,16 @@ def _latest_end(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return max(at_end, key=lambda item: str(item.get("filed") or ""))
 
 
-def _instants(document: str) -> dict[str, date]:
-    found: dict[str, date] = {}
+def _contexts(document: str) -> dict[str, tuple[date, bool]]:
+    """Context id to its instant, and whether the context names a class."""
+    found: dict[str, tuple[date, bool]] = {}
     for context, body in _CONTEXT.findall(document):
         match = _INSTANT.search(body)
         if match is None:
             continue
         instant = _day(match.group(1))
         if instant is not None:
-            found[context] = instant
+            found[context] = (instant, "<xbrli:segment" in body.lower())
     return found
 
 

@@ -182,15 +182,20 @@ class SecEdgar:
         return parse_master(text)
 
     def _listed(self, url: str, filename: str) -> bool:
-        """True when the name is in the listing, or when the listing cannot be read."""
+        """True when the name is in the listing, or when the listing cannot be read.
+
+        A cached listing that omits the file is read again. The file may
+        have been published after the first read.
+        """
         names = self._quarters.get(url)
-        if names is None:
-            try:
-                payload = self._json(url)
-            except (http_client.HttpStatusError, TypeError, ValueError):
-                return True
-            names = _listing_names(payload)
-            self._quarters[url] = names
+        if names is not None and filename in names:
+            return True
+        try:
+            payload = self._json(url)
+        except (http_client.HttpStatusError, TypeError, ValueError):
+            return True
+        names = _listing_names(payload)
+        self._quarters[url] = names
         return filename in names
 
 
