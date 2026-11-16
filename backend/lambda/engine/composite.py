@@ -37,6 +37,11 @@ def winsorise(values: list[float | None], low_percent: float, high_percent: floa
     return [None if value is None else min(max(value, low), high) for value in values]
 
 
+def _uses_universe(sector: str) -> bool:
+    """A blank sector and the unmapped sector ``Other`` are not a peer group."""
+    return not str(sector).strip() or str(sector).strip() == "Other"
+
+
 def _mean(values: list[float]) -> float:
     return sum(values) / len(values)
 
@@ -64,7 +69,7 @@ def zscores(
             out.append(None)
             continue
         pool = by_sector.get(sector, [])
-        if not str(sector).strip() or len(pool) < min_sector_size or _population_std(pool) == 0:
+        if _uses_universe(sector) or len(pool) < min_sector_size or _population_std(pool) == 0:
             pool = universe
         deviation = _population_std(pool)
         if deviation == 0:

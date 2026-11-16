@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import hashlib
 import importlib
+import inspect
 import json
 from pathlib import Path
 from typing import Any
 
 _PATH = Path(__file__).resolve().parent / "contracts" / "methodology.json"
 _FUNDAMENTALS = _PATH.parent / "fundamentals.json"
-_KEYS = {"version", "universe", "factors", "composite", "screen"}
+_KEYS = {"version", "universe", "factors", "composite", "screen", "fundamentals"}
 _FACTOR_KEYS = {"id", "group", "direction", "formula", "implementation", "status"}
 _STATUSES = {"provisional", "cited"}
 _DIRECTIONS = {"higher", "lower"}
@@ -65,6 +67,9 @@ def validate(doc: dict[str, Any]) -> None:
         _status(factor, name)
     _status(doc["composite"], "composite")
     _status(doc["screen"], "screen")
+    _status(doc["fundamentals"], "fundamentals")
+    if doc["fundamentals"].get("unreportedDebt") not in {"zero", "missing"}:
+        raise MethodologyError("unreportedDebt")
     weights = doc["composite"].get("groupWeights")
     if not isinstance(weights, dict) or not weights:
         raise MethodologyError("group weights")
@@ -139,7 +144,7 @@ def _implementations(factors: list[dict[str, Any]]) -> None:
         params = factor.get("parameters") or {}
         if not isinstance(params, dict):
             raise MethodologyError(f"{factor['id']} parameters")
-        for name in getattr(function, "required_parameters", ()):
+        for name in _parameters_read(function):
             if not _number(params.get(name)):
                 raise MethodologyError(f"{factor['id']} missing {name}")
     for module_name in _FACTOR_MODULES:
@@ -149,6 +154,20 @@ def _implementations(factors: list[dict[str, Any]]) -> None:
                 continue
             if f"{module_name}.{name}" not in named:
                 raise MethodologyError(f"unregistered {module_name}.{name}")
+
+
+def _parameters_read(function: Any) -> list[str]:
+    """Parameter names the function reads from ``params``. The source is the check."""
+    tree = ast.parse(inspect.getsource(function))
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Name):
+            continue
+        if node.value.id != "params" or not isinstance(node.slice, ast.Constant):
+            continue
+        if isinstance(node.slice.value, str) and node.slice.value not in found:
+            found.append(node.slice.value)
+    return found
 
 
 def _callable(path: str) -> Any:

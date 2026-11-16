@@ -37,7 +37,14 @@ def get_methodology(_event: dict[str, Any]) -> dict[str, Any]:
     import methodology
 
     doc = methodology.load()
-    entries = [*doc["factors"], doc["composite"], doc["screen"], doc["universe"]]
+    entries = [
+        *doc["factors"],
+        *[
+            doc[key]
+            for key in ("composite", "screen", "universe", "fundamentals", "backtest")
+            if isinstance(doc.get(key), dict)
+        ],
+    ]
     return _json_response(
         200,
         {

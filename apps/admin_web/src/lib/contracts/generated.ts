@@ -245,7 +245,7 @@ export const jobs = {
 } as const;
 
 export const methodology = {
-  "version": 3,
+  "version": 4,
   "universe": {
     "status": "provisional",
     "confirmed": [
@@ -461,6 +461,11 @@ export const methodology = {
       }
     ],
     "shortlistSize": 60,
+    "citation": null
+  },
+  "fundamentals": {
+    "status": "provisional",
+    "unreportedDebt": "zero",
     "citation": null
   }
 } as const;

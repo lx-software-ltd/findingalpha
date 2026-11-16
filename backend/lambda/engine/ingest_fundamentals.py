@@ -58,7 +58,7 @@ def trim_facts(payload: dict[str, Any], maps: dict[str, dict[str, list[str]]] | 
     chosen = maps if maps is not None else fundamentals_pit.load_tag_maps()
     facts = payload.get("facts") if isinstance(payload.get("facts"), dict) else {}
     kept: dict[str, dict[str, Any]] = {}
-    for section in ("flows", "stocks", "shareFlows"):
+    for section in ("flows", "stocks", "shareFlows", "debt"):
         for tags in (chosen.get(section) or {}).values():
             for tag in tags:
                 taxonomy = "dei" if tag.startswith("dei:") else "us-gaap"

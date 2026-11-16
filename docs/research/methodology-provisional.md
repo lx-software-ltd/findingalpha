@@ -33,9 +33,14 @@ each debt stock minus the average cash.
 Debt tags are combined per balance-sheet date. `LongTermDebt` already
 includes `LongTermDebtCurrent`, and `DebtCurrent` already includes the
 current portion and short-term borrowings, so those are not added
-again. When a balance sheet is present and a debt tag was never filed,
-that component is zero. A prior statement that omits the tag counts as
-zero in the average. Coverage still counts only a tag that was filed.
+again. When only the two totals are filed, the smaller one is treated
+as part of the larger one. A later filing that repeats an old column
+does not hide the original filing date.
+
+The register says `unreportedDebt` is `zero`. A balance sheet that
+never reports a debt tag, or that drops the tag after an older
+statement, counts as zero of that debt. Coverage still counts only a
+tag that was filed.
 
 Closes follow the market session calendar. A session with no print
 keeps the previous close, so a missing day does not move the 21, 200,

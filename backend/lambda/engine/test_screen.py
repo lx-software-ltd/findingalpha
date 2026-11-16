@@ -29,7 +29,8 @@ class ScreenTest(unittest.TestCase):
         cash = _row("CASH", netDebtToEbitda=None, longTermDebt=0, shortTermDebt=0, cash=5)
         levered = _row("DEBT", netDebtToEbitda=None, longTermDebt=10, shortTermDebt=0, cash=0)
         self.assertTrue(screen.passes(cash, register))
-        self.assertFalse(screen.passes(levered, register))
+        self.assertEqual(screen.failed_filters(cash, register), [])
+        self.assertEqual(screen.failed_filters(levered, register), ["debtCeiling"])
 
     def test_a_missing_composite_or_a_failed_filter_stays_off_the_shortlist(self) -> None:
         register = methodology.load()

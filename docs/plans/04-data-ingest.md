@@ -190,8 +190,10 @@ empty day when that quarter's `index.json` does not list
 `contracts/fundamentals.json` maps our field names to XBRL tags. For
 each period, the first tag that has a value wins, and a later tag
 fills periods the earlier tags do not cover. Long-term and short-term
-debt are the exception from version 3: the `debt` roles are combined
-per balance-sheet date so the current portion is not counted twice.
+debt are the exception: the `debt` roles are combined per balance-sheet
+date and per filing date, so a repeated column does not hide the
+original filing and the current portion is not counted twice. The
+sample below is the older shape. The current file is version 4.
 `shareFlows` are share counts over a period, not dollars:
 
 ```json

@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "universe": {
     "status": "provisional",
     "confirmed": ["excludeSicRanges", "minFundamentalsYears"],
@@ -172,6 +172,11 @@
       { "id": "debtCeiling", "field": "netDebtToEbitda", "op": "<=", "value": 4, "passWhenNetCash": true }
     ],
     "shortlistSize": 60,
+    "citation": null
+  },
+  "fundamentals": {
+    "status": "provisional",
+    "unreportedDebt": "zero",
     "citation": null
   }
 }

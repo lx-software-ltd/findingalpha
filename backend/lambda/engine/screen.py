@@ -13,11 +13,16 @@ _OPS = {
 }
 
 
+def failed_filters(row: dict[str, Any], register: dict[str, Any]) -> list[str]:
+    """The ids of the hard filters the row misses. A missing composite is its own failure."""
+    if _number(row.get("composite")) is None:
+        return ["composite"]
+    return [str(rule["id"]) for rule in register["screen"]["hardFilters"] if not _rule(row, rule)]
+
+
 def passes(row: dict[str, Any], register: dict[str, Any]) -> bool:
     """True when the row has a composite and meets every hard filter."""
-    if _number(row.get("composite")) is None:
-        return False
-    return all(_rule(row, rule) for rule in register["screen"]["hardFilters"])
+    return not failed_filters(row, register)
 
 
 def shortlist(rows: list[dict[str, Any]], register: dict[str, Any]) -> list[dict[str, Any]]:

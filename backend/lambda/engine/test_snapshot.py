@@ -97,6 +97,19 @@ class SnapshotTest(unittest.TestCase):
         plain = snapshot.build("AAA", "1", "2024-06-05", [], bars, None, None)
         self.assertEqual(plain["closes"], [12, 30])
 
+    def test_debt_omitted_from_a_later_statement_is_zero(self) -> None:
+        rows = [
+            _stock("longTermDebt", "2019-12-31", 500, "2020-02-15"),
+            _stock("cash", "2019-12-31", 10, "2020-02-15"),
+            _stock("equity", "2019-12-31", 100, "2020-02-15"),
+            _stock("cash", "2023-12-31", 50, "2024-02-15"),
+            _stock("equity", "2023-12-31", 900, "2024-02-15"),
+        ]
+        built = snapshot.build("AAA", "1", "2024-06-01", rows, [], 10, 10)
+        self.assertEqual(built["longTermDebt"], 0)
+        self.assertEqual(built["shortTermDebt"], 0)
+        self.assertEqual(built["enterpriseValue"], 100 + 0 + 0 - 50)
+
 
 if __name__ == "__main__":
     unittest.main()

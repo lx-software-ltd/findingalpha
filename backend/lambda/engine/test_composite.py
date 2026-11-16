@@ -91,6 +91,8 @@ class CompositeTest(unittest.TestCase):
         self.assertEqual(scores[0], universe[0])
         self.assertEqual(scores[1], universe[1])
         self.assertNotEqual(scores[2], universe[2])
+        other = composite.zscores([1.0, 3.0, 10.0, 30.0], ["Other", "Other", "tech", "tech"], min_sector_size=2)
+        self.assertEqual(other[0], universe[0])
 
 
 if __name__ == "__main__":
