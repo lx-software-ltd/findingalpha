@@ -196,6 +196,63 @@ class PriceIngestTest(unittest.TestCase):
         self.assertEqual(ingest_prices.raw_symbols(assets, include_inactive=False), ["LIVE", "SPY"])
         self.assertEqual(ingest_prices.raw_symbols(assets, include_inactive=True), ["GONE", "LIVE", "SPY"])
 
+    def test_placeholder_identifiers_are_not_priced(self) -> None:
+        assets = [
+            {"symbol": "LIVE", "exchange": "NASDAQ", "status": "active"},
+            {"symbol": "000CVR019", "exchange": "NASDAQ", "status": "inactive"},
+            {"symbol": "00000X0E0", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "X00000019", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "EXM.RT", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "EXMPL.U", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "ABCDEFGHI", "exchange": "NYSE", "status": "inactive"},
+            {"symbol": "S001", "exchange": "NASDAQ", "status": "inactive"},
+        ]
+        self.assertEqual(
+            ingest_prices.raw_symbols(assets, include_inactive=True),
+            ["ABCDEFGHI", "EXM.RT", "EXMPL.U", "LIVE", "S001", "SPY"],
+        )
+
+    def test_a_saved_symbol_list_drops_placeholder_identifiers(self) -> None:
+        bucket = _Bucket()
+        memory = _Memory()
+        asked: list[list[str]] = []
+        saved = ["000CVR019", "GONE", "X00000019"]
+
+        def bars(symbols: list[str], start: date, end: date, adjustment: str) -> list[dict[str, object]]:
+            del end, adjustment
+            asked.append(symbols)
+            return [_bar(symbol, start) for symbol in symbols]
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+            ingest_prices.backfill_raw(
+                DAY,
+                DAY,
+                [DAY],
+                _Context(),
+                symbols=saved,
+                fetch_bars=bars,
+                fetch_actions=lambda _start, _end: [],
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+            state = memory.items[("JOB#backfill_prices", "STATE")]
+            ingest_prices.ingest_raw_day(
+                DAY,
+                saved,
+                fetch_bars=bars,
+                fetch_actions=lambda _start, _end: [],
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+            ingest_prices.refresh_adjusted(
+                saved, DAY, DAY, _Context(), fetch_bars=bars, bucket="data", client=bucket, ingest_enabled=lambda: True
+            )
+        self.assertEqual(state["params"]["symbols"], ["GONE", "SPY"])  # type: ignore[index]
+        self.assertEqual(asked[:2], [["GONE", "SPY"], ["GONE", "SPY"]])
+        self.assertEqual(asked[2:], [["BIL", "GONE", "SPY"], ["BIL", "GONE", "SPY"]])
+
     def test_a_day_keeps_the_session_ex_date_and_rejects_a_bad_bar(self) -> None:
         bucket = _Bucket()
         seen: dict[str, object] = {}
