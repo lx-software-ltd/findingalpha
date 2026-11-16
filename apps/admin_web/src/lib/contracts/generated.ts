@@ -576,7 +576,8 @@ export const roadmap = {
         "https://github.com/lx-software-ltd/findingalpha/pull/8",
         "https://github.com/lx-software-ltd/findingalpha/pull/9",
         "https://github.com/lx-software-ltd/findingalpha/pull/11",
-        "https://github.com/lx-software-ltd/findingalpha/pull/12"
+        "https://github.com/lx-software-ltd/findingalpha/pull/12",
+        "https://github.com/lx-software-ltd/findingalpha/pull/13"
       ],
       "steps": [
         {
@@ -607,12 +608,12 @@ export const roadmap = {
         {
           "id": "M04-T06",
           "title": "Price ingest",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T07",
           "title": "Fundamentals, filings, news ingest",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T08",

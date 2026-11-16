@@ -1,8 +1,4 @@
-"""Alpaca market data.
-
-The paper secret is read when a call is made. Headers are never logged.
-Daily bars use ``feed=sip``. See ``docs/research/data-sources.md``.
-"""
+"""Alpaca market data. The paper secret is read when a call is made."""
 
 from __future__ import annotations
 
@@ -10,6 +6,7 @@ import os
 import time
 import urllib.parse
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -41,14 +38,26 @@ _SECRET_CLIENT: Any = None
 _OPENER: http_client.Opener | None = None
 _INGEST: Callable[[], bool] | None = None
 _RESERVE: Callable[[], None] | None = None
+_HOLD = False
 
 
 class IngestDisabled(Exception):
     """``IngestEnabled`` is off, so no request was sent."""
 
 
+@contextmanager
+def hold_ingest_check() -> Iterator[None]:
+    global _HOLD
+    previous = _HOLD
+    _HOLD = True
+    try:
+        yield
+    finally:
+        _HOLD = previous
+
+
 class AlpacaRateLimited(Exception):
-    """The shared minute cap was still full after several waits."""
+    pass
 
 
 def _unsafe(value: object) -> bool:
@@ -142,6 +151,7 @@ def _asset(row: object) -> dict[str, Any] | None:
         "shortable": bool(row.get("shortable")),
         "fractionable": bool(row.get("fractionable")),
         "assetClass": str(row.get("class") or ""),
+        "id": str(row.get("id") or ""),
     }
 
 
@@ -199,7 +209,6 @@ def take_minute_slot(
     cap: int = _PER_MINUTE,
     attempts: int = 8,
 ) -> None:
-    """One shared minute slot. ``update`` matches ``store.update_conditional``."""
     from store import ConditionNotMet
 
     names = {"#n": "count", "#w": "window"}
@@ -301,6 +310,8 @@ class AlpacaData:
         return {"APCA-API-KEY-ID": self._key_id, "APCA-API-SECRET-KEY": self._secret_key}
 
     def _allow(self) -> None:
+        if _HOLD:
+            return
         check = self._ingest_enabled if self._ingest_enabled is not None else _default_ingest_enabled
         if not check():
             raise IngestDisabled()
@@ -350,10 +361,7 @@ class AlpacaData:
         end: date | datetime | str,
         adjustment: str,
     ) -> Iterator[dict[str, Any]]:
-        """SIP daily bars. One request covers at most 200 symbols.
-
-        A bad adjustment or symbol list raises before the first bar.
-        """
+        """SIP daily bars. One request covers at most 200 symbols."""
         if adjustment not in _ADJUSTMENTS:
             raise ValueError("adjustment must be raw, split, dividend, or all")
         clean = _symbols(symbols)
@@ -387,16 +395,12 @@ class AlpacaData:
                         yield _bar(str(symbol), row)
 
     def corporate_actions(self, start: date | datetime | str, end: date | datetime | str) -> list[dict[str, Any]]:
-        """Dividends and splits whose ``process_date`` is inside the window.
-
-        Alpaca filters on ``process_date``, not the ex-date. Rows are not
-        dropped. A caller that wants one session keeps rows by ``exDate``.
-        """
+        """Dividends and splits whose ``process_date`` is inside the window."""
         params = {
             "types": "cash_dividend,forward_split,reverse_split",
             "start": _day(start),
             "end": _day(end),
-            "limit": "100",
+            "limit": "1000",
         }
         found: list[dict[str, Any]] = []
         for payload in self._pages(f"{_DATA}/v1/corporate-actions", params):
@@ -419,10 +423,7 @@ class AlpacaData:
         start: date | datetime | str,
         end: date | datetime | str,
     ) -> list[dict[str, Any]]:
-        """Headlines only. The article body is not copied.
-
-        Symbols go out 200 at a time, the same batch as daily bars.
-        """
+        """Headlines only. The article body is not copied."""
         clean = _symbols(symbols)
         if not clean:
             return []

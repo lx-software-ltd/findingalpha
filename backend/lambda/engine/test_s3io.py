@@ -31,6 +31,9 @@ class _Bucket:
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, _Body]:
         return {"Body": _Body(self.objects[(Bucket, Key)])}
 
+    def delete_object(self, *, Bucket: str, Key: str) -> None:
+        self.objects.pop((Bucket, Key), None)
+
     def head_object(self, *, Bucket: str, Key: str) -> dict[str, str]:
         if (Bucket, Key) not in self.objects:
             raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
@@ -51,12 +54,20 @@ class _Bucket:
 
 
 class S3IoTest(unittest.TestCase):
+    def test_gzip_json_round_trip(self) -> None:
+        bucket = _Bucket()
+        s3io.put_gzip_json("data", "facts.json.gz", {"cik": 1}, client=bucket)
+        self.assertEqual(s3io.get_gzip_json("data", "facts.json.gz", client=bucket), {"cik": 1})
+        self.assertTrue(bucket.objects[("data", "facts.json.gz")].startswith(b"\x1f\x8b"))
+
     def test_json_round_trip(self) -> None:
         bucket = _Bucket()
         s3io.put_json("data", "reference/a.json", {"n": 1}, client=bucket)
         self.assertEqual(s3io.get_json("data", "reference/a.json", client=bucket), {"n": 1})
         self.assertTrue(s3io.exists("data", "reference/a.json", client=bucket))
         self.assertFalse(s3io.exists("data", "missing.json", client=bucket))
+        s3io.delete("data", "reference/a.json", client=bucket)
+        self.assertFalse(s3io.exists("data", "reference/a.json", client=bucket))
 
     def test_jsonl_gz_round_trip(self) -> None:
         bucket = _Bucket()

@@ -14,6 +14,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from email.message import Message
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import alpaca_data
@@ -117,6 +118,7 @@ class AlpacaDataTest(unittest.TestCase):
         alpaca_data._OPENER = None
         alpaca_data._INGEST = None
         alpaca_data._RESERVE = None
+        alpaca_data._HOLD = False
         secrets_read.clear_cache()
 
     def test_list_assets_maps_our_fields(self) -> None:
@@ -137,7 +139,23 @@ class AlpacaDataTest(unittest.TestCase):
         self.assertEqual(query["asset_class"], ["us_equity"])
         self.assertEqual(script.headers[0], (_KEY, _SECRET))
         self.assertEqual(limiter.calls, 1)
-        self.assertNotIn("11111111-1111-1111-1111-111111111111", json.dumps(assets))
+        self.assertEqual(assets[0]["id"], "11111111-1111-1111-1111-111111111111")
+        self.assertEqual(assets[1]["id"], "")
+
+    def test_a_held_check_skips_the_kill_switch(self) -> None:
+        body = _load("alpaca_assets.json")
+        client, script, _limiter = _client(body, body, ingest_enabled=None)
+        calls = {"count": 0}
+
+        def enabled(_name: str) -> bool:
+            calls["count"] += 1
+            return True
+
+        with patch("kill_switch.is_enabled", enabled), alpaca_data.hold_ingest_check():
+            client.list_assets()
+            client.list_assets()
+        self.assertEqual(calls["count"], 0)
+        self.assertEqual(len(script.urls), 2)
 
     def test_inactive_assets_and_a_bad_status(self) -> None:
         client, script, limiter = _client(_load("alpaca_assets.json"))
@@ -287,7 +305,7 @@ class AlpacaDataTest(unittest.TestCase):
         )
         first = _query(script.urls[0])
         self.assertEqual(first["types"], ["cash_dividend,forward_split,reverse_split"])
-        self.assertEqual(first["limit"], ["100"])
+        self.assertEqual(first["limit"], ["1000"])
         self.assertEqual(first["start"], ["2023-01-01"])
         self.assertEqual(first["end"], ["2024-06-30"])
         self.assertNotEqual(actions[0]["exDate"], "2023-01-01")
