@@ -330,7 +330,7 @@ def _follow(
     (note_build or _note_build)(day, "done")
     import monthly_stats
 
-    symbols = monthly_stats.for_adjusted([str(symbol) for symbol in (outcome.get("symbols") or [])], mapped)
+    symbols = monthly_stats.adjusted_symbols(body, [str(symbol) for symbol in (outcome.get("symbols") or [])], mapped)
     if adjusted is None:
         _save_adjusted(symbols, day, hold=True)
     (coverage or _coverage)([str(cik) for cik in (outcome.get("ciks") or [])], day)

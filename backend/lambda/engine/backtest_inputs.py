@@ -52,12 +52,17 @@ def saved_splits(identity: str, *, bucket: str | None = None, client: Any = None
 
 
 def identities(
-    bucket: str | None = None, client: Any = None, *, tickers: dict[str, Any] | None = None
+    bucket: str | None = None,
+    client: Any = None,
+    *,
+    tickers: dict[str, Any] | None = None,
+    sic_of: Any = None,
+    reused: set[str] | None = None,
 ) -> dict[str, list[tuple[str, dict[str, Any]]]]:
     """Every universe file, oldest first. A name that later drops out keeps its last row.
 
     A symbol that was never in a universe file takes today's CIK when ``tickers``
-    has one. Its sector stays blank.
+    has one. ``sic_of`` supplies its SIC, and ``reused`` tickers are left out.
     """
     name = _bucket(bucket)
     dates = sorted(
@@ -74,15 +79,14 @@ def identities(
                 continue
             symbol = str(row["symbol"])
             table.setdefault(symbol, []).append((day, _who(row, symbol)))
+    blocked = {str(symbol) for symbol in (reused or set())}
     for symbol, entry in (tickers or {}).items():
-        if symbol in table or not isinstance(entry, dict):
+        if symbol in table or str(symbol) in blocked or not isinstance(entry, dict):
             continue
-        cik = str(entry.get("cik") or "").strip()
-        if not cik.isdigit():
+        who = widen_one(str(symbol), {str(symbol): entry}, blocked, sic_of)
+        if not who.get("cik"):
             continue
-        table[symbol] = [
-            ("0001-01-01", {"cik": cik.zfill(10), "sector": "", "sic": None, "name": str(entry.get("name") or symbol)})
-        ]
+        table[str(symbol)] = [("0001-01-01", who)]
     return table
 
 
@@ -118,8 +122,13 @@ def monthly_for(
     return found
 
 
-def shares_on(pit: list[dict[str, Any]], splits: list[tuple[str, float]], end: str) -> float | None:
-    """Split-adjusted shares public on ``end``. Missing or stale filings stay missing."""
+def shares_on(
+    pit: list[dict[str, Any]],
+    splits: list[tuple[str, float]],
+    end: str,
+    cover: dict[str, Any] | None = None,
+) -> float | None:
+    """Split-adjusted shares public on ``end``. A cover is used when the facts count is missing."""
     import share_count
 
     events: list[tuple[date, float]] = []
@@ -135,7 +144,7 @@ def shares_on(pit: list[dict[str, Any]], splits: list[tuple[str, float]], end: s
     import fundamentals_pit
 
     visible = fundamentals_pit.as_of(pit, end[:10]) if pit else []
-    chosen = share_count.shares_as_of(visible, events, day)
+    chosen = share_count.shares_as_of(visible, events, day, cover=cover)
     if chosen is None:
         return None
     return float(chosen["shares"])
@@ -208,6 +217,126 @@ def price_book(
                 "split": row.get("split"),
             }
     return {symbol: [bar for _day, bar in sorted(days.items())] for symbol, days in book.items()}
+
+
+def write_inputs(
+    identity: str, *, bucket: str | None = None, client: Any = None, tickers: dict[str, Any] | None = None
+) -> None:
+    """Save the ticker map, the reuse list, and the stored memberships for this run."""
+    name = _bucket(bucket)
+    mapped = tickers if tickers is not None else _live_tickers()
+    s3io.put_json(name, f"backtests/{identity}/inputs/tickers.json", mapped, client=client)
+    s3io.put_json(name, f"backtests/{identity}/inputs/reused.json", sorted(stored_reused(name, client)), client=client)
+    s3io.put_json(name, f"backtests/{identity}/inputs/members.json", _pack(identities(name, client)), client=client)
+
+
+def read_inputs(
+    identity: str, *, bucket: str | None = None, client: Any = None
+) -> tuple[dict[str, Any], set[str], dict[str, list[tuple[str, dict[str, Any]]]]]:
+    """The snapshot written by :func:`write_inputs`. Missing files are empty."""
+    name = _bucket(bucket)
+    base = f"backtests/{identity}/inputs/"
+    tickers = _stored(name, base + "tickers.json", client)
+    reused = _stored(name, base + "reused.json", client)
+    members = _stored(name, base + "members.json", client)
+    symbols = {str(item) for item in reused} if isinstance(reused, list) else set()
+    return tickers if isinstance(tickers, dict) else {}, symbols, _unpack(members)
+
+
+def widen_one(
+    symbol: str,
+    tickers: dict[str, Any],
+    reused: set[str],
+    sic_of: Any,
+) -> dict[str, Any]:
+    """Today's CIK and the sector of the cached SIC. A reused ticker has no CIK."""
+    if symbol in reused:
+        return {"cik": "", "sector": "", "sic": None, "name": symbol}
+    entry = tickers.get(symbol)
+    if not isinstance(entry, dict):
+        return {"cik": "", "sector": "", "sic": None, "name": symbol}
+    cik = str(entry.get("cik") or "").strip()
+    if not cik.isdigit():
+        return {"cik": "", "sector": "", "sic": None, "name": symbol}
+    padded = cik.zfill(10)
+    sic = sic_of(padded) if sic_of is not None else None
+    text = "" if sic is None else str(sic).strip()
+    sector = ""
+    if text:
+        import universe
+
+        sector = universe.sector_for(text, cik=padded)
+    return {"cik": padded, "sector": sector, "sic": text or None, "name": str(entry.get("name") or symbol)}
+
+
+def stored_reused(bucket: str, client: Any = None) -> set[str]:
+    """Tickers saved because more than one asset has used them."""
+    payload = _stored(bucket, "reference/symbol-reuse.json", client)
+    if not isinstance(payload, list):
+        return set()
+    return {str(row.get("symbol")) for row in payload if isinstance(row, dict) and row.get("symbol")}
+
+
+def cached_sic(bucket: str, cik: str, cache: dict[str, str | None], client: Any = None) -> str | None:
+    """SIC from ``reference/sic``, fetched once and cached when it is missing."""
+    key = str(cik).zfill(10)
+    if key in cache:
+        return cache[key]
+    import universe_data
+
+    found = universe_data.submissions_reader(bucket, client)(key)
+    text = str((found or {}).get("sic") or "").strip()
+    cache[key] = text or None
+    return cache[key]
+
+
+def cached_cover(bucket: str, cik: str, end: str, cache: dict[str, Any], client: Any = None) -> dict[str, Any] | None:
+    """A cover page from ``reference/shares`` that was public on ``end``."""
+    if not cik:
+        return None
+    if cik not in cache:
+        key = f"reference/shares/cik={cik}.json"
+        cache[cik] = s3io.get_json(bucket, key, client=client) if s3io.exists(bucket, key, client=client) else {}
+    import share_count
+
+    try:
+        day = date.fromisoformat(end[:10])
+    except ValueError:
+        return None
+    return share_count.cover_as_of(cache[cik], day)
+
+
+def _live_tickers() -> dict[str, Any]:
+    import sec_edgar
+
+    return sec_edgar.ticker_map()
+
+
+def _stored(bucket: str, key: str, client: Any) -> Any:
+    if not s3io.exists(bucket, key, client=client):
+        return None
+    return s3io.get_json(bucket, key, client=client)
+
+
+def _pack(table: dict[str, list[tuple[str, dict[str, Any]]]]) -> dict[str, list[list[Any]]]:
+    return {symbol: [[day, who] for day, who in rows] for symbol, rows in table.items()}
+
+
+def _unpack(payload: Any) -> dict[str, list[tuple[str, dict[str, Any]]]]:
+    if not isinstance(payload, dict):
+        return {}
+    table: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    for symbol, rows in payload.items():
+        if not isinstance(rows, list):
+            continue
+        parsed = [
+            (str(item[0]), dict(item[1]))
+            for item in rows
+            if isinstance(item, list) and len(item) == 2 and isinstance(item[1], dict)
+        ]
+        if parsed:
+            table[str(symbol)] = parsed
+    return table
 
 
 def _who(row: dict[str, Any], symbol: str) -> dict[str, Any]:

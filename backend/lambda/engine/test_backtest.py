@@ -99,8 +99,11 @@ class BacktestTest(unittest.TestCase):
         cheap = {"close": 1, "medianDollarVolume": 10**9, "marketCap": 10**10, "historyYears": 5, "sic": "1000"}
         bank = {"close": 20, "medianDollarVolume": 10**9, "marketCap": 10**10, "historyYears": 5, "sic": "6200"}
         kept = {"close": 20, "medianDollarVolume": 10**9, "marketCap": 10**10, "historyYears": 5, "sic": "1000"}
+        blank = {"close": 20, "medianDollarVolume": 10**9, "marketCap": 10**10, "historyYears": 5, "sic": None}
         self.assertFalse(backtest.eligible(cheap, rules))
         self.assertFalse(backtest.eligible(bank, rules))
+        self.assertFalse(backtest.eligible(blank, rules))
+        self.assertFalse(backtest.eligible({**blank, "sic": ""}, rules))
         self.assertTrue(backtest.eligible(kept, rules))
         register = methodology.load()
         self.assertEqual(backtest.portfolio_size(None, register), 20)
@@ -144,6 +147,7 @@ class BacktestTest(unittest.TestCase):
             holdings_by_month={"2021-12-31": [_holding("AAA")]},
         )
         self.assertEqual(played["periods"][0]["month"], "2022-01")
+        self.assertEqual(played["periods"][0]["months"], 1)
         self.assertEqual(played["metrics"]["early"], {})
         self.assertIsNotNone(played["metrics"]["holdout"].get("cagr"))
 
@@ -228,6 +232,7 @@ class BacktestTest(unittest.TestCase):
         items = seen["items"]
         assert isinstance(items, list)
         self.assertEqual(items[0], ("actions", "2016"))
+        self.assertLess(items.index(("inputs", "snapshot")), items.index(("part", "000")))
         self.assertIn(("marks", "000"), items)
         enabled = seen["enabled"]
         assert callable(enabled)
@@ -255,6 +260,25 @@ class BacktestTest(unittest.TestCase):
         )
         self.assertEqual(played["periods"], [])
         self.assertEqual(played["lastPriceCount"], 0)
+
+    def test_a_skipped_month_counts_as_the_calendar_months_it_spans(self) -> None:
+        register = methodology.load()
+        sessions = ["2017-01-31", "2017-02-01", "2017-02-28", "2017-03-01", "2017-03-31", "2017-04-03"]
+        prices = {
+            "AAA": [_bar("2017-02-01", 100), _bar("2017-03-01", 110), _bar("2017-04-03", 121)],
+            "SPY": [_bar(day, 100) for day in ("2017-02-01", "2017-03-01", "2017-04-03")],
+            "BIL": [_bar(day, 100) for day in ("2017-02-01", "2017-03-01", "2017-04-03")],
+        }
+        played = backtest.replay(
+            ["2017-01-31", "2017-03-31"],
+            {},
+            prices,
+            sessions,
+            register,
+            holdings_by_month={"2017-01-31": [{"symbol": "AAA", "weight": 1.0}]},
+        )
+        self.assertEqual(played["periods"][0]["months"], 2)
+        self.assertAlmostEqual(played["metrics"]["cagr"] or 0, 1.208**6 - 1, delta=1e-9)
 
 
 def _holding(symbol: str) -> dict:

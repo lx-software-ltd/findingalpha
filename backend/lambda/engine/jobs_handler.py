@@ -48,9 +48,15 @@ def _daily(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) ->
 
 def _weekly(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
     result = ingest_jobs.weekly_refresh(event, context)
-    if result.get("status") == "done":
+    if result.get("status") == "done" or _build_finished(result):
         result["monthly"] = _append_monthly(event, context)
     return result
+
+
+def _build_finished(result: dict[str, Any]) -> bool:
+    """The universe build finished, even when adjusted prices are still running."""
+    build = result.get("build")
+    return isinstance(build, dict) and build.get("status") == "done"
 
 
 def _append_monthly(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -94,7 +100,10 @@ def _universe_build(event: dict[str, Any], _run: job_runs.JobRun, context: Any =
 
 
 def _adjusted(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
-    return ingest_jobs.resume_adjusted(event, context)
+    result = ingest_jobs.resume_adjusted(event, context)
+    if result.get("status") == "done":
+        result["monthly"] = _append_monthly(event, context)
+    return result
 
 
 def _screen(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:

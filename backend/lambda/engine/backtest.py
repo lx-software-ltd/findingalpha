@@ -234,6 +234,7 @@ def replay(
         periods.append(
             {
                 "month": nxt[:7],
+                "months": month_span(end, nxt),
                 "strategy": strategy,
                 "spyGross": spy_gross,
                 "spyNet": spy_net,
@@ -315,6 +316,7 @@ def run(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     if not ends or not part_ids:
         return {"ok": False, "status": "missing_inputs", "runId": identity}
     items: list[tuple[str, str]] = [("actions", year) for year in backtest_inputs.action_years(ends)]
+    items.append(("inputs", "snapshot"))
     items.extend(("part", part) for part in part_ids)
     items.extend(("month", end) for end in ends)
     items.extend(("marks", part) for part in part_ids)
@@ -377,6 +379,7 @@ def _window(
     last = chosen[-1]
     strategy = [_or_zero(periods[index - 1].get("strategy")) for index in chosen]
     cash = [_or_zero(periods[index - 1].get("cash")) for index in chosen]
+    spanned = sum(int(periods[index - 1].get("months") or 1) for index in chosen)
     spy = [_or_zero(periods[index - 1].get("spyNet")) for index in chosen]
     gross = [_or_zero(periods[index - 1].get("spyGross")) for index in chosen]
     turnovers = [float(periods[index - 1]["turnover"]) for index in chosen]
@@ -385,7 +388,7 @@ def _window(
     gross_curve = curves["spyGross"][first : last + 1]
     window_labels = [labels[first], *[labels[index] for index in chosen]]
     return {
-        "cagr": backtest_metrics.cagr(curve),
+        "cagr": backtest_metrics.cagr(curve, spanned),
         "volatility": backtest_metrics.annualised_volatility(strategy),
         "sharpe": backtest_metrics.sharpe(strategy, cash),
         "maxDrawdown": backtest_metrics.max_drawdown(curve, window_labels),
@@ -395,16 +398,26 @@ def _window(
         "costDrag": backtest_metrics.yearly_cost_drag(turnovers, cost),
         "longestBehind": backtest_metrics.longest_behind(curve, spy_curve, window_labels),
         "benchmarks": {
-            "spyNet": _series(spy_curve, spy, cash, window_labels),
-            "spyGross": _series(gross_curve, gross, cash, window_labels),
+            "spyNet": _series(spy_curve, spy, cash, window_labels, spanned),
+            "spyGross": _series(gross_curve, gross, cash, window_labels, spanned),
         },
         "yearly": backtest_metrics.yearly_table(curve, spy_curve, window_labels),
     }
 
 
-def _series(curve: list[float], returns: list[float], cash: list[float], labels: list[str]) -> dict[str, Any]:
+def month_span(start: str, end: str) -> int:
+    """Calendar months from ``start`` to ``end``. A same-month pair counts as one."""
+    if len(start) < 7 or len(end) < 7:
+        return 1
+    span = (int(end[:4]) - int(start[:4])) * 12 + (int(end[5:7]) - int(start[5:7]))
+    return span if span > 0 else 1
+
+
+def _series(
+    curve: list[float], returns: list[float], cash: list[float], labels: list[str], months: int
+) -> dict[str, Any]:
     return {
-        "cagr": backtest_metrics.cagr(curve),
+        "cagr": backtest_metrics.cagr(curve, months),
         "volatility": backtest_metrics.annualised_volatility(returns),
         "sharpe": backtest_metrics.sharpe(returns, cash),
         "maxDrawdown": backtest_metrics.max_drawdown(curve, labels),
@@ -437,11 +450,15 @@ def _rank_key(row: dict[str, Any]) -> tuple[int, str]:
 
 
 def _excluded(sic: object, ranges: list[list[int]]) -> bool:
+    """A missing or unreadable SIC is excluded, matching the live universe."""
     try:
-        code = int(str(sic).strip())
+        text = str(sic).strip()
+        if not text:
+            return True
+        code = int(text)
     except (TypeError, ValueError):
-        return False
-    return any(low <= code <= high for low, high in ranges)
+        return True
+    return any(int(low) <= code <= int(high) for low, high in ranges)
 
 
 def _as_date(value: object) -> date | None:

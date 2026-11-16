@@ -6,12 +6,15 @@ import math
 from typing import Any
 
 
-def cagr(curve: list[float]) -> float | None:
-    """``(end / start) ** (12 / months) - 1``. ``curve`` includes the starting 100."""
-    months = len(curve) - 1
-    if months < 1 or curve[0] <= 0 or curve[-1] <= 0:
+def cagr(curve: list[float], months: int | None = None) -> float | None:
+    """``(end / start) ** (12 / months) - 1``. ``curve`` includes the starting 100.
+
+    ``months`` is the calendar span. Without it, each step of ``curve`` is one month.
+    """
+    steps = len(curve) - 1 if months is None else months
+    if steps < 1 or curve[0] <= 0 or curve[-1] <= 0:
         return None
-    return (curve[-1] / curve[0]) ** (12 / months) - 1
+    return (curve[-1] / curve[0]) ** (12 / steps) - 1
 
 
 def annualised_volatility(period_returns: list[float]) -> float | None:

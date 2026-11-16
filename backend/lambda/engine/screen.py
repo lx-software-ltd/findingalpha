@@ -277,7 +277,7 @@ def _snapshot(member: dict[str, Any], day: str, client: Any, market: dict[str, A
     close = market["closes"].get(symbol)
     if close is None:
         close = _number(member.get("close"))
-    shares = _shares(pit, market["splits"].get(symbol) or [], day)
+    shares = _shares(pit, market["splits"].get(symbol) or [], day, _cached_cover(bucket, cik, client, day))
     if shares is None:
         member_close = _number(member.get("close"))
         cap = _number(member.get("marketCap"))
@@ -303,7 +303,25 @@ def _pit(bucket: str, cik: str, client: Any) -> list[dict[str, Any]]:
     return [row for row in s3io.get_jsonl_gz(bucket, key, client=client) if isinstance(row, dict)]
 
 
-def _shares(pit: list[dict[str, Any]], splits: list[tuple[str, float]], day: str) -> float | None:
+def _cached_cover(bucket: str, cik: str, client: Any, day: str) -> dict[str, Any] | None:
+    """A cover page already stored for this CIK and public on ``day``."""
+    if not cik:
+        return None
+    key = f"reference/shares/cik={cik}.json"
+    if not s3io.exists(bucket, key, client=client):
+        return None
+    import share_count
+
+    try:
+        on = date.fromisoformat(day)
+    except ValueError:
+        return None
+    return share_count.cover_as_of(s3io.get_json(bucket, key, client=client), on)
+
+
+def _shares(
+    pit: list[dict[str, Any]], splits: list[tuple[str, float]], day: str, cover: dict[str, Any] | None = None
+) -> float | None:
     import share_count
 
     try:
@@ -319,7 +337,7 @@ def _shares(pit: list[dict[str, Any]], splits: list[tuple[str, float]], day: str
     import fundamentals_pit
 
     visible = fundamentals_pit.as_of(pit, day) if pit else []
-    chosen = share_count.shares_as_of(visible, events, on)
+    chosen = share_count.shares_as_of(visible, events, on, cover=cover)
     if chosen is None:
         return None
     return float(chosen["shares"])

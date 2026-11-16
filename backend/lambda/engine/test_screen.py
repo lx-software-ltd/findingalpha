@@ -125,6 +125,35 @@ class ScreenTest(unittest.TestCase):
         )
         self.assertEqual(body["marketCap"], 120)
         self.assertEqual(set(market["bars"]["AAA"][0]), {"date", "close"})
+        s3io.put_jsonl_gz("data", "fundamentals/pit/cik=0000000001/facts.jsonl.gz", [], client=bucket)
+        s3io.put_json(
+            "data",
+            "reference/shares/cik=0000000001.json",
+            {"attempts": {"acc": {"filed": "2017-02-28", "end": "2017-02-28", "value": 10}}},
+            client=bucket,
+        )
+        covered = screen._snapshot(
+            {"symbol": "AAA", "cik": "0000000001", "close": 999, "marketCap": 9990},
+            "2017-02-28",
+            bucket,
+            market,
+            bucket="data",
+        )
+        self.assertEqual(covered["marketCap"], 120)
+        s3io.put_json(
+            "data",
+            "reference/shares/cik=0000000001.json",
+            {"attempts": {"acc": {"filed": "2018-04-01", "end": "2018-03-31", "value": 10}}},
+            client=bucket,
+        )
+        future = screen._snapshot(
+            {"symbol": "AAA", "cik": "0000000001", "close": 12, "marketCap": 9990},
+            "2017-02-28",
+            bucket,
+            market,
+            bucket="data",
+        )
+        self.assertEqual(future["marketCap"], 9990)
 
     def test_the_screen_keeps_the_closes_the_trend_factors_read(self) -> None:
         bucket = _Bucket()

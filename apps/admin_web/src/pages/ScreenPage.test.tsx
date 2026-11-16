@@ -45,6 +45,7 @@ describe("ScreenPage", () => {
     expect(screen.getAllByText("SPY net").length).toBeGreaterThan(0);
     expect(screen.getByText(/Worst 12 months/)).toBeInTheDocument();
     expect(screen.getByText(/Known biases/)).toBeInTheDocument();
+    expect(screen.getByText(/a missing SIC excludes it/)).toBeInTheDocument();
   });
 
   it("says a screen is missing only when the response is not found", async () => {

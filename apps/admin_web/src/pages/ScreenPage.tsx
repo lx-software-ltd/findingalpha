@@ -10,7 +10,7 @@ import {
 } from "../hooks/useScreen";
 
 const BIASES = [
-  "Adjusted prices include every name that passed the price and dollar-volume floors in any month since February 2017 and still has a CIK. A delisted name with no current CIK has no prices and cannot be ranked. A name never stored in a universe file uses today's CIK and has no sector.",
+  "Adjusted prices include every name that passed the price and dollar-volume floors in any month since February 2017 and still has a CIK. A delisted name with no current CIK has no prices and cannot be ranked. A name never stored in a universe file uses today's CIK and the SIC cached from SEC submissions; a missing SIC excludes it. A reused ticker with no universe row is left out. When monthly stats are missing, only today's members are priced and the weekly result says so.",
   "Sector and SIC code are the latest stored codes, not the codes at the time.",
   "Shares outstanding come from filings and can lag buybacks and issues by a quarter.",
   "When a filing has only LongTermDebt and DebtCurrent, total debt is the larger figure. Borrowings that sit in DebtCurrent and were never inside LongTermDebt are missed. Adding the two totals would count the current portion twice.",

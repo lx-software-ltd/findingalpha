@@ -1,6 +1,6 @@
 # Plan: Point-in-time shares and a wider price history
 
-**Status**: Draft
+**Status**: Done
 **Zone**: yellow
 
 ## Goal

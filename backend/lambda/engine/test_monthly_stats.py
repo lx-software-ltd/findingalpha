@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 import monthly_stats
 
@@ -36,7 +37,38 @@ class MonthlyStatsTest(unittest.TestCase):
             "CHEAP": {"cik": "0000000003", "name": "Cheap Co"},
             "EARLY": {"cik": "0000000004", "name": "Early Co"},
         }
-        self.assertEqual(monthly_stats.for_adjusted(["EXMPL"], tickers, rows=rows), ["EXMPL", "SMALL"])
+        scope = monthly_stats.for_adjusted(["EXMPL"], tickers, rows=rows)
+        self.assertEqual(scope["symbols"], ["EXMPL", "SMALL"])
+        self.assertFalse(scope["monthlyStatsMissing"])
+        reused = monthly_stats.for_adjusted(["EXMPL"], tickers, rows=rows, reused={"SMALL"})
+        self.assertEqual(reused["symbols"], ["EXMPL"])
+
+    def test_each_monthly_file_is_read_on_its_own_and_no_file_is_reported(self) -> None:
+        files = {
+            "prices/monthly/month=2017-02/stats.jsonl.gz": [
+                {"symbol": "SMALL", "monthEnd": "2017-02-28", "close": 20, "medianDollarVolume": 30_000_000}
+            ],
+            "prices/monthly/month=2017-03/stats.jsonl.gz": [
+                {"symbol": "LATER", "monthEnd": "2017-03-31", "close": 20, "medianDollarVolume": 30_000_000}
+            ],
+        }
+
+        def read(_bucket: str, key: str, client: object = None) -> list[dict[str, object]]:
+            del client
+            return list(files[key])
+
+        with (
+            patch.dict("os.environ", {"DATA_BUCKET_NAME": "data"}),
+            patch("s3io.list_keys", return_value=list(files)),
+            patch("s3io.get_jsonl_gz", side_effect=read),
+        ):
+            found, missing = monthly_stats._covered_symbols("2017-02", None, 5, 20_000_000)
+        self.assertEqual(found, {"SMALL", "LATER"})
+        self.assertFalse(missing)
+        with patch.dict("os.environ", {"DATA_BUCKET_NAME": "data"}), patch("s3io.list_keys", return_value=[]):
+            empty, absent = monthly_stats._covered_symbols("2017-02", None, 5, 20_000_000)
+        self.assertEqual(empty, set())
+        self.assertTrue(absent)
 
     def test_months_run_from_the_start_through_the_end(self) -> None:
         self.assertEqual(

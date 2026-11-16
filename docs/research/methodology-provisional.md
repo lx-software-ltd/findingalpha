@@ -54,16 +54,22 @@ tag that was filed.
 Closes follow the market session calendar. A session with no print
 keeps the previous close, so a missing day does not move the 21, 200,
 or 252 session windows. The screen keeps those closes and one earlier
-close, not the whole price history. A company with no sector is
-standardised against the whole universe.
+close, not the whole price history. A company with no SIC is excluded.
+A company whose SIC has no sector mapping is standardised with the
+other unmapped names.
 
 Market cap uses the share count that was public on the date, then
 applies splits after that count. A filing that arrives later does not
-change the earlier month.
+change the earlier month. When the company-facts count is missing, a
+cached cover page is used if it was filed on or before that date.
 
 Adjusted prices include every name that passed the price and
 dollar-volume floors in any month since February 2017 and still has a
-CIK. A delisted name with no current CIK is absent.
+CIK. A delisted name with no current CIK is absent. A reused ticker
+with no universe row is left out. A weekly refresh with no monthly
+stats prices only today's members and says so. A name never stored in
+a universe file uses today's CIK and the SIC cached from SEC
+submissions.
 
 ## Reported, and left out of the composite
 

@@ -760,6 +760,8 @@ class UniverseReviewTest(unittest.TestCase):
         self.assertEqual(first["value"], 300)
         self.assertEqual(second["accession"], "0000000001-24-000001")
         self.assertEqual(downloads, ["0000000001-24-000001:cover.htm"])
+        stored = s3io.get_json("data", f"reference/shares/cik={_cik(1)}.json", client=bucket)
+        self.assertEqual(stored["attempts"]["0000000001-24-000001"]["filed"], "2024-04-24")
 
     def test_an_empty_amendment_falls_back_to_the_previous_filing(self) -> None:
         downloads: list[str] = []

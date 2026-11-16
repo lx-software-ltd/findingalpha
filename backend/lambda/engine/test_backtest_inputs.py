@@ -44,6 +44,7 @@ class BacktestInputsTest(unittest.TestCase):
         self.assertEqual(backtest_inputs.identity_on(table, "OLD", "2018-01-31")["cik"], "0000000001")
         self.assertEqual(backtest_inputs.identity_on(table, "SMALL", "2018-01-31")["cik"], "0000000002")
         self.assertEqual(backtest_inputs.identity_on(table, "SMALL", "2018-01-31")["sector"], "")
+        self.assertIsNone(backtest_inputs.identity_on(table, "SMALL", "2018-01-31")["sic"])
         pit = [
             _shares("2017-01-31", 100, "2017-02-10"),
             _shares("2026-07-31", 400, "2026-08-10"),
@@ -52,6 +53,10 @@ class BacktestInputsTest(unittest.TestCase):
         self.assertEqual(backtest_inputs.shares_on(pit, splits, "2017-02-28"), 100)
         self.assertEqual(backtest_inputs.shares_on(pit, splits, "2017-06-01"), 400)
         self.assertEqual(backtest_inputs.shares_on(pit, splits, "2026-08-31"), 400)
+        cover = {"filed": "2017-02-01", "end": "2017-01-31", "value": 999}
+        self.assertEqual(backtest_inputs.shares_on(pit, [], "2017-06-01", cover=cover), 100)
+        self.assertEqual(backtest_inputs.shares_on([], [], "2017-06-01", cover=cover), 999)
+        self.assertIsNone(backtest_inputs.shares_on([], [], "2017-01-15", cover=cover))
 
     def test_monthly_stats_are_read_per_month_for_the_requested_names(self) -> None:
         bucket = _Bucket()
@@ -114,6 +119,78 @@ class BacktestInputsTest(unittest.TestCase):
         )
         rows = backtest_inputs.factor_rows("run", "2017-02", "data", bucket)
         self.assertEqual([row["symbol"] for row in rows], ["BBB"])
+
+    def test_a_name_never_listed_takes_its_sic_and_a_reused_ticker_stays_out(self) -> None:
+        bucket = _Bucket()
+        tickers = {
+            "SMALL": {"cik": "2", "name": "Small Co"},
+            "BANK": {"cik": "19", "name": "Example Bank"},
+            "REUSE": {"cik": "7", "name": "Reused Co"},
+        }
+        table = backtest_inputs.identities(
+            "data",
+            bucket,
+            tickers=tickers,
+            sic_of=lambda cik: {"0000000002": "1000", "0000000019": None}.get(cik),
+            reused={"REUSE"},
+        )
+        small = backtest_inputs.identity_on(table, "SMALL", "2018-01-31")
+        self.assertEqual(small["cik"], "0000000002")
+        self.assertEqual(small["sic"], "1000")
+        self.assertEqual(small["sector"], "Materials")
+        bank = backtest_inputs.identity_on(table, "BANK", "2018-01-31")
+        self.assertEqual(bank["cik"], "0000000019")
+        self.assertIsNone(bank["sic"])
+        self.assertEqual(backtest_inputs.identity_on(table, "REUSE", "2018-01-31")["cik"], "")
+
+    def test_the_ticker_map_is_saved_once_and_a_part_does_not_fetch_it_again(self) -> None:
+        from unittest.mock import patch
+
+        import backtest_job
+
+        bucket = _Bucket()
+        s3io.put_json(
+            "data",
+            "reference/symbol-reuse.json",
+            [{"symbol": "REUSE", "assets": [{"id": "a"}, {"id": "b"}]}],
+            client=bucket,
+        )
+        s3io.put_json("data", "reference/sic/cik=0000000002.json", {"sic": "1000"}, client=bucket)
+        s3io.put_json(
+            "data",
+            "reference/shares/cik=0000000002.json",
+            {"attempts": {"acc": {"filed": "2017-02-28", "end": "2017-02-28", "value": 10}}},
+            client=bucket,
+        )
+        s3io.put_jsonl_gz(
+            "data",
+            "prices/monthly/month=2017-02/stats.jsonl.gz",
+            [{"symbol": "SMALL", "monthEnd": "2017-02-28", "close": 20, "medianDollarVolume": 30_000_000}],
+            client=bucket,
+        )
+        s3io.put_json("data", "reference/calendar/year=2017.json", {"sessions": ["2017-02-28"]}, client=bucket)
+        s3io.put_jsonl_gz(
+            "data",
+            "prices/adj/part=000/bars.jsonl.gz",
+            [
+                {"symbol": "SMALL", "date": "2017-02-28", "close": 20},
+                {"symbol": "REUSE", "date": "2017-02-28", "close": 20},
+            ],
+            client=bucket,
+        )
+        tickers = {"SMALL": {"cik": "2", "name": "Small Co"}, "REUSE": {"cik": "7", "name": "Reused Co"}}
+        with patch("sec_edgar.ticker_map", side_effect=AssertionError("live map")):
+            backtest_inputs.write_inputs("run", bucket="data", client=bucket, tickers=tickers)
+            backtest_job._part_rows("000", "run", methodology.load(), bucket="data", client=bucket)
+        saved = s3io.get_json("data", "backtests/run/inputs/tickers.json", client=bucket)
+        self.assertEqual(saved["SMALL"]["name"], "Small Co")
+        self.assertEqual(s3io.get_json("data", "backtests/run/inputs/reused.json", client=bucket), ["REUSE"])
+        rows = backtest_inputs.factor_rows("run", "2017-02", "data", bucket)
+        by_symbol = {row["symbol"]: row for row in rows}
+        self.assertEqual(set(by_symbol), {"SMALL"})
+        self.assertEqual(by_symbol["SMALL"]["sic"], "1000")
+        self.assertEqual(by_symbol["SMALL"]["sector"], "Materials")
+        self.assertEqual(by_symbol["SMALL"]["marketCap"], 200)
 
 
 def _shares(end: str, value: float, filed: str) -> dict[str, object]:

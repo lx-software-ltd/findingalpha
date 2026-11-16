@@ -233,13 +233,9 @@ class IngestJobsTest(unittest.TestCase):
             seen["symbols"] = symbols
             return {"status": "done"}
 
-        rows = [
-            {"symbol": "SMALL", "monthEnd": "2018-06-29", "close": 20, "medianDollarVolume": 30_000_000},
-            {"symbol": "GONE", "monthEnd": "2018-06-29", "close": 20, "medianDollarVolume": 30_000_000},
-        ]
         tickers = {**TICKERS, "SMALL": {"cik": "0000000002", "name": "Small Co"}}
-        with patch("monthly_stats._rows_since", return_value=rows):
-            ingest_jobs.weekly_refresh(
+        with patch("monthly_stats._covered_symbols", return_value=({"SMALL", "GONE"}, False)):
+            result = ingest_jobs.weekly_refresh(
                 {},
                 None,
                 now=SATURDAY_OPEN,
@@ -252,6 +248,8 @@ class IngestJobsTest(unittest.TestCase):
                 note_build=lambda *_args: None,
             )
         self.assertEqual(seen["symbols"], ["EXMPL", "SMALL"])
+        self.assertEqual(result["adjustedScope"], 2)
+        self.assertFalse(result["monthlyStatsMissing"])
 
     def test_a_stopped_coverage_report_leaves_the_adjusted_refresh(self) -> None:
         from unittest.mock import patch

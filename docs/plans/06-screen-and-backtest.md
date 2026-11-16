@@ -267,11 +267,15 @@ test line.
 - **Survivorship.** Adjusted prices include every name that passed the
   price and dollar-volume floors in any month since February 2017 and
   still has a CIK in the current SEC map. Build the monthly stats
-  before refreshing adjusted prices, or the wider list is empty and
-  only today's members are fetched. A delisted name with no current
-  CIK has no adjusted prices and cannot be ranked. Missing those
-  losers makes the backtest look better than reality. A name that was
-  never in a stored universe file uses today's CIK and has no sector.
+  before refreshing adjusted prices, or the wider list is empty, only
+  today's members are fetched, and the weekly result says the monthly
+  table was missing. A delisted name with no current CIK has no
+  adjusted prices and cannot be ranked. Missing those losers makes the
+  backtest look better than reality. A name that was never in a stored
+  universe file uses today's CIK and the SIC cached from SEC
+  submissions. A missing SIC excludes it, as the live universe does. A
+  reused ticker with no universe row is left out. The backtest reads
+  the ticker map saved at the start of the run.
 - **Sector and SIC code are the latest stored codes**, not the codes
   at the time.
 - **Shares outstanding** come from filings and can lag buybacks and
