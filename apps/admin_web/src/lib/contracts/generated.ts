@@ -893,7 +893,7 @@ export const roadmap = {
         {
           "id": "M05-T01",
           "title": "Owner review memo",
-          "status": "done"
+          "status": "doing"
         },
         {
           "id": "M05-T02",

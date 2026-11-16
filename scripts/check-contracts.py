@@ -150,7 +150,10 @@ def check_generated() -> list[str]:
 
 def validate_methodology() -> list[str]:
     """The same rules the engine uses when it loads the register."""
-    path = ROOT / "backend" / "lambda" / "engine" / "methodology.py"
+    engine = ROOT / "backend" / "lambda" / "engine"
+    if str(engine) not in sys.path:
+        sys.path.insert(0, str(engine))
+    path = engine / "methodology.py"
     spec = importlib.util.spec_from_file_location("methodology_check", path)
     if spec is None or spec.loader is None:
         return ["methodology.py is missing"]

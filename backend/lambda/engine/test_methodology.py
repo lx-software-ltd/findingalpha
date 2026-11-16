@@ -59,6 +59,36 @@ class MethodologyTest(unittest.TestCase):
         cited["factors"][0]["citation"] = None
         with self.assertRaises(methodology.MethodologyError):
             methodology.validate(cited)
+        typo = json.loads(json.dumps(doc))
+        typo["composite"]["groupWeights"] = {"qualty": 0.4, "value": 0.3, "trend": 0.3}
+        with self.assertRaises(methodology.MethodologyError):
+            methodology.validate(typo)
+        reversed_tails = json.loads(json.dumps(doc))
+        reversed_tails["composite"]["winsorisePercentiles"] = [97.5, 2.5]
+        with self.assertRaises(methodology.MethodologyError):
+            methodology.validate(reversed_tails)
+        share = json.loads(json.dumps(doc))
+        share["composite"]["minFactorsPerGroupShare"] = 1.5
+        with self.assertRaises(methodology.MethodologyError):
+            methodology.validate(share)
+        missing_param = json.loads(json.dumps(doc))
+        interest = next(item for item in missing_param["factors"] if item["id"] == "interestCoverage")
+        interest["parameters"] = {}
+        with self.assertRaises(methodology.MethodologyError):
+            methodology.validate(missing_param)
+        unknown = json.loads(json.dumps(doc))
+        unknown["factors"][0]["implementation"] = "factors_quality.missing"
+        with self.assertRaises(methodology.MethodologyError):
+            methodology.validate(unknown)
+        unknown_field = json.loads(json.dumps(doc))
+        unknown_field["screen"]["hardFilters"][0]["field"] = "notAField"
+        with self.assertRaises(methodology.MethodologyError):
+            methodology.validate(unknown_field)
+
+    def test_load_returns_a_copy(self) -> None:
+        first = methodology.load()
+        first["screen"]["shortlistSize"] = 1
+        self.assertEqual(methodology.load()["screen"]["shortlistSize"], 60)
 
     def test_accessors_read_the_bundled_register(self) -> None:
         self.assertEqual(methodology.parameter("roic", "defaultTaxRate"), 0.21)

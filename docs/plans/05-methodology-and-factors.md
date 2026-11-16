@@ -151,9 +151,9 @@ For one screen date, over all universe members:
    interpolation.
 3. For each factor, turn values into z-scores inside each sector:
    `(value - sector mean) / sector standard deviation` (population
-   standard deviation). A sector with fewer than `minSectorSize`
-   non-`None` values, or a zero standard deviation, uses the whole
-   universe instead.
+   standard deviation). A blank sector, a sector with fewer than
+   `minSectorSize` non-`None` values, or a zero standard deviation,
+   uses the whole universe instead.
 4. Multiply by -1 for factors whose direction is `lower`.
 5. Group score = mean of the z-scores of the group's factors that are
    not `None`. If fewer than half of the group's factors have a value,
@@ -170,6 +170,8 @@ Write `docs/research/methodology-provisional.md`: the two tables
 above, one sentence per factor on what it measures, and the open
 choices (group weights, the debt ceiling of 4, the shortlist size).
 The owner asked to develop this milestone on those proposed values.
+The memo is written. This step stays open until the owner accepts the
+group weights, the debt ceiling, and the shortlist size.
 `volatility252` and `freeCashFlow_ttm` use group `reported`, so they
 stay in the register and out of the composite.
 
@@ -185,7 +187,11 @@ stay in the register and out of the composite.
      `implementation`, `status`; a duplicate id; a group weight sum
      that is not 1.0 within 1e-9; a percentile outside 0 to 100; a
      status that is not `provisional` or `cited`; `cited` without a
-     citation.
+     citation. Also: the low percentile is not below the high one;
+     `minFactorsPerGroupShare` is outside 0 to 1; a group weight names
+     no factor; a screen field is not a factor or a snapshot field; an
+     implementation does not resolve or omits a parameter the function
+     requires; a public factor function is missing from the register.
    - `register_hash(doc)`: SHA-256 of the JSON dumped with sorted keys
      and no whitespace. First 16 hex characters.
    - Accessors: `factor(id)`, `parameter(factor_id, name)`,
@@ -197,11 +203,15 @@ stay in the register and out of the composite.
 ### M05-T03 Company snapshot
 
 `snapshot.py`: `build(symbol, cik, date, pit_rows, adjusted_bars,
-raw_close, shares_outstanding)` returns a plain dict with every
-`_ttm` flow, every latest and average stock value, `marketCap`,
-`enterpriseValue`, and the adjusted close series up to the date. It
-uses only `fundamentals_pit.as_of(rows, date)` and bars dated on or
-before the date. This is the single place where "as of" is applied.
+raw_close, shares_outstanding, sessions=None)` returns a plain dict
+with every `_ttm` flow, every latest and average stock value,
+`marketCap`, `enterpriseValue`, and the adjusted close series up to
+the date. It uses only `fundamentals_pit.as_of(rows, date)` and bars
+dated on or before the date. This is the single place where "as of"
+is applied. `sessions` is the market calendar. A missing session keeps
+the previous close. Duplicate dates keep the later bar. A debt tag
+that was never filed is zero when a balance sheet exists, and a prior
+statement that omits it counts as zero in the average.
 
 Tests: a bar dated after the date is not in the series; a fact filed
 after the date does not change any value.

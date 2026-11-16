@@ -30,6 +30,18 @@ minus cash. It is missing when that total is not positive.
 `average(investedCapital)` is the average equity plus the average of
 each debt stock minus the average cash.
 
+Debt tags are combined per balance-sheet date. `LongTermDebt` already
+includes `LongTermDebtCurrent`, and `DebtCurrent` already includes the
+current portion and short-term borrowings, so those are not added
+again. When a balance sheet is present and a debt tag was never filed,
+that component is zero. A prior statement that omits the tag counts as
+zero in the average. Coverage still counts only a tag that was filed.
+
+Closes follow the market session calendar. A session with no print
+keeps the previous close, so a missing day does not move the 21, 200,
+or 252 session windows. A company with no sector is standardised
+against the whole universe.
+
 ## Reported, and left out of the composite
 
 | Id | What it measures | Formula |
@@ -48,8 +60,10 @@ z-score inside its sector. A sector with fewer than 10 values uses the
 whole universe. A group with fewer than half its factors present scores
 as missing, and the company gets no composite. The screen keeps
 companies with positive trailing operating income, positive free cash
-flow, and net debt to EBITDA of at most 4 (net cash passes). The
-shortlist is 60 names.
+flow, and net debt to EBITDA of at most 4. When EBITDA is not positive
+the ratio is missing; the company still passes the debt ceiling if it
+has net cash. A missing composite stays off the list. The shortlist is
+the 60 highest composites.
 
 ## Open choices
 

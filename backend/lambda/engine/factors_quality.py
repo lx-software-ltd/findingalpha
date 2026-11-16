@@ -42,6 +42,9 @@ def roic(snapshot: dict, params: dict) -> float | None:
     return operating * (1 - rate) / invested
 
 
+roic.required_parameters = ("maxTaxRate", "defaultTaxRate")
+
+
 def gross_profitability(snapshot: dict, _params: dict) -> float | None:
     """grossProfit_ttm / avg(totalAssets). If grossProfit is missing use revenue_ttm - costOfRevenue_ttm."""
     profit = _num(snapshot.get("grossProfit_ttm"))
@@ -115,3 +118,6 @@ def interest_coverage(snapshot: dict, params: dict) -> float | None:
             return cap
         return None
     return min(operating / interest, cap)
+
+
+interest_coverage.required_parameters = ("coverageCap",)
