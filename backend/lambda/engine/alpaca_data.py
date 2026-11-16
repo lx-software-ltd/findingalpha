@@ -316,6 +316,7 @@ class AlpacaData:
         self._opener = opener
         self._limiter = limiter if limiter is not None else http_client.RateLimiter(_PER_SECOND)
         self._ingest_enabled = ingest_enabled
+        self._skipped: set[str] = set()
 
     def __repr__(self) -> str:
         return "AlpacaData()"
@@ -386,18 +387,18 @@ class AlpacaData:
     def _daily_bars(self, symbols: list[str], start: str, end: str, adjustment: str) -> Iterator[dict[str, Any]]:
         if not symbols:
             return
-        params = {
-            "timeframe": "1Day",
-            "start": start,
-            "end": end,
-            "adjustment": adjustment,
-            "feed": _FEED,
-            "limit": "10000",
-        }
-        for batch in _chunks(symbols, _BATCH):
-            yield from alpaca_bars.bars(
-                self._pages, params, batch, endpoint=f"{_DATA}/v2/stocks/bars", rows_of=_bar_rows
-            )
+        yield from alpaca_bars.daily(
+            self._pages,
+            symbols,
+            start,
+            end,
+            adjustment,
+            feed=_FEED,
+            batch=_BATCH,
+            endpoint=f"{_DATA}/v2/stocks/bars",
+            rows_of=_bar_rows,
+            skipped=self._skipped,
+        )
 
     def corporate_actions(self, start: date | datetime | str, end: date | datetime | str) -> list[dict[str, Any]]:
         """Dividends and splits whose ``process_date`` is inside the window."""

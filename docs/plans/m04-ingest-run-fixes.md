@@ -29,7 +29,8 @@ The live run on 16 Nov 2026 showed three separate failures. `tick` has failed on
 - A job still stops with two minutes left and keeps its cursor.
 - Headers, secrets, and query strings stay out of logs and error text.
 - SPY is never skipped. A 400 that SPY also gets fails the run.
-- A failed cursor is tried three times, then left for a manual run.
+- A skipped symbol is remembered by the client. More than 20 new skips in one bars request fail that request.
+- Tick resumes a failed row only when `run()` wrote a failure count under three. A universe build marked failed, and a row written before this change, wait for Run now. After three counted failures, a later Run now that fails again is left alone.
 - The resume message stays under 200 KB. A larger saved parameter block is read from the state row.
 
 ## Done when

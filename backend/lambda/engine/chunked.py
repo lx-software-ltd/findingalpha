@@ -150,7 +150,8 @@ def resume_stalled(
     """Start a job that should continue, when ``enabled`` allows it.
 
     A running job whose lease expired, a paused job, and a failed job
-    with fewer than three failures at its cursor.
+    that carries a failure count under three. A failed row with no count
+    waits for Run now.
     """
     moment = timeutil.format_iso_millis(now())
     send = invoke or _invoke_self
@@ -173,7 +174,11 @@ def resume_stalled(
 def _resumable(item: dict[str, Any], moment: str) -> bool:
     status = item.get("status")
     if status == "failed":
-        return int(item.get("failures") or 0) < _MAX_FAILURES
+        # A count is written by run(). A row marked failed without one, such as a
+        # universe build, would otherwise restart on every tick.
+        if "failures" not in item:
+            return False
+        return int(item["failures"]) < _MAX_FAILURES
     if status == "paused":
         return True
     if status != "running":

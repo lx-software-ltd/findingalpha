@@ -6,6 +6,7 @@ import http.client
 import io
 import json
 import logging
+import ssl
 import unittest
 import urllib.error
 from email.message import Message
@@ -158,6 +159,16 @@ class HttpClientTest(unittest.TestCase):
             http_client.get_text(f"https://data.example.com/v2?token={secret}", opener=fail, sleep=lambda _s: None)
         self.assertEqual(str(raised.exception), "connection failed host=data.example.com attempts=4")
         self.assertNotIn(secret, str(raised.exception))
+
+        def certificate(_request: object, timeout: float) -> _Response:
+            del timeout
+            calls["n"] += 1
+            raise urllib.error.URLError(ssl.SSLError("certificate verify failed"))
+
+        calls["n"] = 0
+        with self.assertRaises(urllib.error.URLError):
+            http_client.get_text("https://example.com/x", opener=certificate, sleep=self.fail)
+        self.assertEqual(calls["n"], 1)
 
     def test_the_status_text_keeps_the_message_only(self) -> None:
         body = b'{"message":"invalid symbol: BAD","echo":"secret-query"}'

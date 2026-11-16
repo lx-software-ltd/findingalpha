@@ -135,9 +135,11 @@ Tests first for each.
     `context.get_remaining_time_in_millis()` is under 120,000, release
     the lease. Mark `done` when the cursor reaches the end.
   - The `tick` job (every 15 minutes) invokes a `running` row with no
-    live lease, a `paused` row, and a `failed` row with fewer than
-    three failures at the same cursor. The switch for that job must
-    be on. After three failures it waits for Run now.
+    live lease, a `paused` row, and a `failed` row whose `failures`
+    count is present and under three. A failed row with no count, such
+    as a universe build, waits for Run now. The switch for that job
+    must be on. After three counted failures, including a later Run now
+    that fails again, tick leaves the job alone.
   - Tests: resume from a cursor; a second caller does not get the
     lease; a failing item marks the job `failed` and keeps the cursor.
 
@@ -146,7 +148,9 @@ Tests first for each.
 `alpaca_data.py`: `list_assets()`, `daily_bars(symbols, start, end,
 adjustment)` (generator that follows `next_page_token`; batches of 200
 symbols per request; a 400 is split, and one symbol is skipped when
-SPY still answers for that window), `corporate_actions(start, end)`,
+SPY still answers for that window. A skipped symbol is not requested
+again by that client. More than 20 new skips in one request fail it),
+`corporate_actions(start, end)`,
 `news(symbols, start, end)`. Each returns plain dicts with our own
 field names:
 

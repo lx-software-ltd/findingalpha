@@ -5,6 +5,7 @@ from __future__ import annotations
 import http.client
 import json
 import logging
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -55,6 +56,12 @@ def _status_text(status: int, body: str) -> str:
 
 def _host(url: str) -> str:
     return urllib.parse.urlsplit(url).hostname or "unknown"
+
+
+def _certificate(exc: BaseException) -> bool:
+    if isinstance(exc, ssl.SSLError):
+        return True
+    return isinstance(getattr(exc, "reason", None), ssl.SSLError)
 
 
 class _Retry(Exception):
@@ -140,7 +147,7 @@ def get_text(
         except _Retry as exc:
             last = exc
             transport = None
-            logger.info("http retry host=%s status=%s attempt=%s", host, exc.status, attempt)
+            logger.info("http retry status=%s attempt=%s", exc.status, attempt)
             if exc.delay is not None and exc.delay > _MAX_RETRY_AFTER:
                 break
             if attempt == attempts:
@@ -149,11 +156,11 @@ def get_text(
             sleep(wait)
             delay *= 2
         except (OSError, http.client.HTTPException) as exc:
-            if isinstance(exc, urllib.error.HTTPError):
+            if isinstance(exc, urllib.error.HTTPError) or _certificate(exc):
                 raise
             last = None
             transport = exc
-            logger.info("http retry host=%s attempt=%s error=%s", host, attempt, type(exc).__name__)
+            logger.info("http retry attempt=%s error=%s", attempt, type(exc).__name__)
             if attempt == attempts:
                 break
             sleep(delay)

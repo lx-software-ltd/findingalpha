@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from unittest.mock import patch
 
 import chunked
@@ -314,7 +315,7 @@ class ChunkedTest(unittest.TestCase):
 
     def test_a_failed_job_is_resumed_until_three_failures(self) -> None:
         memory = _Memory()
-        for job, failures in (("fresh", None), ("once", 1), ("spent", 3)):
+        for job, failures in (("decimal", Decimal("2")), ("once", 1), ("spent", 3), ("universe_build", None)):
             item: dict[str, object] = {
                 "pk": f"JOB#{job}",
                 "sk": "STATE",
@@ -329,7 +330,7 @@ class ChunkedTest(unittest.TestCase):
         started: list[str] = []
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             chunked.resume_stalled(now=lambda: NOW, invoke=started.append)
-        self.assertEqual(started, ["fresh", "once"])
+        self.assertEqual(started, ["decimal", "once"])
 
     def test_the_same_cursor_counts_failures_and_a_later_one_resets(self) -> None:
         memory = _Memory()

@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+import alpaca_bars
 import alpaca_data
 import http_client
 import secrets_read
@@ -278,6 +279,32 @@ class AlpacaDataTest(unittest.TestCase):
             list(broken.daily_bars(["AAA", "SPY"], "2016-01-04", "2016-01-29", "raw"))
         self.assertEqual(str(raised.exception), "HTTP 400 end is before start")
         self.assertNotIn("secret-query", str(raised.exception))
+        urls.clear()
+        again = [row["symbol"] for row in client.daily_bars(names, "2016-02-01", "2016-02-27", "raw")]
+        self.assertEqual(again, ["AAA", "SPY", "ZZZ"])
+        self.assertTrue(urls)
+        self.assertTrue(all("BAD" not in _query(url)["symbols"][0] for url in urls))
+
+    def test_too_many_rejected_symbols_fail_the_request(self) -> None:
+        bad = {f"B{index:02d}" for index in range(alpaca_bars._SKIP_LIMIT + 1)}
+
+        def opener(request: urllib.request.Request, timeout: float) -> _Response:
+            del timeout
+            symbols = _query(request.full_url)["symbols"][0].split(",")
+            if bad.intersection(symbols):
+                raise _status(400, b'{"message":"invalid symbol"}')
+            rows = {
+                symbol: [{"t": "2016-01-04T05:00:00Z", "o": 1, "h": 2, "l": 1, "c": 1, "v": 3, "vw": 1}]
+                for symbol in symbols
+            }
+            return _Response(json.dumps({"bars": rows}).encode())
+
+        client = alpaca_data.AlpacaData(
+            key_id="kid", secret_key="sek", opener=opener, limiter=_Limiter(), ingest_enabled=_allow
+        )
+        with self.assertRaises(http_client.HttpStatusError) as raised:
+            list(client.daily_bars(sorted(bad | {"SPY"}), "2016-01-04", "2016-01-29", "raw"))
+        self.assertEqual(str(raised.exception), "HTTP 400 invalid symbol")
 
     def test_a_bad_bars_shape_and_a_repeated_token_stop(self) -> None:
         client, script, _limiter = _client(b'{"bars":[],"next_page_token":null}')
