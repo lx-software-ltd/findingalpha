@@ -315,7 +315,7 @@ the owner confirms them (O11):
     "exchanges": ["NYSE", "NASDAQ"],
     "requireMarginable": true,
     "requireAnnualReportForm": "10-K",
-    "excludeSicRanges": [[6000, 6799]],
+    "excludeSicRanges": [[6000, 6319], [6330, 6799]],
     "minPriceUsd": 5,
     "minMedianDollarVolumeUsd": 20000000,
     "dollarVolumeWindowSessions": 60,
@@ -329,9 +329,13 @@ the owner confirms them (O11):
 
 Why each rule exists (write this in the memo for the owner):
 marginable is needed for leverage; the 10-K rule drops foreign filers
-whose data has different tags; SIC 6000 to 6799 are banks, insurers,
-funds and property trusts, where the quality formulas do not mean the
-same thing; price, volume and size keep trading costs small.
+whose data has different tags; SIC 6000 to 6319 and 6330 to 6799 are
+banks, life and property insurers, funds and property trusts, where the
+quality formulas do not mean the same thing. SIC 6320 to 6329 (health
+plans) stay in. Price, volume and size keep trading costs small. The
+owner confirmed this split, the merchandise and payment-network
+sectors, and the three-filing history rule on 16 November 2026
+(`docs/plans/m04-sector-decisions.md`).
 
 `universe.build(date)`:
 

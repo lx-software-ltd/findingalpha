@@ -1,7 +1,7 @@
 {
   "findingalpha:CognitoDomainPrefix": "findingalpha-admin-auth",
   "findingalpha:BriefFromLocalPart": "brief",
-  "findingalpha:IngestEnabled": "false",
+  "findingalpha:IngestEnabled": "true",
   "findingalpha:CommitteeEnabled": "false",
   "findingalpha:TradingEnabled": "false",
   "findingalpha:LeverageEnabled": "false",

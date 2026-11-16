@@ -54,4 +54,4 @@ Revert the pull request. No live bucket is written.
 
 ## Open questions
 
-None for this change. The owner still confirms the provisional thresholds (O11) before T11.
+The four sector decisions are confirmed in `docs/plans/m04-sector-decisions.md`. Price, volume, and size stay provisional.

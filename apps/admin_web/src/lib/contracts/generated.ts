@@ -257,6 +257,10 @@ export const methodology = {
     "excludeSicRanges": [
       [
         6000,
+        6319
+      ],
+      [
+        6330,
         6799
       ]
     ],
@@ -668,12 +672,12 @@ export const roadmap = {
         {
           "id": "M04-T09",
           "title": "Jobs, schedules, routes",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T10",
           "title": "Dashboard: data status",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T11",
@@ -1245,6 +1249,16 @@ export const roadmap = {
 export const sicSectors = {
   "version": 1,
   "status": "provisional",
+  "symbolSectors": [
+    {
+      "symbol": "V",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "MA",
+      "sector": "Financials"
+    }
+  ],
   "ranges": [
     {
       "from": 100,
@@ -1493,8 +1507,13 @@ export const sicSectors = {
     },
     {
       "from": 5200,
-      "to": 5399,
+      "to": 5329,
       "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 5330,
+      "to": 5399,
+      "sector": "Consumer Staples"
     },
     {
       "from": 5400,
@@ -1518,6 +1537,16 @@ export const sicSectors = {
     },
     {
       "from": 6000,
+      "to": 6319,
+      "sector": "Financials"
+    },
+    {
+      "from": 6320,
+      "to": 6329,
+      "sector": "Health Care"
+    },
+    {
+      "from": 6330,
       "to": 6499,
       "sector": "Financials"
     },

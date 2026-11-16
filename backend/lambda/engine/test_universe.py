@@ -101,6 +101,25 @@ class UniverseTest(unittest.TestCase):
         self.assertEqual(universe.sector_for(50, ranges), "Other")
         self.assertEqual(universe.sector_for("nope", ranges), "Other")
 
+    def test_the_owner_sector_decisions(self) -> None:
+        rules = universe.load_rules()
+        excluded = rules["excludeSicRanges"]
+        self.assertFalse(universe._excluded(6324, excluded))
+        self.assertFalse(universe._excluded(6321, excluded))
+        self.assertTrue(universe._excluded(6311, excluded))
+        self.assertTrue(universe._excluded(6331, excluded))
+        self.assertTrue(universe._excluded(6021, excluded))
+        self.assertEqual(universe.sector_for(5331), "Consumer Staples")
+        self.assertEqual(universe.sector_for(5399), "Consumer Staples")
+        self.assertEqual(universe.sector_for(5311), "Consumer Discretionary")
+        self.assertEqual(universe.sector_for(6324), "Health Care")
+        self.assertEqual(universe.sector_for(7389, symbol="V"), "Financials")
+        self.assertEqual(universe.sector_for(7389, symbol="MA"), "Financials")
+        self.assertEqual(universe.sector_for(7389, symbol="EXMPL"), "Industrials")
+        self.assertEqual(int(rules["minFundamentalsYears"]), 3)
+        two_filings = _history(SHARES, years=("2022-12-31", "2023-12-31"))
+        self.assertLess(len(set(universe._annual_filings(two_filings, "10-K").values())), 3)
+
     def test_each_rule_removes_only_its_own_rows(self) -> None:
         sessions = [AS_OF - timedelta(days=offset) for offset in range(59, -1, -1)]
         symbols = {

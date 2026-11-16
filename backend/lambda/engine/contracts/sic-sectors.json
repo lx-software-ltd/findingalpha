@@ -1,6 +1,16 @@
 {
   "version": 1,
   "status": "provisional",
+  "symbolSectors": [
+    {
+      "symbol": "V",
+      "sector": "Financials"
+    },
+    {
+      "symbol": "MA",
+      "sector": "Financials"
+    }
+  ],
   "ranges": [
     {
       "from": 100,
@@ -249,8 +259,13 @@
     },
     {
       "from": 5200,
-      "to": 5399,
+      "to": 5329,
       "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 5330,
+      "to": 5399,
+      "sector": "Consumer Staples"
     },
     {
       "from": 5400,
@@ -274,6 +289,16 @@
     },
     {
       "from": 6000,
+      "to": 6319,
+      "sector": "Financials"
+    },
+    {
+      "from": 6320,
+      "to": 6329,
+      "sector": "Health Care"
+    },
+    {
+      "from": 6330,
       "to": 6499,
       "sector": "Financials"
     },
