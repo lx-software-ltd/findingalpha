@@ -89,6 +89,22 @@ class JobRunsTest(unittest.TestCase):
         self.assertEqual(saved["errorClass"], "missing_inputs")
         self.assertEqual(saved["errorMessage"], "missing inputs")
 
+    def test_a_day_that_is_not_ready_is_partial(self) -> None:
+        table = _Table()
+        with patch("store.put", side_effect=lambda item: table.put_item(Item=item)):
+            with job_runs.record("ingest_daily") as run:
+                job_runs.apply_result(run, {"ok": True, "status": "not_ready"})
+        self.assertEqual(table.items[-1]["status"], "partial")
+        self.assertEqual(table.items[-1]["errorMessage"], "continues on the next tick")
+
+    def test_a_decimal_cursor_is_a_plain_integer(self) -> None:
+        from decimal import Decimal
+
+        self.assertEqual(
+            job_runs.position({"status": "running", "cursor": Decimal("11"), "total": Decimal("131")}),
+            {"status": "running", "cursor": 11, "total": 131},
+        )
+
     def test_a_finished_chunk_stays_succeeded(self) -> None:
         table = _Table()
         with patch("store.put", side_effect=lambda item: table.put_item(Item=item)):

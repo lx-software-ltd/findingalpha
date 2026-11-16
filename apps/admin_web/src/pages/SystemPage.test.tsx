@@ -64,7 +64,7 @@ describe("SystemPage", () => {
   it("shows the universe and confirms a run", async () => {
     const user = userEvent.setup();
     renderPage();
-    expect(await screen.findByText("partial · 9 of 131")).toBeTruthy();
+    expect(await screen.findAllByText("partial · 9 of 131")).toHaveLength(2);
     expect(await screen.findByText(/Universe 2024-06-03, 4 names/)).toBeTruthy();
     expect(screen.getByText(/2 of 8/)).toBeTruthy();
     expect(screen.getByText("revenue")).toBeTruthy();

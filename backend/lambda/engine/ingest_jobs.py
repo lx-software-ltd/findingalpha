@@ -242,7 +242,7 @@ def resume_universe(
         as_of=str(params.get("asOf") or "") or None,
     )
     if result.get("status") != "done" or not params.get("asOf"):
-        return {"ok": True, "refresh": result}
+        return {"ok": True, "status": str(result.get("status") or "running"), "refresh": result}
     day = date.fromisoformat(str(params["asOf"])[:10])
     followed = _loaded_build(
         day, params, context, build, adjusted, load_sessions, load_assets, load_tickers, note_build, coverage

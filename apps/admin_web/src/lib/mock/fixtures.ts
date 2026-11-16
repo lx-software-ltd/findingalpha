@@ -24,8 +24,8 @@ export const statusFixture = {
       lastRun: { status: "succeeded", startedAt: "2026-01-02T00:00:00.000Z", durationMs: 120, message: "" },
     },
     {
-      job: "ingest_daily",
-      schedule: "0 12 ? * TUE-SAT * Asia/Hong_Kong",
+      job: "backfill_prices",
+      schedule: "",
       lastRun: {
         status: "partial",
         startedAt: "2026-01-01T22:00:00.000Z",
@@ -33,6 +33,12 @@ export const statusFixture = {
         message: "9 of 131, continues on the next tick",
       },
       progress: { status: "running", cursor: 9, total: 131 },
+      manualRun: true,
+    },
+    {
+      job: "ingest_daily",
+      schedule: "0 12 ? * TUE-SAT * Asia/Hong_Kong",
+      lastRun: { status: "failed", startedAt: "2026-01-01T22:00:00.000Z", durationMs: 40, message: "timeout" },
       manualRun: true,
     },
     { job: "reconcile", schedule: "30 12 ? * TUE-SAT * Asia/Hong_Kong", lastRun: null, manualRun: false },

@@ -72,16 +72,18 @@ def status(_event: dict[str, Any]) -> dict[str, Any]:
         }
         for name in SWITCHES
     ]
+    import job_runs
     import jobs_handler
 
     runnable = {name for name in (str(job.get("name") or "") for job in _jobs()) if jobs_handler.handler_for(name)}
+    saved = job_runs.positions()
     jobs = [
         {
             "job": job["name"],
             "schedule": _schedule(job),
             "manualRun": job.get("manualRun") is True and str(job.get("name")) in runnable,
             "keyRun": job.get("keyRun") is True,
-            "progress": _progress(str(job["name"])),
+            "progress": saved.get(str(job["name"])),
             "lastRun": _last_run(str(job["name"])),
         }
         for job in _jobs()
@@ -90,27 +92,6 @@ def status(_event: dict[str, Any]) -> dict[str, Any]:
         200,
         {"switches": switches, "brokerMode": os.environ.get("BROKER_MODE", "paper"), "jobs": jobs},
     )
-
-
-def _progress(job: str) -> dict[str, Any] | None:
-    import store
-
-    item = store.get(f"JOB#{job}", "STATE") or {}
-    cursor = _count(item.get("cursor"))
-    total = _count(item.get("total"))
-    if cursor is None or total is None:
-        return None
-    return {"status": str(item.get("status") or ""), "cursor": cursor, "total": total}
-
-
-def _count(value: object) -> int | None:
-    from decimal import Decimal
-
-    if type(value) is int:
-        return value
-    if isinstance(value, Decimal) and value == int(value):
-        return int(value)
-    return None
 
 
 def _env(name: str) -> str:

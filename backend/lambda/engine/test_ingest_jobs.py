@@ -359,6 +359,16 @@ class IngestJobsTest(unittest.TestCase):
         self.assertEqual(seen["end"], "2024-06-03")
         self.assertEqual(seen["symbols"], "EXMPL")
 
+    def test_an_unfinished_universe_refresh_keeps_its_status(self) -> None:
+        result = ingest_jobs.resume_universe(
+            {"params": {"ciks": ["0000000001"], "asOf": "2024-06-03"}},
+            None,
+            refresh=lambda *_args, **_kwargs: {"status": "running", "cursor": 1, "total": 4},
+        )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(result["refresh"]["cursor"], 1)
+        self.assertNotIn("build", result)
+
     def test_a_finished_universe_refresh_builds_that_date(self) -> None:
         built: dict[str, object] = {}
 

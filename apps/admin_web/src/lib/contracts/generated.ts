@@ -86,7 +86,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": true
+      "keyRun": false
     },
     {
       "name": "backfill_prices",

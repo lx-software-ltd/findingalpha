@@ -84,7 +84,7 @@ come from the GitHub `production` environment, not from the file.
 | `LeverageEnabled` | params file | `false` | Kill switch |
 | `BriefEmailEnabled` | params file | `false` | Kill switch |
 | `BrokerMode` | params file | `paper` | `allowedValues: ["paper"]` until M12 |
-| `PublicApiWritesEnabled` | params file | `false` | Kill switch for writes by API key |
+| `PublicApiWritesEnabled` | params file | `true` | Kill switch for writes by API key. CDK default stays `false` |
 | `ApiCustomDomainName` | GitHub var `API_CUSTOM_DOMAIN_NAME` | empty | `api.<domain>`. Empty skips the custom domain |
 | `ApiCustomDomainCertificateArn` | GitHub var `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | ACM in `ap-southeast-1`, not us-east-1 |
 | `CommitteeAnalystModel` | params file | set in M08 | OpenRouter slug |
@@ -264,8 +264,8 @@ output. Both reach the same API. "owner only" means no key can reach
 it. A write needs the scope `operate`, `allowWrite` on the key, and
 `PublicApiWritesEnabled`. A settings write may only set switches to
 false. Turning a switch on, resetting a breaker, ticking an owner
-task, and every real-money approval stay owner only. A key with the
-`system` scope can list keys. The list never includes the digest.
+task, listing keys, and every real-money approval stay owner only.
+The key list never includes the digest.
 
 | Method and path | Purpose | Milestone | Key scope |
 | --- | --- | --- | --- |
@@ -278,7 +278,7 @@ task, and every real-money approval stay owner only. A key with the
 | `PUT /owner-tasks/{taskId}` | Tick an owner task | M03 | owner only |
 | `GET /jobs/runs` | Recent job runs | M03 | `system` |
 | `GET /public` | The routes the calling key may use | M03A | any key |
-| `GET /api-keys` | Key list without digests | M03A | `system` |
+| `GET /api-keys` | Key list without digests | M03A | owner only |
 | `POST /jobs/{jobName}/run` | Start an allowed job. Returns 202 `{accepted: true}` | M04 | `operate`, jobs with `keyRun` only |
 | `GET /universe/latest` | Universe summary | M04 | `research` |
 | `GET /methodology` | The register with citation status | M05 | `research` |
@@ -332,11 +332,14 @@ that returns `missing_inputs` is `failed`. A clean finish is
 Jobs without a schedule, started from the dashboard through
 `POST /jobs/{jobName}/run` when `contracts/jobs.json` allows it:
 An API key can start a job only when the job has `keyRun: true`.
-That flag is on for `tick` and for the ingest jobs the dashboard can
-start: `ingest_daily`, `weekly_refresh`, `backfill_prices`, and
-`backfill_fundamentals`. Jobs that touch the broker or the drill
-never have it. The system status reports `keyRun` and the saved
-`progress` for each job, the same fields the dashboard shows.
+That flag is on for `tick`, `ingest_daily`, `backfill_prices`, and
+`backfill_fundamentals`. `weekly_refresh` stays on the dashboard:
+each run repeats the SEC and universe work. A key that asks to start
+a backfill whose saved state is already `done` is refused, because
+that starts the download again from the first month. The dashboard
+can still start it. Jobs that touch the broker or the drill never
+have `keyRun`. The system status reports `keyRun` and the saved
+`progress` for each job.
 
 | Job | Purpose | Milestone |
 | --- | --- | --- |

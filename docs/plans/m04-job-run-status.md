@@ -1,7 +1,7 @@
 # Plan: honest job runs and the same key actions
 
 **Status**: In review
-**Zone**: yellow, plus the `keyRun` flags in `contracts/jobs.json` (red), which this request names
+**Zone**: yellow, plus `contracts/jobs.json` and the production parameter file (red)
 
 ## Goal
 
@@ -11,16 +11,19 @@ recorded as `failed`. The system status includes each job's saved
 position, and the System page shows it beside the last run. A missing
 price file names the session and `backfill_prices`.
 
-An API key with the admin scopes sees the same reads as the System
-page, including the key list without digests, and can start the same
-ingest jobs the page can start.
+An API key with `operate` and `allowWrite` can start `ingest_daily`,
+`backfill_prices`, and `backfill_fundamentals`. It cannot start
+`weekly_refresh` or restart a backfill that has already finished.
+The production parameter file sets `PublicApiWritesEnabled` to
+`true`. The key list stays on the dashboard.
 
 ## Non-goals
 
 - A key still cannot turn a switch on, tick an owner task, reset a
   breaker, or start a broker or drill job.
-- `PublicApiWritesEnabled` stays `false` in the parameter file. A key
-  write still needs that parameter, `allowWrite`, and `operate`.
+- The CloudFormation default of `PublicApiWritesEnabled` stays
+  `false`. A key write still needs the parameter, `allowWrite`, and
+  `operate`.
 - No change to how tick resumes a `running` state row.
 
 ## Files
@@ -67,8 +70,10 @@ position on the System page. `ruff` and the contract check pass.
 ## Rollback
 
 Revert this change. New runs go back to `succeeded` whenever the
-invocation returns. The four ingest jobs go back to `keyRun: false`,
-and `GET /api-keys` is dashboard-only again.
+invocation returns. `ingest_daily`, `backfill_prices`, and
+`backfill_fundamentals` go back to `keyRun: false`. The production
+file sets `PublicApiWritesEnabled` back to `false`. `weekly_refresh`
+and `GET /api-keys` stay as they are on main.
 
 ## Open questions
 

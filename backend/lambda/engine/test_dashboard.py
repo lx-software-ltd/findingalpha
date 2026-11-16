@@ -49,6 +49,13 @@ class _Store:
         rows.sort(key=lambda item: item["sk"], reverse=True)
         return rows[:limit]
 
+    def query_gsi1(self, gsi1pk: str, prefix: str = "") -> list[dict[str, Any]]:
+        return [
+            item
+            for item in self.rows.values()
+            if item.get("gsi1pk") == gsi1pk and str(item.get("gsi1sk") or "").startswith(prefix)
+        ]
+
     def query_gsi1_latest(self, gsi1pk: str, limit: int) -> list[dict[str, Any]]:
         rows = [item for item in self.rows.values() if item.get("gsi1pk") == gsi1pk]
         rows.sort(key=lambda item: str(item.get("gsi1sk")), reverse=True)
@@ -64,6 +71,7 @@ class DashboardTest(unittest.TestCase):
             patch("store.delete", self.store.delete),
             patch("store.scan_pk_prefix", self.store.scan_pk_prefix),
             patch("store.query_latest", self.store.query_latest),
+            patch("store.query_gsi1", self.store.query_gsi1),
             patch("store.query_gsi1_latest", self.store.query_gsi1_latest),
             patch("audit.write"),
         ]
@@ -130,7 +138,17 @@ class DashboardTest(unittest.TestCase):
         broker = next(item for item in body["jobs"] if item["job"] == "broker_setup")
         self.assertFalse(broker["manualRun"])
         self.assertFalse(broker["keyRun"])
-        self.store.put({"pk": "JOB#backfill_prices", "sk": "STATE", "status": "running", "cursor": 11, "total": 131})
+        self.store.put(
+            {
+                "pk": "JOB#backfill_prices",
+                "sk": "STATE",
+                "status": "running",
+                "cursor": 11,
+                "total": 131,
+                "gsi1pk": "JOBSTATE",
+                "gsi1sk": "backfill_prices",
+            }
+        )
         again = json.loads(api_handler.lambda_handler(_event("GET", "/system/status"), None)["body"])
         prices = next(item for item in again["jobs"] if item["job"] == "backfill_prices")
         self.assertEqual(prices["progress"], {"status": "running", "cursor": 11, "total": 131})

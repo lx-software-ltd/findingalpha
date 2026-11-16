@@ -82,7 +82,7 @@ def apply_result(run: JobRun, result: object) -> None:
     if run.status != "running" or not isinstance(result, dict):
         return
     status = str(result.get("status") or "")
-    if status in {"running", "paused"}:
+    if status in {"running", "paused", "not_ready"}:
         run.status = "partial"
         run.error_message = _partial_message(result)
         return
@@ -98,6 +98,30 @@ def _partial_message(result: dict[str, Any]) -> str:
     if cursor is None or total is None:
         return "continues on the next tick"
     return f"{cursor} of {total}, continues on the next tick"
+
+
+def position(item: dict[str, Any]) -> dict[str, Any] | None:
+    """Cursor and total from a job state row, as plain integers."""
+    cursor = _count(item.get("cursor"))
+    total = _count(item.get("total"))
+    if cursor is None or total is None:
+        return None
+    return {"status": str(item.get("status") or ""), "cursor": cursor, "total": total}
+
+
+def positions() -> dict[str, dict[str, Any]]:
+    """One read of every saved job position."""
+    import store
+
+    found: dict[str, dict[str, Any]] = {}
+    for item in store.query_gsi1("JOBSTATE"):
+        if item.get("sk") not in (None, "STATE"):
+            continue
+        name = str(item.get("gsi1sk") or "")
+        placed = position(item)
+        if name and placed is not None:
+            found[name] = placed
+    return found
 
 
 def _count(value: object) -> int | None:

@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { AdminCell, AdminDataTable, type AdminDataTableColumn } from "../components/ui/AdminDataTable";
+import {
+  AdminCell,
+  AdminDataTable,
+  AdminDataTableCellMeta,
+  type AdminDataTableColumn,
+} from "../components/ui/AdminDataTable";
 import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
 import { useApiKeys, useJobRuns, useRunJob, useSystemStatus, useUniverse, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
@@ -96,7 +101,10 @@ export function SystemPage() {
       <AdminDataTable columns={columns} bare>
         {jobs.map((job) => (
           <tr key={job.job}>
-            <AdminCell column="job">{job.job}</AdminCell>
+            <AdminCell column="job">
+              {job.job}
+              <AdminDataTableCellMeta>{statusLabel(job.lastRun?.status, job.progress)}</AdminDataTableCellMeta>
+            </AdminCell>
             <AdminCell column="schedule">{job.schedule}</AdminCell>
             <AdminCell column="status">{statusLabel(job.lastRun?.status, job.progress)}</AdminCell>
             <AdminCell column="started">{job.lastRun ? <DateTimeDisplay iso={job.lastRun.startedAt} /> : "—"}</AdminCell>
