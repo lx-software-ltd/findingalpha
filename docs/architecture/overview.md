@@ -40,7 +40,7 @@ argues, cites and proposes. It never computes a number that decides money.
 ```
                  owner
         +----------+-----------+
-        | browser              | email 07:30 HKT
+        | browser              | email 13:30 HKT
         v                      ^
  CloudFront + S3 (SPA)         |
  admin.<domain>                |

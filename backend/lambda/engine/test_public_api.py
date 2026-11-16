@@ -209,6 +209,22 @@ class PublicApiTest(unittest.TestCase):
             if job["name"] in blocked:
                 self.assertFalse(job["keyRun"])
 
+    def test_a_key_can_start_only_a_key_run_job(self) -> None:
+        sent: list[str] = []
+
+        def invoke(name: str, _sub: str) -> None:
+            sent.append(name)
+
+        with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write") as audit:
+            tick = api_handler.lambda_handler(_event("POST", "/public/jobs/tick/run", key=_key()), None)
+            daily = api_handler.lambda_handler(_event("POST", "/public/jobs/ingest_daily/run", key=_key()), None)
+            drill = api_handler.lambda_handler(_event("POST", "/public/jobs/breaker_drill/run", key=_key()), None)
+        self.assertEqual(tick["statusCode"], 202)
+        self.assertEqual(daily["statusCode"], 404)
+        self.assertEqual(drill["statusCode"], 404)
+        self.assertEqual(sent, ["tick"])
+        self.assertEqual(audit.call_args.args[0], "apikey:abc123")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -337,7 +337,7 @@ def _backfill(
     bars_of = fetch_bars or _default_bars
     actions_of = fetch_actions or _default_actions
     name = _bucket(bucket)
-    if assets is not None:
+    if assets:
         s3io.put_json(name, "reference/symbol-reuse.json", reused_symbols(assets, include_inactive=True), client=client)
     spans = month_spans(start, end)
 

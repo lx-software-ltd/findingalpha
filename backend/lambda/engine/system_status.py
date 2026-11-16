@@ -72,11 +72,14 @@ def status(_event: dict[str, Any]) -> dict[str, Any]:
         }
         for name in SWITCHES
     ]
+    import jobs_handler
+
+    runnable = {name for name in (str(job.get("name") or "") for job in _jobs()) if jobs_handler.handler_for(name)}
     jobs = [
         {
             "job": job["name"],
             "schedule": _schedule(job),
-            "manualRun": job.get("manualRun") is True,
+            "manualRun": job.get("manualRun") is True and str(job.get("name")) in runnable,
             "lastRun": _last_run(str(job["name"])),
         }
         for job in _jobs()

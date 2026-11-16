@@ -19,7 +19,7 @@ export const jobs = {
     {
       "name": "ingest_daily",
       "scheduleName": "findingalpha-ingest-daily",
-      "cron": "0 6 ? * TUE-SAT *",
+      "cron": "0 12 ? * TUE-SAT *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
@@ -28,7 +28,7 @@ export const jobs = {
     {
       "name": "reconcile",
       "scheduleName": "findingalpha-reconcile",
-      "cron": "30 6 ? * TUE-SAT *",
+      "cron": "30 12 ? * TUE-SAT *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
@@ -37,7 +37,7 @@ export const jobs = {
     {
       "name": "daily_check",
       "scheduleName": "findingalpha-daily-check",
-      "cron": "40 6 ? * TUE-SAT *",
+      "cron": "40 12 ? * TUE-SAT *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
@@ -46,7 +46,7 @@ export const jobs = {
     {
       "name": "brief_compile",
       "scheduleName": "findingalpha-brief-compile",
-      "cron": "15 7 ? * TUE-SAT *",
+      "cron": "15 13 ? * TUE-SAT *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "",
       "manualRun": false,
@@ -55,7 +55,7 @@ export const jobs = {
     {
       "name": "brief_send",
       "scheduleName": "findingalpha-brief-send",
-      "cron": "30 7 ? * TUE-SAT *",
+      "cron": "30 13 ? * TUE-SAT *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "BriefEmailEnabled",
       "manualRun": false,

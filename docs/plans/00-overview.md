@@ -18,7 +18,7 @@ A system for one owner that:
 3. Holds 12 to 20 positions with position and sector limits, and uses
    borrowed money (leverage) only under strict rules.
 4. Checks every day whether anything must change, and sends one email at
-   07:30 Hong Kong time saying what to buy and sell, and why.
+   13:30 Hong Kong time saying what to buy and sell, and why.
 5. Places the orders on a paper (pretend-money) broker account. Real
    money comes later, after a gate is passed.
 6. Shows everything on a private dashboard at `admin.<domain>`.
@@ -103,7 +103,7 @@ touches. A pull request that breaks one is rejected.
 ```
                  owner
         +----------+-----------+
-        | browser              | email 07:30 HKT
+        | browser              | email 13:30 HKT
         v                      ^
  CloudFront + S3 (SPA)         |
  admin.<domain>                |
@@ -142,11 +142,11 @@ All names are in [`reference.md`](reference.md).
 
 | When | What |
 | --- | --- |
-| Tue–Sat 06:00 | Ingest yesterday's US session: prices, corporate actions, filings, news |
-| Tue–Sat 06:30 | Reconcile ledger with broker, book dividends and interest, snapshot |
-| Tue–Sat 06:40 | Daily check: thesis breaks, risk limits, leverage step-down. May create holds |
-| Tue–Sat 07:15 | Compile the brief |
-| Tue–Sat 07:30 | Send the brief by email |
+| Tue–Sat 12:00 | Ingest the US session that has closed: prices, corporate actions, filings, news |
+| Tue–Sat 12:30 | Reconcile ledger with broker, book dividends and interest, snapshot |
+| Tue–Sat 12:40 | Daily check: thesis breaks, risk limits, leverage step-down. May create holds |
+| Tue–Sat 13:15 | Compile the brief |
+| Tue–Sat 13:30 | Send the brief by email |
 | Mon–Fri 09:45 New York | Execute holds that were not vetoed |
 | Mon–Fri 16:30 New York | Post-trade reconcile |
 | First Saturday 08:00 | Monthly rebalance: screen, committee, target portfolio, holds for Monday |

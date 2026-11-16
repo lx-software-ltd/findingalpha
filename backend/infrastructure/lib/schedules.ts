@@ -18,7 +18,7 @@ export function defineSchedules(scope: cdk.Stack, engineFn: lambda.IFunction) {
     scheduleName: "findingalpha-ingest-daily",
     schedule: scheduler.ScheduleExpression.cron({
       minute: "0",
-      hour: "6",
+      hour: "12",
       weekDay: "TUE-SAT",
       timeZone: hongKong,
     }),

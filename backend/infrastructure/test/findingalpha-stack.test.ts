@@ -329,6 +329,11 @@ describe("findingalpha stack", () => {
         RetryPolicy: Match.objectLike({ MaximumRetryAttempts: 0 }),
       }),
     });
+    synthesized.hasResourceProperties("AWS::Scheduler::Schedule", {
+      Name: "findingalpha-ingest-daily",
+      ScheduleExpression: "cron(0 12 ? * TUE-SAT *)",
+      ScheduleExpressionTimezone: "Asia/Hong_Kong",
+    });
     const schedule = Object.values(resources("AWS::Scheduler::Schedule"))[0];
     expect(JSON.stringify(schedule.Properties.Target)).toContain("tick");
     synthesized.resourceCountIs("AWS::Lambda::EventInvokeConfig", 1);
