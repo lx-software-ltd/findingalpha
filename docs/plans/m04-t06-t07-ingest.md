@@ -46,7 +46,8 @@ and news the later jobs read.
   past the current count when the run finishes.
 - `daily(sessions=...)` reads the filings cursor and walks sessions
   after it. A date that is not a session is not requested. An empty
-  index stops the walk and does not move the cursor.
+  index before the through date is stored as an empty day and the
+  cursor moves on. An empty index on the through date still waits.
 - `refresh_corporate_actions` rewrites ex-date files for a recent
   window, so a row that appears later still lands.
 - Coverage sets `coverage` on an existing universe row. It does not

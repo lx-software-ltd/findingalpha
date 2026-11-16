@@ -81,6 +81,9 @@ class _Memory:
     ) -> dict[str, object] | None:
         del names
         if "coverage" in expression:
+            from boto3.dynamodb.types import TypeSerializer
+
+            TypeSerializer().serialize(values[":c"])
             current = self.items.get((pk, sk))
             if not current:
                 raise store.ConditionNotMet(pk)

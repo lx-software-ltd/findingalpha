@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Callable
 
 import chunked
@@ -156,8 +157,9 @@ def daily(
     """Write 10-K, 10-Q, and 8-K rows, then refresh the 10-K and 10-Q filers.
 
     ``sessions`` is the catch-up calendar. Only sessions after the stored
-    cursor and on or before ``on`` are requested. An empty index means
-    that day is not published yet, so later sessions wait.
+    cursor and on or before ``on`` are requested. An empty index before
+    ``on`` is a day the SEC published nothing, so the cursor moves on.
+    An empty index on ``on`` itself is not published yet.
     """
     _require(ingest_enabled)
     through = _as_date(on)
@@ -187,6 +189,7 @@ def daily(
             bucket=bucket,
             client=client,
             ingest_enabled=ingest_enabled,
+            empty="advance" if day < through else "wait",
         )
         if outcome["status"] != "done":
             return {"status": outcome["status"], "filings": filings, "refreshed": refreshed}
@@ -206,10 +209,16 @@ def _one_day(
     bucket: str | None,
     client: Any,
     ingest_enabled: Callable[[], bool] | None,
+    empty: str = "wait",
 ) -> dict[str, Any]:
     index_of = fetch_index or _default_index
     rows = list(index_of(day))
     if not rows:
+        if empty == "advance":
+            name = _bucket(bucket)
+            s3io.put_jsonl_gz(name, f"filings/date={day.isoformat()}/index.jsonl.gz", [], client=client)
+            _save_cursor(day)
+            return {"status": "done", "filings": 0, "refreshed": 0}
         return {"status": "not_ready", "filings": 0, "refreshed": 0}
     universe = {_cik(cik) for cik in ciks}
 
@@ -269,7 +278,7 @@ def coverage_report(
     total = len(padded)
     flows = {field: (counts[field] / total if total else None) for field in flow_fields}
     stocks = {field: (counts[field] / total if total else None) for field in stock_fields}
-    report = {"asOf": day.isoformat(), "companies": total, "flows": flows, "stocks": stocks}
+    report = _dynamo_ready({"asOf": day.isoformat(), "companies": total, "flows": flows, "stocks": stocks})
     import store
 
     pk = f"UNIVERSE#{day.isoformat()}"
@@ -278,6 +287,17 @@ def coverage_report(
     except store.ConditionNotMet:
         pass
     return report
+
+
+def _dynamo_ready(value: Any) -> Any:
+    """DynamoDB stores a number as ``Decimal``. A float is rejected."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, dict):
+        return {key: _dynamo_ready(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_dynamo_ready(item) for item in value]
+    return value
 
 
 def _fresh_stock(rows: list[dict[str, Any]], field: str, day: date) -> bool:

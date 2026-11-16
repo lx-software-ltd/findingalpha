@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from datetime import date
+from decimal import Decimal
 
 import http_client
 import ingest_fundamentals
@@ -148,7 +149,8 @@ class FundamentalsIngestTest(unittest.TestCase):
         saved = memory.items[("UNIVERSE#2024-06-03", "META")]
         self.assertEqual(saved["members"], 2)
         self.assertEqual(saved["gsi1pk"], "UNIVERSE")
-        self.assertEqual(saved["coverage"]["flows"]["revenue"], 0.5)
+        self.assertIsInstance(saved["coverage"]["flows"]["revenue"], Decimal)
+        self.assertEqual(saved["coverage"]["flows"]["revenue"], Decimal("0.5"))
 
     def test_a_missing_company_facts_file_is_stored_empty(self) -> None:
         bucket = _Bucket()
@@ -228,7 +230,7 @@ class FundamentalsIngestTest(unittest.TestCase):
         self.assertEqual(done["status"], "done")
         self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-06-03")
 
-    def test_catch_up_reads_the_cursor_and_stops_on_an_empty_index(self) -> None:
+    def test_catch_up_reads_the_cursor_and_continues_after_an_empty_index(self) -> None:
         bucket = _Bucket()
         memory = _Memory()
         memory.put({"pk": "JOB#ingest_filings", "sk": "CURSOR", "lastDate": "2024-06-03"})
@@ -260,7 +262,9 @@ class FundamentalsIngestTest(unittest.TestCase):
 
         def gap(day: date) -> list[dict[str, str]]:
             fetched.append(day)
-            return [] if day == date(2024, 6, 4) else index(day)
+            if day == date(2024, 6, 4):
+                return []
+            return [{"cik": CIK, "company": "Example", "form": "8-K", "filed": day.isoformat(), "path": "a"}]
 
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
             held = ingest_fundamentals.daily(
@@ -273,9 +277,61 @@ class FundamentalsIngestTest(unittest.TestCase):
                 client=bucket,
                 ingest_enabled=lambda: True,
             )
-        self.assertEqual(held["status"], "not_ready")
-        self.assertEqual(fetched, [date(2024, 6, 4)])
-        self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-06-03")
+        self.assertEqual(held["status"], "done")
+        self.assertEqual(fetched, [date(2024, 6, 4), date(2024, 6, 5)])
+        self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-06-05")
+        empty = list(s3io.get_jsonl_gz("data", "filings/date=2024-06-04/index.jsonl.gz", client=bucket))
+        self.assertEqual(empty, [])
+
+    def test_a_closed_sec_day_does_not_stall_the_catch_up(self) -> None:
+        bucket = _Bucket()
+        memory = _Memory()
+        memory.put({"pk": "JOB#ingest_filings", "sk": "CURSOR", "lastDate": "2024-11-08"})
+        closed = {date(2024, 10, 14), date(2024, 11, 11), date(2024, 12, 24)}
+        sessions = [
+            date(2024, 10, 14),
+            date(2024, 10, 15),
+            date(2024, 11, 8),
+            date(2024, 11, 11),
+            date(2024, 11, 12),
+            date(2024, 12, 24),
+            date(2024, 12, 26),
+        ]
+        fetched: list[date] = []
+
+        def index(day: date) -> list[dict[str, str]]:
+            fetched.append(day)
+            if day in closed:
+                return []
+            return [{"cik": CIK, "company": "Example", "form": "8-K", "filed": day.isoformat(), "path": "a"}]
+
+        with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2]:
+            result = ingest_fundamentals.daily(
+                [CIK],
+                date(2024, 12, 26),
+                _Context(),
+                sessions=sessions,
+                fetch_index=index,
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+            self.assertEqual(result["status"], "done")
+            self.assertEqual(fetched, [date(2024, 11, 11), date(2024, 11, 12), date(2024, 12, 24), date(2024, 12, 26)])
+            self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-12-26")
+            memory.put({"pk": "JOB#ingest_filings", "sk": "CURSOR", "lastDate": "2024-11-08"})
+            waiting = ingest_fundamentals.daily(
+                [CIK],
+                date(2024, 11, 11),
+                _Context(),
+                sessions=[date(2024, 11, 8), date(2024, 11, 11)],
+                fetch_index=lambda _day: [],
+                bucket="data",
+                client=bucket,
+                ingest_enabled=lambda: True,
+            )
+        self.assertEqual(waiting["status"], "not_ready")
+        self.assertEqual(memory.items[("JOB#ingest_filings", "CURSOR")]["lastDate"], "2024-11-08")
 
     def test_coverage_needs_the_universe_row_and_ignores_a_stale_stock(self) -> None:
         bucket = _Bucket()
