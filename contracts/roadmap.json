@@ -371,7 +371,7 @@
       "title": "Methodology register and factor library",
       "plan": "docs/plans/05-methodology-and-factors.md",
       "zone": "red",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M04"
       ],
@@ -380,37 +380,37 @@
         {
           "id": "M05-T01",
           "title": "Owner review memo",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T02",
           "title": "Register file and loader",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T03",
           "title": "Company snapshot",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T04",
           "title": "Factor functions",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T05",
           "title": "Registry test",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T06",
           "title": "Composite",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M05-T07",
           "title": "API and dashboard page",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },

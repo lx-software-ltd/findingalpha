@@ -16,6 +16,8 @@ describe("mock admin api", () => {
     const status = await (await mockAdminFetch("/system/status")).json();
     expect(status.jobs.map((job: { job: string }) => job.job)).toContain("tick");
     expect(status.jobs.some((job: { lastRun: unknown }) => job.lastRun === null)).toBe(true);
+    const methodology = await (await mockAdminFetch("/methodology")).json();
+    expect(methodology.register.factors[0].status).toBe("provisional");
     const universe = await (await mockAdminFetch("/universe/latest")).json();
     expect(universe.asOf).toBe("2024-06-03");
     expect(universe.backfill.prices.cursor).toBe(2);

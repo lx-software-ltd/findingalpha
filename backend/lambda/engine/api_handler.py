@@ -32,6 +32,26 @@ def _me(event: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def get_methodology(_event: dict[str, Any]) -> dict[str, Any]:
+    """The register, its hash, and how many entries are still provisional."""
+    import methodology
+
+    doc = methodology.load()
+    entries = [*doc["factors"], doc["composite"], doc["screen"], doc["universe"]]
+    return _json_response(
+        200,
+        {
+            "register": doc,
+            "hash": methodology.register_hash(doc),
+            "counts": {
+                "entries": len(entries),
+                "provisional": sum(item.get("status") == "provisional" for item in entries),
+                "cited": sum(item.get("status") == "cited" for item in entries),
+            },
+        },
+    )
+
+
 def list_api_keys(_event: dict[str, Any]) -> dict[str, Any]:
     from public_api import list_keys
 
@@ -160,6 +180,7 @@ ROUTES = (
     Route("GET", "/universe/latest", latest_universe, "jwt", key_scope="research"),
     Route("GET", "/system/status", status, "jwt", key_scope="system"),
     Route("GET", "/api-keys", list_api_keys, "jwt"),
+    Route("GET", "/methodology", get_methodology, "jwt", key_scope="research"),
 )
 
 

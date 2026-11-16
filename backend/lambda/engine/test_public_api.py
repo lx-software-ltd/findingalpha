@@ -75,6 +75,7 @@ DECISIONS = {
     ("GET", "/universe/latest"): "research",
     ("GET", "/system/status"): "system",
     ("GET", "/api-keys"): None,
+    ("GET", "/methodology"): "research",
 }
 
 

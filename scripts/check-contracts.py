@@ -148,9 +148,25 @@ def check_generated() -> list[str]:
         return errors
 
 
+def validate_methodology() -> list[str]:
+    """The same rules the engine uses when it loads the register."""
+    path = ROOT / "backend" / "lambda" / "engine" / "methodology.py"
+    spec = importlib.util.spec_from_file_location("methodology_check", path)
+    if spec is None or spec.loader is None:
+        return ["methodology.py is missing"]
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        module.validate(module.load())
+    except module.MethodologyError as exc:
+        return [str(exc)]
+    return []
+
+
 def main() -> int:
     errors = validate_roadmap(ROOT / "contracts" / "roadmap.json")
     errors.extend(validate_scopes(ROOT / "contracts" / "public-api-scopes.json"))
+    errors.extend(validate_methodology())
     errors.extend(check_generated())
     if errors:
         print("Contract check failed:", file=sys.stderr)

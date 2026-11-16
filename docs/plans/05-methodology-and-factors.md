@@ -1,6 +1,6 @@
 # Plan: M05 methodology register and factor library
 
-**Status**: Draft
+**Status**: In review
 **Zone**: red (`contracts/methodology.json`). The factor code is yellow.
 
 ## Goal
@@ -169,8 +169,9 @@ For one screen date, over all universe members:
 Write `docs/research/methodology-provisional.md`: the two tables
 above, one sentence per factor on what it measures, and the open
 choices (group weights, the debt ceiling of 4, the shortlist size).
-Post the link in chat and wait. Owner task O11. Apply the owner's
-changes to the tables in this file before writing the register.
+The owner asked to develop this milestone on those proposed values.
+`volatility252` and `freeCashFlow_ttm` use group `reported`, so they
+stay in the register and out of the composite.
 
 ### M05-T02 Register file and loader
 
