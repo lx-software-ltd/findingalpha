@@ -305,10 +305,10 @@ Scheduler schedules (not `events.Rule`) with an IAM-role target.
 | --- | --- | --- | --- | --- |
 | `kb_sync_check` | `findingalpha-kb-sync-check` | `30 5 * * ? *` | Asia/Hong_Kong | none |
 | `ingest_daily` | `findingalpha-ingest-daily` | `0 12 ? * TUE-SAT *` | Asia/Hong_Kong | `IngestEnabled` |
-| `reconcile` | `findingalpha-reconcile` | `30 6 ? * TUE-SAT *` | Asia/Hong_Kong | `TradingEnabled` |
-| `daily_check` | `findingalpha-daily-check` | `40 6 ? * TUE-SAT *` | Asia/Hong_Kong | `TradingEnabled` |
-| `brief_compile` | `findingalpha-brief-compile` | `15 7 ? * TUE-SAT *` | Asia/Hong_Kong | none |
-| `brief_send` | `findingalpha-brief-send` | `30 7 ? * TUE-SAT *` | Asia/Hong_Kong | `BriefEmailEnabled` |
+| `reconcile` | `findingalpha-reconcile` | `30 12 ? * TUE-SAT *` | Asia/Hong_Kong | `TradingEnabled` |
+| `daily_check` | `findingalpha-daily-check` | `40 12 ? * TUE-SAT *` | Asia/Hong_Kong | `TradingEnabled` |
+| `brief_compile` | `findingalpha-brief-compile` | `15 13 ? * TUE-SAT *` | Asia/Hong_Kong | none |
+| `brief_send` | `findingalpha-brief-send` | `30 13 ? * TUE-SAT *` | Asia/Hong_Kong | `BriefEmailEnabled` |
 | `execute_holds` | `findingalpha-execute-holds` | `45 9 ? * MON-FRI *` | America/New_York | `TradingEnabled` |
 | `post_trade` | `findingalpha-post-trade` | `30 16 ? * MON-FRI *` | America/New_York | `TradingEnabled` |
 | `weekly_refresh` | `findingalpha-weekly-refresh` | `0 8 ? * SUN *` | Asia/Hong_Kong | `IngestEnabled` |

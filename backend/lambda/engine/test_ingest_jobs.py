@@ -237,8 +237,57 @@ class IngestJobsTest(unittest.TestCase):
             )
         row = saved[("JOB#refresh_adjusted", "STATE")]
         self.assertEqual(row["status"], "running")
-        self.assertNotIn("leaseUntil", row)
+        self.assertGreater(str(row["leaseUntil"]), str(row["updatedAt"]))
         self.assertEqual(row["params"]["symbols"], ["EXMPL"])
+
+    def test_this_run_drops_the_adjusted_lease_before_it_claims_the_job(self) -> None:
+        from unittest.mock import patch
+
+        order: list[str] = []
+
+        def put(item: dict[str, object]) -> None:
+            if item.get("pk") != "JOB#refresh_adjusted":
+                return
+            order.append("held" if "leaseUntil" in item else "open")
+
+        def adjusted(_symbols: list[str], _start: str, _end: date, _context: object) -> dict[str, str]:
+            order.append("claim")
+            return {"status": "done"}
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
+
+        with patch("store.put", put), patch.object(ingest_jobs, "_adjusted", adjusted):
+            ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+                coverage=lambda *_args: None,
+            )
+        self.assertEqual(order, ["held", "open", "claim"])
+
+    def test_an_empty_member_list_still_starts_the_adjusted_refresh(self) -> None:
+        from unittest.mock import patch
+
+        seen: dict[str, list[str]] = {}
+
+        def adjusted(symbols: list[str], _start: str, _end: date, _context: object) -> dict[str, str]:
+            seen["symbols"] = symbols
+            return {"status": "done"}
+
+        with patch.object(ingest_jobs, "_adjusted", adjusted):
+            missing = ingest_jobs.resume_adjusted({"params": {"symbols": []}}, None)
+            started = ingest_jobs.resume_adjusted(
+                {"params": {"symbols": [], "end": "2024-06-07"}},
+                None,
+            )
+        self.assertEqual(missing["status"], "missing_inputs")
+        self.assertEqual(started["status"], "done")
+        self.assertEqual(seen["symbols"], [])
 
     def test_a_build_waiting_on_facts_is_not_started_again(self) -> None:
         from unittest.mock import patch

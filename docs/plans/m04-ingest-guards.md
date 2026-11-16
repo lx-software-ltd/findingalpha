@@ -34,7 +34,9 @@ docs/plans/reference.md
 ## Invariants this change preserves
 
 - A saved backfill window is not recomputed.
-- SPY and BIL stay in the adjusted history.
+- SPY and BIL stay in the adjusted history, including when the member list is empty.
+- Tick does not start the adjusted refresh while this run still holds its lease.
+- Reconcile, the daily check, and the brief run after `ingest_daily`.
 - An empty news list writes no files.
 - Broker and drill jobs stay `keyRun: false`.
 - A dashboard user can still start `ingest_daily`.

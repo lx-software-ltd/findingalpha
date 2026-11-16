@@ -7,7 +7,7 @@ routes)
 ## Goal
 
 The system runs by itself on paper. Every US session it checks whether
-anything must change, tells the owner by email at 07:30 Hong Kong
+anything must change, tells the owner by email at 13:30 Hong Kong
 time, and executes at 09:45 New York time whatever the owner did not
 veto. Once a month it rebalances. Most days the email says "No action
 today".
@@ -79,16 +79,17 @@ Times are Hong Kong unless stated. Example for a Monday US session.
 | Time | Job | What happens |
 | --- | --- | --- |
 | Tue 12:00 | `ingest_daily` | Monday's prices, corporate actions, filings, news |
-| Tue 06:30 | `reconcile` | Fills, dividends, interest, comparison with the broker, snapshot |
-| Tue 06:40 | `daily_check` | Rules below. May create orders and holds |
-| Tue 07:15 | `brief_compile` | Builds the brief record |
-| Tue 07:30 | `brief_send` | Sends the email |
+| Tue 12:30 | `reconcile` | Fills, dividends, interest, comparison with the broker, snapshot |
+| Tue 12:40 | `daily_check` | Rules below. May create orders and holds |
+| Tue 13:15 | `brief_compile` | Builds the brief record |
+| Tue 13:30 | `brief_send` | Sends the email |
 | Tue 09:45 New York (21:45 or 22:45 Hong Kong) | `execute_holds` | Sends the sells of every hold that was not vetoed |
 | every 15 min | `tick` | Sends the buys of a batch once its sells are final |
 | Tue 16:30 New York | `post_trade` | Updates order statuses, books fills, closes holds |
 
-So the owner has about fourteen hours between the email and the
-execution. After a monthly rebalance (Saturday) the window is two days.
+So the owner has about eight hours in summer and about nine in winter
+between the email and the execution. After a monthly rebalance
+(Saturday) the window is two days.
 
 ## Steps
 

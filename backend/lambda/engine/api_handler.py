@@ -78,11 +78,11 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
         allowed = row.get("manualRun") is True and _engine_runs(name)
     if not allowed:
         return not_found()
-    sub = str(_claims(event).get("sub") or "")
-    _invoke_engine(name, sub)
+    actor = str(event.get("actor") or "") if _key_caller(event) else str(_claims(event).get("sub") or "")
+    _invoke_engine(name, actor)
     import audit
 
-    audit.write(sub, "job.run", name, event)
+    audit.write(actor, "job.run", name, event)
     return _json_response(202, {"accepted": True})
 
 

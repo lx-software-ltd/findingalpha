@@ -1,9 +1,10 @@
 """The ingest jobs tick and the dashboard can start.
 
 The session is the New York trading day that has already closed. A run
-at 06:00 in Hong Kong is 18:00 in New York, so that day's session is
-in. A resumed price backfill keeps the ``start`` and ``end`` saved with
-the job. A universe build that stops early is saved so tick can run it
+at 12:00 in Hong Kong is 23:00 New York in winter and midnight in
+summer, after the SEC daily index. A resumed price backfill keeps the
+``start`` and ``end`` saved with the job. A universe build that stops
+early is saved so tick can run it
 again, and the adjusted refresh is a job tick can resume too.
 """
 
@@ -270,7 +271,7 @@ def resume_adjusted(event: dict[str, Any], context: Any) -> dict[str, Any]:
     params = _params(event)
     symbols = [str(symbol) for symbol in params.get("symbols") or [] if str(symbol)]
     end = str(params.get("end") or "")
-    if not symbols or not end:
+    if not end:
         return {"ok": False, "status": "missing_inputs"}
     result = _adjusted(symbols, str(params.get("start") or BACKFILL_START), date.fromisoformat(end[:10]), context)
     return {"ok": True, **result}
@@ -322,8 +323,10 @@ def _follow(
     (note_build or _note_build)(day, "done")
     symbols = [str(symbol) for symbol in (outcome.get("symbols") or [])]
     if adjusted is None:
-        _arm_adjusted(symbols, day)
+        _save_adjusted(symbols, day, hold=True)
     (coverage or _coverage)([str(cik) for cik in (outcome.get("ciks") or [])], day)
+    if adjusted is None:
+        _save_adjusted(symbols, day, hold=False)
     refreshed = (adjusted or _adjusted)(symbols, BACKFILL_START, day, context)
     body["status"] = refreshed.get("status", "done")
     return body
@@ -374,24 +377,33 @@ def _facts_open() -> bool:
     return item.get("status") in {"running", "paused"}
 
 
-def _arm_adjusted(symbols: list[str], day: date) -> None:
-    """Save the adjusted refresh before the coverage report, so a stop there can resume it."""
+def _save_adjusted(symbols: list[str], day: date, *, hold: bool) -> None:
+    """Save the adjusted refresh before the coverage report.
+
+    The lease matches the engine limit, so tick leaves the job alone
+    while this run is still writing the report. The lease is removed
+    before this same run claims the job. An empty symbol list is kept:
+    the refresh still writes SPY and BIL.
+    """
+    import chunked
     import store
     import timeutil
 
-    store.put(
-        {
-            "pk": f"JOB#{ADJUSTED_JOB}",
-            "sk": "STATE",
-            "status": "running",
-            "cursor": 0,
-            "total": 1,
-            "gsi1pk": "JOBSTATE",
-            "gsi1sk": ADJUSTED_JOB,
-            "params": {"symbols": list(symbols), "start": BACKFILL_START, "end": day.isoformat()},
-            "updatedAt": timeutil.format_iso_millis(timeutil.utc_now()),
-        }
-    )
+    now = timeutil.utc_now()
+    item: dict[str, Any] = {
+        "pk": f"JOB#{ADJUSTED_JOB}",
+        "sk": "STATE",
+        "status": "running",
+        "cursor": 0,
+        "total": 1,
+        "gsi1pk": "JOBSTATE",
+        "gsi1sk": ADJUSTED_JOB,
+        "params": {"symbols": list(symbols), "start": BACKFILL_START, "end": day.isoformat()},
+        "updatedAt": timeutil.format_iso_millis(now),
+    }
+    if hold:
+        item["leaseUntil"] = timeutil.format_iso_millis(now + chunked.LEASE)
+    store.put(item)
 
 
 def _coverage(ciks: list[str], day: date) -> None:
