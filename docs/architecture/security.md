@@ -52,8 +52,8 @@ hex characters of the digest.
 The authorizer cache is 60 seconds and does not include the HTTP
 method, so the authorizer never denies a method. The Manage Public
 API Keys workflow replaces scopes with `set-scopes`. The caller
-repeats every scope the key should keep. The write flag is a separate
-`set-write`. The engine allows a write only when the key has
+repeats every scope the key should keep. A scope that tier cannot
+hold is refused. The write flag is a separate `set-write`. The engine allows a write only when the key has
 `operate`, the key's `allowWrite` flag is on, and
 `PublicApiWritesEnabled` is `true`. A key can turn a switch off. It
 cannot turn one on. A denied read is 404. A denied write is 403 with

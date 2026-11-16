@@ -39,7 +39,7 @@ from botocore.exceptions import ClientError
 _AUTHORIZER_DIR = Path(__file__).resolve().parents[1] / "backend" / "lambda" / "public_api_authorizer"
 sys.path.insert(0, str(_AUTHORIZER_DIR))
 from api_key_hash import hash_api_key  # noqa: E402
-from api_key_scopes import ALL_SCOPES, key_allows_write  # noqa: E402
+from api_key_scopes import ALL_SCOPES, key_allows_write, tier_record  # noqa: E402
 from public_api_scopes_generated import SCOPE_SYSTEM  # noqa: E402
 
 API_KEY_PK_PREFIX = "APIKEY#"
@@ -212,10 +212,24 @@ def cmd_revoke(args: argparse.Namespace) -> None:
     print("note: API Gateway caches authorizer verdicts for up to 60 seconds")
 
 
+def _require_tier_scopes(item: dict, scopes: list[str]) -> None:
+    """Refuse a scope this key's tier would drop. The authorizer keeps only those."""
+    record = tier_record(item)
+    tier = str(item.get("tier") or "")
+    if not record or not record.get("enabled"):
+        sys.exit(f"error: tier {tier!r} is not enabled")
+    allowed = {str(scope) for scope in (record.get("scopes") or ())}
+    refused = [scope for scope in scopes if scope not in allowed]
+    if refused:
+        sys.exit(f"error: tier {tier!r} cannot hold {', '.join(refused)}; allowed: {', '.join(sorted(allowed))}")
+
+
 def cmd_set_scopes(args: argparse.Namespace) -> None:
     """Replace the scope list. The caller must repeat every scope the key should keep."""
     scopes = _parse_scopes(args.scopes)
     matches = _matches(args)
+    for item in matches:
+        _require_tier_scopes(item, scopes)
     table = _table(args)
     for item in matches:
         previous = item.get("scopes") or []
@@ -230,7 +244,6 @@ def cmd_set_scopes(args: argparse.Namespace) -> None:
         )
         print(f"keyId {args.key_id} scopes {previous_text} -> {','.join(scopes)} (label={item.get('label')!r})")
     print("note: API Gateway caches authorizer verdicts for up to 60 seconds")
-    print("note: a scope the deployed authorizer does not know is ignored until that deploy")
 
 
 def cmd_set_write(args: argparse.Namespace) -> None:

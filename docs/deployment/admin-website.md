@@ -185,9 +185,10 @@ approve a real-money action.
 
 Mint, list, revoke, the write flag, and the scope list are the
 **Manage Public API Keys** workflow. `set-scopes` replaces the whole
-list, so repeat every scope the key should keep. `set-write` stays
-separate. The authorizer cache is 60 seconds, so a changed key can
-keep the old verdict until that expires. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
+list, so repeat every scope the key should keep. A scope that tier
+cannot hold is refused. `set-write` stays separate. The authorizer
+cache is 60 seconds, so a changed key can keep the old verdict until
+that expires. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
 environment first. A new key is not printed. The job summary holds an
 armored block. Save it as `key.asc` and decrypt it locally:
 
