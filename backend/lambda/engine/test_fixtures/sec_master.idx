@@ -1,0 +1,7 @@
+Description:           Daily Index of EDGAR Dissemination Feed
+Last Data Received:    invented
+Comments:              fixture
+CIK|Company Name|Form Type|Date Filed|File Name
+--------------------------------------------------------------------------------
+7|EXAMPLE INDUSTRIES INC|10-Q|2024-01-02|edgar/data/7/0000000007-24-000001.txt
+100|SECOND EXAMPLE LLC|8-K|2024-01-02|edgar/data/100/0000000100-24-000001.txt

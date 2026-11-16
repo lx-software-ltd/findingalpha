@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from fundamentals_pit import as_of, average_stock, latest_stock, ttm
+from fundamentals_pit import as_of, average_stock, latest_stock, load_tag_maps, normalise, ttm
 
 
 def _flow(field: str, start: str, end: str, value: float, filed: str, form: str = "10-Q") -> dict:
@@ -79,6 +79,34 @@ class PointInTimeTest(unittest.TestCase):
         ]
         self.assertEqual(ttm(as_of(rows, "2024-02-11"), "revenue"), 540)
 
+    def test_ttm_uses_the_year_to_date_when_the_quarter_shares_its_end(self) -> None:
+        def both(order: str) -> list[dict]:
+            quarter = _flow("revenue", "2024-04-01", "2024-06-30", 120, "2024-08-01")
+            half = _flow("revenue", "2024-01-01", "2024-06-30", 230, "2024-08-01")
+            prior_half = _flow("revenue", "2023-01-01", "2023-06-30", 190, "2023-08-01")
+            year = _flow("revenue", "2023-01-01", "2023-12-31", 400, "2024-02-20", "10-K")
+            pair = [quarter, half] if order == "quarter-first" else [half, quarter]
+            return [year, prior_half, *pair]
+
+        # FY 400, six months 230, prior six months 190. TTM = 400 + 230 - 190 = 440.
+        for order in ("quarter-first", "half-first"):
+            self.assertEqual(ttm(as_of(both(order), "2024-08-02"), "revenue"), 440)
+        nine = [
+            _flow("revenue", "2023-01-01", "2023-12-31", 400, "2024-02-20", "10-K"),
+            _flow("revenue", "2023-01-01", "2023-09-30", 295, "2023-11-01"),
+            _flow("revenue", "2024-07-01", "2024-09-30", 125, "2024-11-01"),
+            _flow("revenue", "2024-01-01", "2024-09-30", 355, "2024-11-01"),
+        ]
+        # FY 400, nine months 355, prior nine months 295. TTM = 460, not the quarter.
+        self.assertEqual(ttm(as_of(nine, "2024-11-02"), "revenue"), 460)
+
+    def test_a_mid_year_quarter_alone_does_not_replace_the_year(self) -> None:
+        rows = [
+            _flow("revenue", "2023-01-01", "2023-12-31", 400, "2024-02-20", "10-K"),
+            _flow("revenue", "2024-04-01", "2024-06-30", 120, "2024-08-01"),
+        ]
+        self.assertEqual(ttm(as_of(rows, "2024-08-02"), "revenue"), 400)
+
     def test_a_missing_prior_year_value_is_none(self) -> None:
         rows = [
             _flow("revenue", "2023-01-01", "2023-12-31", 400, "2024-02-20", "10-K"),
@@ -95,6 +123,93 @@ class PointInTimeTest(unittest.TestCase):
         self.assertEqual(latest_stock(visible, "totalAssets"), 120)
         self.assertEqual(average_stock(visible, "totalAssets"), 100)
         self.assertIsNone(average_stock(as_of(rows, "2024-03-01"), "totalAssets"))
+
+
+def _fact(end: str, value: float, filed: str, form: str = "10-K", start: str | None = None) -> dict:
+    row = {"end": end, "val": value, "filed": filed, "form": form, "fy": 2024, "fp": "FY"}
+    if start is not None:
+        row["start"] = start
+    return row
+
+
+class NormaliseTest(unittest.TestCase):
+    def test_the_contract_prefers_the_planned_tags(self) -> None:
+        maps = load_tag_maps()
+        self.assertEqual(maps["flows"]["revenue"][0], "Revenues")
+        self.assertEqual(maps["stocks"]["sharesOutstanding"][0], "dei:EntityCommonStockSharesOutstanding")
+        self.assertIn("currentAssets", maps["stocks"])
+
+    def test_the_first_tag_with_a_row_wins(self) -> None:
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {"units": {"USD": [_fact("2024-12-31", 10, "2025-02-01", start="2024-01-01")]}},
+                    "SalesRevenueNet": {"units": {"USD": [_fact("2024-12-31", 99, "2025-02-01", start="2024-01-01")]}},
+                    "AssetsCurrent": {"units": {"USD": [_fact("2024-12-31", 40, "2025-02-01")]}},
+                },
+                "dei": {
+                    "EntityCommonStockSharesOutstanding": {
+                        "units": {"shares": [_fact("2024-12-31", 1000, "2025-02-01")]}
+                    }
+                },
+            }
+        }
+        maps = {
+            "flows": {"revenue": ["Revenues", "SalesRevenueNet"]},
+            "stocks": {
+                "currentAssets": ["AssetsCurrent"],
+                "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"],
+            },
+        }
+        rows = normalise(facts, maps)
+        revenue = [row for row in rows if row["field"] == "revenue"]
+        self.assertEqual([row["value"] for row in revenue], [10])
+        assets = next(row for row in rows if row["field"] == "currentAssets")
+        self.assertEqual(assets["kind"], "stock")
+        shares = next(row for row in rows if row["field"] == "sharesOutstanding")
+        self.assertEqual(shares["value"], 1000)
+
+    def test_other_units_forms_and_lengths_are_dropped(self) -> None:
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "units": {
+                            "EUR": [_fact("2024-12-31", 5, "2025-02-01", start="2024-01-01")],
+                            "USD": [
+                                _fact("2024-12-31", 8, "2025-02-01", "8-K", start="2024-01-01"),
+                                _fact("2024-02-01", 3, "2025-02-01", start="2024-01-01"),
+                            ],
+                        }
+                    }
+                }
+            }
+        }
+        rows = normalise(facts, {"flows": {"revenue": ["Revenues"]}, "stocks": {"cash": ["Cash"]}})
+        self.assertEqual(rows, [])
+
+    def test_a_later_tag_fills_a_period_the_first_tag_misses(self) -> None:
+        def fact(start: str, end: str, value: float, filed: str) -> dict:
+            return {"start": start, "end": end, "val": value, "filed": filed, "form": "10-K", "fy": 2024, "fp": "FY"}
+
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {"units": {"USD": [fact("2017-01-01", "2017-12-31", 300, "2018-02-20")]}},
+                    "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                        "units": {"USD": [fact("2023-01-01", "2023-12-31", 900, "2024-02-20")]}
+                    },
+                }
+            }
+        }
+        maps = {
+            "flows": {"revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax"]},
+            "stocks": {"cash": ["Cash"]},
+        }
+        rows = normalise(facts, maps)
+        visible = as_of(rows, "2024-03-01")
+        self.assertEqual(sorted(row["end"] for row in visible), ["2017-12-31", "2023-12-31"])
+        self.assertEqual(ttm(visible, "revenue"), 900)
 
 
 if __name__ == "__main__":

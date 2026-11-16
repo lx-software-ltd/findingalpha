@@ -1,6 +1,6 @@
 # Plan: M04 plumbing follow-ups
 
-**Status**: In review
+**Status**: Done. Merged in pull request 9.
 **Zone**: yellow, plus two red lines in `backend/infrastructure`:
 acknowledge the empty Cognito custom-domain warning, and remove the
 unused API hostname parameters until M03A.

@@ -513,7 +513,7 @@ export const roadmap = {
       "title": "External API with keys and scopes",
       "plan": "docs/plans/03a-external-api.md",
       "zone": "red",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "M03"
       ],
@@ -559,7 +559,7 @@ export const roadmap = {
         {
           "id": "M03A-T08",
           "title": "Deploy and test",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },
@@ -574,7 +574,8 @@ export const roadmap = {
       ],
       "pullRequests": [
         "https://github.com/lx-software-ltd/findingalpha/pull/8",
-        "https://github.com/lx-software-ltd/findingalpha/pull/9"
+        "https://github.com/lx-software-ltd/findingalpha/pull/9",
+        "https://github.com/lx-software-ltd/findingalpha/pull/11"
       ],
       "steps": [
         {
@@ -595,12 +596,12 @@ export const roadmap = {
         {
           "id": "M04-T04",
           "title": "SEC client",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T05",
           "title": "Point-in-time fundamentals",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T06",

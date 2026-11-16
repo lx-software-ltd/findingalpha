@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "flows": {
+    "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "SalesRevenueNet"],
+    "costOfRevenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
+    "grossProfit": ["GrossProfit"],
+    "operatingIncome": ["OperatingIncomeLoss"],
+    "netIncome": ["NetIncomeLoss"],
+    "incomeTax": ["IncomeTaxExpenseBenefit"],
+    "pretaxIncome": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
+    "interestExpense": ["InterestExpense", "InterestExpenseDebt"],
+    "depreciationAmortization": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
+    "operatingCashFlow": ["NetCashProvidedByUsedInOperatingActivities"],
+    "capex": ["PaymentsToAcquirePropertyPlantAndEquipment"]
+  },
+  "stocks": {
+    "totalAssets": ["Assets"],
+    "currentAssets": ["AssetsCurrent"],
+    "currentLiabilities": ["LiabilitiesCurrent"],
+    "totalLiabilities": ["Liabilities"],
+    "equity": ["StockholdersEquity"],
+    "cash": ["CashAndCashEquivalentsAtCarryingValue"],
+    "longTermDebt": ["LongTermDebtNoncurrent", "LongTermDebt"],
+    "shortTermDebt": ["LongTermDebtCurrent", "DebtCurrent", "ShortTermBorrowings"],
+    "sharesOutstanding": ["dei:EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"]
+  }
+}

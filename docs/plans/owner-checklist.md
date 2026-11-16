@@ -141,6 +141,10 @@ the output named above. The hostname is not stored here, because a
 replaced distribution would make a stored name wrong. Tick O08 on the
 dashboard; this file does not change that tick.
 
+The `api` record was added on 16 Nov 2026, DNS only. Its target is the
+`ApiCustomDomainTarget` output. The hostname is not stored here. Tick
+O20 on the dashboard; this file does not change that tick.
+
 The ACM and SES values are not secret. The owner can paste them in
 chat.
 

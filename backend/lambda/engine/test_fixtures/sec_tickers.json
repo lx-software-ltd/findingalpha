@@ -1,0 +1,9 @@
+{
+  "fields": ["cik", "name", "ticker", "exchange"],
+  "data": [
+    [7, "EXAMPLE INDUSTRIES INC", "EXMPL", "NYSE"],
+    [42, "BLANK TICKER CO", "", "Nasdaq"],
+    [100, "SECOND EXAMPLE LLC", "secnd", "NASDAQ"],
+    [99, "CLASS EXAMPLE INC", "BRK-B", "NYSE"]
+  ]
+}
