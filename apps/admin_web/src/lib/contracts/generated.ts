@@ -607,12 +607,12 @@ export const roadmap = {
         {
           "id": "M04-T06",
           "title": "Price ingest",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T07",
           "title": "Fundamentals, filings, news ingest",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T08",

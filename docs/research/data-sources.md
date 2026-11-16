@@ -138,6 +138,14 @@ id is `findingalpha/alpaca-paper`. The value the owner stores is
   page ran back to about a month earlier. The client returns
   `processDate` and `exDate` and does not drop rows. T06 files each
   row under its ex-date.
+- Future process dates are returned. On 16 November 2026 the window
+  16 November through 30 November returned 968 rows. Tuesday
+  16 February 2027, about 90 days ahead, returned 6. For the ex-date
+  10 June 2024, one row was processed three days before that ex-date
+  and one was processed 51 days after. Of the 968 rows, 967 had a
+  process date within 75 days of the ex-date and one was 335 days
+  later. T06 asks for seven days before the session through 75 days
+  after, then keeps `exDate` equal to the session.
 - Differs from the plan: the body is grouped by type, not a flat list.
   Our `cashPerShare` is `rate`. Our split ratio is `old_rate` to
   `new_rate`. Our `payDate` is `payable_date`. `special`, `foreign`,

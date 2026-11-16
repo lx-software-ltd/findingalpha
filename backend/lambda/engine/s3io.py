@@ -23,6 +23,19 @@ def put_json(bucket: str, key: str, payload: Any, *, client: Any = None) -> None
     _client(client).put_object(Bucket=bucket, Key=key, Body=body, ContentType="application/json")
 
 
+def put_gzip_json(bucket: str, key: str, payload: Any, *, client: Any = None) -> None:
+    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    _client(client).put_object(Bucket=bucket, Key=key, Body=gzip.compress(raw), ContentType="application/gzip")
+
+
+def get_gzip_json(bucket: str, key: str, *, client: Any = None) -> Any:
+    body = _client(client).get_object(Bucket=bucket, Key=key)["Body"]
+    try:
+        return json.loads(gzip.decompress(body.read()).decode("utf-8"))
+    finally:
+        body.close()
+
+
 def get_json(bucket: str, key: str, *, client: Any = None) -> Any:
     body = _client(client).get_object(Bucket=bucket, Key=key)["Body"]
     try:

@@ -51,6 +51,12 @@ class _Bucket:
 
 
 class S3IoTest(unittest.TestCase):
+    def test_gzip_json_round_trip(self) -> None:
+        bucket = _Bucket()
+        s3io.put_gzip_json("data", "facts.json.gz", {"cik": 1}, client=bucket)
+        self.assertEqual(s3io.get_gzip_json("data", "facts.json.gz", client=bucket), {"cik": 1})
+        self.assertTrue(bucket.objects[("data", "facts.json.gz")].startswith(b"\x1f\x8b"))
+
     def test_json_round_trip(self) -> None:
         bucket = _Bucket()
         s3io.put_json("data", "reference/a.json", {"n": 1}, client=bucket)

@@ -1,6 +1,6 @@
 # Plan: M04 data ingest
 
-**Status**: T01 through T05 are done. The spike memo is `docs/research/data-sources.md` (all four answers are yes, so bars use `feed=sip`). The live coverage report stays in T07.
+**Status**: T01 through T07 are done. The spike memo is `docs/research/data-sources.md` (all four answers are yes, so bars use `feed=sip`). The live coverage report stays in T11.
 **Zone**: yellow. Red parts: new schedules and routes in CDK, and the
 first version of `contracts/methodology.json` (universe section).
 
@@ -252,16 +252,18 @@ Tests, with hand-made fixtures for an invented company:
 `ingest_prices.py`:
 
 - `ingest_raw_day(date)`: bars with `adjustment=raw` for every active
-  NYSE and NASDAQ asset, one file
+  NYSE and NASDAQ name, plus `SPY` (it trades on ARCA), one file
   `prices/raw/date=<date>/bars.jsonl.gz`. Corporate actions whose
   `exDate` is that session go to
-  `corporate-actions/date=<date>/actions.jsonl.gz`. Alpaca's `start`
-  and `end` select `process_date`, not the ex-date. On 10 June 2024
-  a one-day process window held 144 rows and only 6 had that ex-date;
-  the earliest ex-date on the page was about a month earlier. Ask for
-  a wider process window and keep rows by `exDate`. Keep `special`,
-  `foreign`, and `subType` so a return of capital is not booked as a
-  dividend. A reverse split's `newSymbol` links the old and new tickers.
+  `corporate-actions/date=<date>/actions.jsonl.gz`. Alpaca's window is
+  `process_date`, including dates still in the future. The fetch is
+  seven days before the session through 75 days after it, which covers
+  the measured lags except one 335-day outlier. Keep rows by `exDate`.
+  Keep `special`, `foreign`, and `subType` so a return of capital is
+  not booked as a dividend. A reverse split's `newSymbol` links the
+  old and new tickers.
+- `backfill_raw(start, end)`: the same files, one calendar month per
+  chunk, for active and inactive NYSE and NASDAQ names plus `SPY`.
 - Quality checks before writing: SPY is present; no bar with a price
   at or below zero; the number of bars is within 15% of the previous
   session's. On failure raise `DataQualityError` with the failing
@@ -273,7 +275,6 @@ Tests, with hand-made fixtures for an invented company:
   series) under `prices/split/`. The difference between the two is the
   dividend return, which M06 and M09 need for the withholding-tax
   calculation. Chunked.
-- `backfill_raw(start, end)`: one month per chunk. Chunked.
 
 ### M04-T07 Fundamentals, filings, news ingest
 

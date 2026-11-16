@@ -1,0 +1,212 @@
+"""Filings, trimmed company facts, and the point-in-time rows."""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import Any, Callable
+
+import chunked
+import config
+import fundamentals_pit
+import s3io
+
+_INDEX_FORMS = frozenset({"10-K", "10-Q", "8-K", "10-K/A", "10-Q/A", "8-K/A"})
+_REFRESH_FORMS = frozenset({"10-K", "10-Q", "10-K/A", "10-Q/A"})
+_CURSOR_PK = "JOB#ingest_filings"
+_CURSOR_SK = "CURSOR"
+Facts = Callable[[str], dict[str, Any]]
+Index = Callable[[date], list[dict[str, str]]]
+
+
+class IngestDisabled(Exception):
+    """``IngestEnabled`` is off, so no request was sent."""
+
+
+def _require(check: Callable[[], bool] | None) -> None:
+    allowed = check if check is not None else _default_ingest
+    if not allowed():
+        raise IngestDisabled()
+
+
+def _default_ingest() -> bool:
+    import kill_switch
+
+    return kill_switch.is_enabled("ingestEnabled")
+
+
+def _as_date(value: date | datetime | str) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value)[:10])
+
+
+def _cik(value: object) -> str:
+    text = str(value).strip()
+    if not text.isdigit():
+        raise ValueError("cik must be digits")
+    return text.zfill(10)
+
+
+def _bucket(bucket: str | None) -> str:
+    return bucket if bucket is not None else config.data_bucket_name()
+
+
+def trim_facts(payload: dict[str, Any], maps: dict[str, dict[str, list[str]]] | None = None) -> dict[str, Any]:
+    """Keep the mapped concepts. Names and unused tags are dropped."""
+    chosen = maps if maps is not None else fundamentals_pit.load_tag_maps()
+    facts = payload.get("facts") if isinstance(payload.get("facts"), dict) else {}
+    kept: dict[str, dict[str, Any]] = {}
+    for section in ("flows", "stocks"):
+        for tags in chosen[section].values():
+            for tag in tags:
+                taxonomy = "dei" if tag.startswith("dei:") else "us-gaap"
+                source = facts.get(taxonomy) or {}
+                if not isinstance(source, dict):
+                    continue
+                concept = source.get(tag.removeprefix("dei:"))
+                if isinstance(concept, dict):
+                    kept.setdefault(taxonomy, {})[tag.removeprefix("dei:")] = concept
+    return {"cik": payload.get("cik"), "facts": kept}
+
+
+def _facts_key(cik: str) -> str:
+    return f"fundamentals/raw/cik={cik}/companyfacts.json.gz"
+
+
+def _pit_key(cik: str) -> str:
+    return f"fundamentals/pit/cik={cik}/facts.jsonl.gz"
+
+
+def _default_facts(cik: str) -> dict[str, Any]:
+    import sec_edgar
+
+    return sec_edgar.company_facts(cik)
+
+
+def _default_index(day: date) -> list[dict[str, str]]:
+    import sec_edgar
+
+    return sec_edgar.daily_index(day)
+
+
+def refresh(
+    ciks: list[str],
+    context: Any,
+    *,
+    job: str = "backfill_fundamentals",
+    fetch_facts: Facts | None = None,
+    bucket: str | None = None,
+    client: Any = None,
+    ingest_enabled: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
+    """Trim each company file to the mapped tags and write the point-in-time rows."""
+    _require(ingest_enabled)
+    facts_of = fetch_facts or _default_facts
+    name = _bucket(bucket)
+    maps = fundamentals_pit.load_tag_maps()
+    items = [_cik(cik) for cik in ciks]
+
+    def process(cik: str) -> None:
+        trimmed = trim_facts(facts_of(cik), maps)
+        s3io.put_gzip_json(name, _facts_key(cik), trimmed, client=client)
+        s3io.put_jsonl_gz(name, _pit_key(cik), fundamentals_pit.normalise(trimmed, maps), client=client)
+
+    return chunked.run(job, items, process, context)
+
+
+def _save_cursor(day: date) -> None:
+    import store
+
+    store.put({"pk": _CURSOR_PK, "sk": _CURSOR_SK, "lastDate": day.isoformat()})
+
+
+def daily(
+    ciks: list[str],
+    on: date | datetime | str,
+    context: Any,
+    *,
+    fetch_index: Index | None = None,
+    fetch_facts: Facts | None = None,
+    bucket: str | None = None,
+    client: Any = None,
+    ingest_enabled: Callable[[], bool] | None = None,
+) -> dict[str, Any]:
+    """Write one day's 10-K, 10-Q, and 8-K rows, then refresh the 10-K and 10-Q filers.
+
+    An empty index means it is not published yet. Nothing is written and
+    the cursor stays where it was.
+    """
+    _require(ingest_enabled)
+    day = _as_date(on)
+    index_of = fetch_index or _default_index
+    rows = list(index_of(day))
+    if not rows:
+        return {"status": "not_ready", "filings": 0, "refreshed": 0}
+    universe = {_cik(cik) for cik in ciks}
+
+    def _keep(row: dict[str, str]) -> bool:
+        try:
+            cik = _cik(row.get("cik"))
+        except ValueError:
+            return False
+        return cik in universe and row.get("form") in _INDEX_FORMS
+
+    kept = [row for row in rows if _keep(row)]
+    name = _bucket(bucket)
+    s3io.put_jsonl_gz(name, f"filings/date={day.isoformat()}/index.jsonl.gz", kept, client=client)
+    refresh_ciks = sorted({_cik(row.get("cik")) for row in kept if row.get("form") in _REFRESH_FORMS})
+    result: dict[str, Any] = {"status": "done", "cursor": 0, "total": 0}
+    if refresh_ciks:
+        result = refresh(
+            refresh_ciks,
+            context,
+            job="ingest_filings_refresh",
+            fetch_facts=fetch_facts,
+            bucket=name,
+            client=client,
+            ingest_enabled=ingest_enabled,
+        )
+    if result.get("status") == "done":
+        _save_cursor(day)
+    return {"status": result.get("status"), "filings": len(kept), "refreshed": len(refresh_ciks)}
+
+
+def coverage_report(
+    ciks: list[str],
+    on: date | datetime | str,
+    *,
+    bucket: str | None = None,
+    client: Any = None,
+) -> dict[str, Any]:
+    """Share of companies with a value as of ``on``. Stored on the universe row."""
+    day = _as_date(on)
+    name = _bucket(bucket)
+    maps = fundamentals_pit.load_tag_maps()
+    flow_fields = list(maps["flows"])
+    stock_fields = list(maps["stocks"])
+    counts = {field: 0 for field in flow_fields + stock_fields}
+    padded = [_cik(cik) for cik in ciks]
+    for cik in padded:
+        key = _pit_key(cik)
+        if not s3io.exists(name, key, client=client):
+            continue
+        visible = fundamentals_pit.as_of(list(s3io.get_jsonl_gz(name, key, client=client)), day.isoformat())
+        for field in flow_fields:
+            if fundamentals_pit.ttm(visible, field) is not None:
+                counts[field] += 1
+        for field in stock_fields:
+            if fundamentals_pit.latest_stock(visible, field) is not None:
+                counts[field] += 1
+    total = len(padded)
+    flows = {field: (counts[field] / total if total else None) for field in flow_fields}
+    stocks = {field: (counts[field] / total if total else None) for field in stock_fields}
+    report = {"asOf": day.isoformat(), "companies": total, "flows": flows, "stocks": stocks}
+    import store
+
+    pk = f"UNIVERSE#{day.isoformat()}"
+    item = store.get(pk, "META") or {}
+    item.update({"pk": pk, "sk": "META", "coverage": report})
+    store.put(item)
+    return report
