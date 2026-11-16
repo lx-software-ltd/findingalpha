@@ -8,6 +8,7 @@ session. See ``docs/research/data-sources.md``.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
@@ -17,6 +18,8 @@ import config
 import s3io
 from alpaca_data import IngestDisabled, hold_ingest_check
 
+logger = logging.getLogger(__name__)
+
 LOOKBACK_DAYS = 7
 LOOKAHEAD_DAYS = 75
 _PART = 100
@@ -24,6 +27,7 @@ _EXCHANGES = frozenset({"NYSE", "NASDAQ"})
 _BACKFILL_JOB = "backfill_prices"
 _ADJUSTED_JOB = "refresh_adjusted"
 _RAW = re.compile(r"^prices/raw/date=(\d{4}-\d{2}-\d{2})/bars\.jsonl\.gz$")
+_PLACEHOLDER = re.compile(r"[0-9A-Z]{8}[0-9]")
 _PRICES = ("open", "high", "low", "close")
 Bars = Callable[[list[str], date, date, str], Any]
 Actions = Callable[[date, date], list[dict[str, Any]]]
@@ -80,9 +84,18 @@ def reused_symbols(assets: list[dict[str, Any]], *, include_inactive: bool) -> l
 
 
 def _with_spy(symbols: list[str]) -> list[str]:
+    """Sorted symbols to request bars for, with SPY and without placeholders.
+
+    Alpaca lists rights, contingent value rights, and escrow shares under a
+    nine-character identifier that ends in a digit. The bars request rejects
+    each one as an invalid symbol, and a saved symbol list can still hold them.
+    """
     found = {str(symbol).strip() for symbol in symbols if str(symbol).strip()}
-    found.add("SPY")
-    return sorted(found)
+    kept = {symbol for symbol in found if not _PLACEHOLDER.fullmatch(symbol)}
+    if len(kept) < len(found):
+        logger.info("bars placeholder symbols dropped count=%s", len(found) - len(kept))
+    kept.add("SPY")
+    return sorted(kept)
 
 
 def raw_symbols(assets: list[dict[str, Any]], *, include_inactive: bool) -> list[str]:
