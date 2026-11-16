@@ -23,6 +23,7 @@ class MethodologyTest(unittest.TestCase):
         shuffled["universe"] = doc["universe"]
         shuffled["composite"] = doc["composite"]
         shuffled["fundamentals"] = doc["fundamentals"]
+        shuffled["backtest"] = doc["backtest"]
         self.assertEqual(methodology.register_hash(doc), methodology.register_hash(shuffled))
         changed = json.loads(json.dumps(doc))
         changed["screen"]["shortlistSize"] = 61

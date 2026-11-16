@@ -345,9 +345,9 @@ have `keyRun`. The system status reports `keyRun` and the saved
 | --- | --- | --- |
 | `backfill_prices` | Raw bars from 2016-01-01 through the saved end date | M04 |
 | `backfill_fundamentals` | Company facts for every candidate CIK | M04 |
-| `screen` | Score the universe for one date. Also called by `monthly_rebalance` | M06 |
-| `backfill_monthly_stats` | Month-end statistics for the backtest | M06 |
-| `backtest` | One backtest run | M06 |
+| `screen` | Score the universe for one date. Checks `IngestEnabled`. Also called by `monthly_rebalance` | M06 |
+| `backfill_monthly_stats` | Month-end statistics for the backtest. Checks `IngestEnabled` | M06 |
+| `backtest` | One backtest run. Checks `IngestEnabled`. A key cannot start it | M06 |
 | `kb_eval` | Retrieval evaluation | M07 |
 | `committee_dry_run` | Three symbols, no thesis written | M08 |
 | `committee_eval` | Five invented companies with known answers | M08 |

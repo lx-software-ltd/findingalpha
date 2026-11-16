@@ -14,6 +14,9 @@ SWITCHES: dict[str, str] = {
     "weekly_refresh": "ingestEnabled",
     "backfill_prices": "ingestEnabled",
     "backfill_fundamentals": "ingestEnabled",
+    "screen": "ingestEnabled",
+    "backfill_monthly_stats": "ingestEnabled",
+    "backtest": "ingestEnabled",
 }
 
 Handler = Callable[..., dict[str, Any]]
@@ -44,7 +47,12 @@ def _daily(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) ->
 
 
 def _weekly(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
-    return ingest_jobs.weekly_refresh(event, context)
+    result = ingest_jobs.weekly_refresh(event, context)
+    if result.get("status") == "done":
+        import monthly_stats
+
+        result["monthly"] = monthly_stats.append_latest(event, context)
+    return result
 
 
 def _prices(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
@@ -71,6 +79,24 @@ def _adjusted(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None)
     return ingest_jobs.resume_adjusted(event, context)
 
 
+def _screen(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    import screen
+
+    return screen.run(event, context)
+
+
+def _monthly(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    import monthly_stats
+
+    return monthly_stats.run(event, context)
+
+
+def _backtest(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None) -> dict[str, Any]:
+    import backtest
+
+    return backtest.run(event, context)
+
+
 JOBS = {
     "noop": _noop,
     "tick": _tick,
@@ -81,6 +107,9 @@ JOBS = {
     ingest_jobs.UNIVERSE_REFRESH_JOB: _universe_refresh,
     ingest_jobs.UNIVERSE_BUILD_JOB: _universe_build,
     ingest_jobs.ADJUSTED_JOB: _adjusted,
+    "screen": _screen,
+    "backfill_monthly_stats": _monthly,
+    "backtest": _backtest,
 }
 
 

@@ -13,7 +13,7 @@ from typing import Any
 
 _PATH = Path(__file__).resolve().parent / "contracts" / "methodology.json"
 _FUNDAMENTALS = _PATH.parent / "fundamentals.json"
-_KEYS = {"version", "universe", "factors", "composite", "screen", "fundamentals"}
+_KEYS = {"version", "universe", "factors", "composite", "screen", "fundamentals", "backtest"}
 _FACTOR_KEYS = {"id", "group", "direction", "formula", "implementation", "status"}
 _STATUSES = {"provisional", "cited"}
 _DIRECTIONS = {"higher", "lower"}
@@ -91,7 +91,35 @@ def validate(doc: dict[str, Any]) -> None:
         if str(name) not in groups:
             raise MethodologyError(f"group weight {name} has no factor")
     _screen(doc["screen"], {str(factor["id"]) for factor in factors})
+    _backtest(doc["backtest"])
     _implementations(factors)
+
+
+def _backtest(block: dict[str, Any]) -> None:
+    _status(block, "backtest")
+    month = str(block.get("firstScreenMonth") or "")
+    if len(month) != 7 or month[4] != "-" or not month[:4].isdigit() or not month[5:].isdigit():
+        raise MethodologyError("firstScreenMonth")
+    _whole(block.get("portfolioSize"), "portfolioSize")
+    if block.get("weighting") != "equal":
+        raise MethodologyError("weighting")
+    _whole(block.get("maxNamesPerSector"), "maxNamesPerSector")
+    delay = block.get("tradeDelaySessions")
+    if isinstance(delay, bool) or not isinstance(delay, int) or delay < 0:
+        raise MethodologyError("tradeDelaySessions")
+    cost = block.get("costBpsPerSide")
+    if not _number(cost) or float(cost) < 0:
+        raise MethodologyError("costBpsPerSide")
+    rate = block.get("dividendWithholdingRate")
+    if not _number(rate) or not 0 <= float(rate) <= 1:
+        raise MethodologyError("dividendWithholdingRate")
+    if not str(block.get("benchmark") or "").strip() or not str(block.get("cashProxy") or "").strip():
+        raise MethodologyError("benchmark")
+
+
+def implementation(path: str) -> Any:
+    """The factor function named by ``module.function``."""
+    return _callable(path)
 
 
 def _share(value: object) -> None:

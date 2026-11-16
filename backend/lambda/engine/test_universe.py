@@ -168,7 +168,7 @@ class UniverseTest(unittest.TestCase):
         self.assertEqual(sectors["version"], 2)
         self.assertEqual(sectors["status"], "confirmed")
         self.assertNotIn("symbolSectors", sectors)
-        self.assertEqual(json.loads(universe._RULES.read_text(encoding="utf-8"))["version"], 4)
+        self.assertEqual(json.loads(universe._RULES.read_text(encoding="utf-8"))["version"], 5)
         self.assertEqual(int(rules["minFundamentalsYears"]), 3)
         two_filings = _history(SHARES, years=("2022-12-31", "2023-12-31"))
         self.assertLess(len(set(universe._annual_filings(two_filings, "10-K").values())), 3)

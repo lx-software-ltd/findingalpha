@@ -9,6 +9,7 @@ from typing import Any
 
 from http_common import _claims, _json_response, _require_admin, _route, not_found
 from owner_tasks import list_tasks, put_task
+from research_api import backtest_by_id, latest_screen, list_backtests, screen_by_date
 from router import Route, route_matches
 from settings import get_settings, put_settings
 from system_status import list_runs, status
@@ -170,6 +171,16 @@ def _progress(job: str) -> dict[str, Any] | None:
     return position(store.get(f"JOB#{job}", "STATE") or {})
 
 
+def _is_screen_date(method: str, path: str) -> bool:
+    parts = path.strip("/").split("/")
+    return method == "GET" and len(parts) == 2 and parts[0] == "screens" and parts[1] != "latest"
+
+
+def _is_backtest_id(method: str, path: str) -> bool:
+    parts = path.strip("/").split("/")
+    return method == "GET" and len(parts) == 2 and parts[0] == "backtests"
+
+
 def _is_job_run(method: str, path: str) -> bool:
     parts = path.strip("/").split("/")
     return method == "POST" and len(parts) == 3 and parts[0] == "jobs" and parts[2] == "run"
@@ -188,6 +199,10 @@ ROUTES = (
     Route("GET", "/system/status", status, "jwt", key_scope="system"),
     Route("GET", "/api-keys", list_api_keys, "jwt"),
     Route("GET", "/methodology", get_methodology, "jwt", key_scope="research"),
+    Route("GET", "/screens/latest", latest_screen, "jwt", key_scope="research"),
+    Route("GET", "/screens/", screen_by_date, "jwt", match=_is_screen_date, key_scope="research"),
+    Route("GET", "/backtests", list_backtests, "jwt", key_scope="research"),
+    Route("GET", "/backtests/", backtest_by_id, "jwt", match=_is_backtest_id, key_scope="research"),
 )
 
 

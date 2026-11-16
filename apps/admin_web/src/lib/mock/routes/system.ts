@@ -1,4 +1,13 @@
-import { methodologyFixture, ownerTasksFixture, runsFixture, settingsFixture, statusFixture } from "../fixtures";
+import {
+  backtestFixture,
+  backtestListFixture,
+  methodologyFixture,
+  ownerTasksFixture,
+  runsFixture,
+  screenFixture,
+  settingsFixture,
+  statusFixture,
+} from "../fixtures";
 import { json } from "./context";
 import type { MockCtx } from "./types";
 
@@ -89,6 +98,13 @@ export function handleSystem(ctx: MockCtx): Json | null {
   }
   if (ctx.method === "GET" && ctx.path === "/jobs/runs") return json(200, runsFixture);
   if (ctx.method === "GET" && ctx.path === "/methodology") return json(200, methodologyFixture);
+  if (ctx.method === "GET" && (ctx.path === "/screens/latest" || ctx.path === "/screens/2017-02-28")) {
+    return json(200, screenFixture);
+  }
+  if (ctx.method === "GET" && ctx.path.startsWith("/screens/")) return json(404, { message: "Not found" });
+  if (ctx.method === "GET" && ctx.path === "/backtests") return json(200, { runs: backtestListFixture });
+  if (ctx.method === "GET" && ctx.path === "/backtests/run-example") return json(200, backtestFixture);
+  if (ctx.method === "GET" && ctx.path.startsWith("/backtests/")) return json(404, { message: "Not found" });
   if (ctx.method === "GET" && ctx.path === "/universe/latest") {
     return json(200, {
       asOf: "2024-06-03",

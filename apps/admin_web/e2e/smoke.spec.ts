@@ -25,6 +25,15 @@ test("methodology lists provisional factors", async ({ page }) => {
   expect(await overflows(page)).toBe(false);
 });
 
+test("screen shows the shortlist and the equity curves", async ({ page }) => {
+  await page.goto("/screen");
+  await expect(page.getByRole("heading", { name: "Screen" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "AAA" })).toBeVisible();
+  await page.getByRole("tab", { name: "Backtest" }).click();
+  await expect(page.getByRole("img", { name: "Backtest equity curves" })).toBeVisible();
+  expect(await overflows(page)).toBe(false);
+});
+
 test("system shows the three tables", async ({ page }) => {
   await page.goto("/system");
   await expect(page.getByRole("heading", { name: "Switches" })).toBeVisible();

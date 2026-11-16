@@ -53,6 +53,11 @@ class JobsHandlerTest(unittest.TestCase):
         self.assertEqual(saved[-1]["status"], "partial")
         self.assertEqual(saved[-1]["errorMessage"], "1 of 4, continues on the next tick")
 
+    def test_the_screen_jobs_follow_the_ingest_switch(self) -> None:
+        for name in ("screen", "backfill_monthly_stats", "backtest"):
+            self.assertEqual(jobs_handler.switch_for(name), "ingestEnabled")
+            self.assertIsNotNone(jobs_handler.handler_for(name))
+
 
 if __name__ == "__main__":
     unittest.main()

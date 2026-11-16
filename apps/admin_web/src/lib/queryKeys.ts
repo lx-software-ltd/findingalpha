@@ -6,4 +6,8 @@ export const queryKeys = {
   apiKeys: ["api-keys"] as const,
   universe: ["universe-latest"] as const,
   methodology: ["methodology"] as const,
+  screenLatest: ["screen", "latest"] as const,
+  screen: (date: string) => ["screen", date] as const,
+  backtests: ["backtests"] as const,
+  backtest: (runId: string) => ["backtest", runId] as const,
 };

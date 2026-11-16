@@ -18,6 +18,10 @@ describe("mock admin api", () => {
     expect(status.jobs.some((job: { lastRun: unknown }) => job.lastRun === null)).toBe(true);
     const methodology = await (await mockAdminFetch("/methodology")).json();
     expect(methodology.register.factors[0].status).toBe("provisional");
+    const screen = await (await mockAdminFetch("/screens/latest")).json();
+    expect(screen.rows[0].symbol).toBe("AAA");
+    const backtests = await (await mockAdminFetch("/backtests")).json();
+    expect(backtests.runs[0].runId).toBe("run-example");
     const universe = await (await mockAdminFetch("/universe/latest")).json();
     expect(universe.asOf).toBe("2024-06-03");
     expect(universe.backfill.prices.cursor).toBe(2);

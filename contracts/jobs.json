@@ -131,7 +131,7 @@
       "scheduleName": "",
       "cron": "",
       "timeZone": "",
-      "killSwitch": "",
+      "killSwitch": "IngestEnabled",
       "manualRun": true,
       "keyRun": false
     },
@@ -140,7 +140,7 @@
       "scheduleName": "",
       "cron": "",
       "timeZone": "",
-      "killSwitch": "",
+      "killSwitch": "IngestEnabled",
       "manualRun": true,
       "keyRun": false
     },
@@ -149,7 +149,7 @@
       "scheduleName": "",
       "cron": "",
       "timeZone": "",
-      "killSwitch": "",
+      "killSwitch": "IngestEnabled",
       "manualRun": true,
       "keyRun": false
     },

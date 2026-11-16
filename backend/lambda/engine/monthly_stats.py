@@ -1,0 +1,173 @@
+"""Month-end close and median dollar volume, built once for the backtest."""
+
+from __future__ import annotations
+
+import statistics
+from datetime import date
+from typing import Any
+
+import config
+import s3io
+
+_START = "2016-03"
+
+
+def month_rows(days: list[tuple[str, list[dict[str, Any]]]], month: str) -> list[dict[str, Any]]:
+    """Close and median dollar volume for symbols that printed on the month's last session.
+
+    ``days`` is ``(session, bars)`` and must cover that session and the 60
+    sessions ending on it. Dollar volume is close times volume.
+    """
+    ordered = sorted(days, key=lambda item: item[0])
+    in_month = [day for day, _bars in ordered if day[:7] == month]
+    if not in_month:
+        return []
+    end = in_month[-1]
+    window = [(day, bars) for day, bars in ordered if day <= end][-60:]
+    end_bars = {str(bar.get("symbol") or ""): bar for bar in window[-1][1] if bar.get("symbol")}
+    rows: list[dict[str, Any]] = []
+    for symbol, bar in sorted(end_bars.items()):
+        close = _number(bar.get("close"))
+        if close is None:
+            continue
+        volumes = _volumes(window, symbol)
+        if not volumes:
+            continue
+        rows.append(
+            {
+                "symbol": symbol,
+                "monthEnd": end,
+                "close": close,
+                "medianDollarVolume": statistics.median(volumes),
+            }
+        )
+    return rows
+
+
+def months_between(start: str, end: str) -> list[str]:
+    """``YYYY-MM`` from ``start`` through ``end``, inclusive."""
+    cursor = date(int(start[:4]), int(start[5:7]), 1)
+    stop = date(int(end[:4]), int(end[5:7]), 1)
+    found: list[str] = []
+    while cursor <= stop:
+        found.append(f"{cursor.year:04d}-{cursor.month:02d}")
+        year = cursor.year + (1 if cursor.month == 12 else 0)
+        month = 1 if cursor.month == 12 else cursor.month + 1
+        cursor = date(year, month, 1)
+    return found
+
+
+def run(
+    event: dict[str, Any],
+    context: Any = None,
+    *,
+    months: list[str] | None = None,
+    read: Any = None,
+    write: Any = None,
+    client: Any = None,
+) -> dict[str, Any]:
+    """One month per chunk, from 2016-03 through the latest raw session."""
+    import chunked
+
+    chosen = months if months is not None else _listed_months(client)
+    if not chosen:
+        return {"ok": False, "status": "missing_inputs"}
+    reader = read or (lambda month: _window(month, client))
+    writer = write or (lambda month, rows: _store(month, rows, client))
+
+    def process(month: str) -> None:
+        writer(month, month_rows(reader(month), month))
+
+    result = chunked.run("backfill_monthly_stats", chosen, process, context, params={"start": chosen[0]})
+    return {"ok": True, **result}
+
+
+def append_latest(event: dict[str, Any], _context: Any = None, *, client: Any = None) -> dict[str, Any]:
+    """Write the newest month the raw files can fill. The weekly refresh calls this."""
+    del event
+    if not _bucket_ready():
+        return {"ok": False, "status": "missing_inputs"}
+    chosen = _listed_months(client)
+    if not chosen:
+        return {"ok": False, "status": "missing_inputs"}
+    month = chosen[-1]
+    rows = month_rows(_window(month, client), month)
+    if not rows:
+        return {"ok": False, "status": "missing_inputs", "month": month}
+    _store(month, rows, client)
+    return {"ok": True, "status": "done", "month": month, "symbols": len(rows)}
+
+
+def _bucket_ready() -> bool:
+    import os
+
+    return bool(os.environ.get("DATA_BUCKET_NAME"))
+
+
+def _volumes(window: list[tuple[str, list[dict[str, Any]]]], symbol: str) -> list[float]:
+    volumes: list[float] = []
+    for _day, bars in window:
+        for bar in bars:
+            if str(bar.get("symbol") or "") != symbol:
+                continue
+            close = _number(bar.get("close"))
+            volume = _number(bar.get("volume"))
+            if close is not None and volume is not None:
+                volumes.append(close * volume)
+    return volumes
+
+
+def _listed_months(client: Any) -> list[str]:
+    if not _bucket_ready():
+        return []
+    bucket = config.data_bucket_name()
+    days = sorted(
+        key.split("date=", 1)[1][:10]
+        for key in s3io.list_keys(bucket, "prices/raw/date=", client=client)
+        if "date=" in key
+    )
+    if not days:
+        return []
+    return [month for month in months_between(_START, days[-1][:7]) if any(day.startswith(month) for day in days)]
+
+
+def _window(month: str, client: Any) -> list[tuple[str, list[dict[str, Any]]]]:
+    bucket = config.data_bucket_name()
+    days = sorted(
+        key.split("date=", 1)[1][:10]
+        for key in s3io.list_keys(bucket, "prices/raw/date=", client=client)
+        if "date=" in key
+    )
+    in_month = [day for day in days if day.startswith(month)]
+    if not in_month:
+        return []
+    end = in_month[-1]
+    chosen = [day for day in days if day <= end][-60:]
+    loaded: list[tuple[str, list[dict[str, Any]]]] = []
+    for day in chosen:
+        loaded.append(
+            (
+                day,
+                [
+                    row
+                    for row in s3io.get_jsonl_gz(bucket, f"prices/raw/date={day}/bars.jsonl.gz", client=client)
+                    if isinstance(row, dict)
+                ],
+            )
+        )
+    return loaded
+
+
+def _store(month: str, rows: list[dict[str, Any]], client: Any) -> None:
+    s3io.put_jsonl_gz(
+        config.data_bucket_name(),
+        f"prices/monthly/month={month}/stats.jsonl.gz",
+        rows,
+        client=client,
+    )
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)

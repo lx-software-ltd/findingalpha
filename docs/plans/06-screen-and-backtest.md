@@ -1,6 +1,6 @@
 # Plan: M06 screen and backtest
 
-**Status**: Draft
+**Status**: In progress. The screen, the monthly table, the backtest, the metrics, and the page are in. The three live runs and the memo wait until the price history is current and the fundamentals files exist. No result has been invented.
 **Zone**: yellow. Red parts: the `backtest` section of the register, new
 routes in CDK.
 

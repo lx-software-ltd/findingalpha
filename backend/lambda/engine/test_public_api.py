@@ -76,6 +76,10 @@ DECISIONS = {
     ("GET", "/system/status"): "system",
     ("GET", "/api-keys"): None,
     ("GET", "/methodology"): "research",
+    ("GET", "/screens/latest"): "research",
+    ("GET", "/screens/"): "research",
+    ("GET", "/backtests"): "research",
+    ("GET", "/backtests/"): "research",
 }
 
 

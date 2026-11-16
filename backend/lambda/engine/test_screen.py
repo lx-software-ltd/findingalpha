@@ -1,10 +1,12 @@
-"""Hard filters and the shortlist."""
+"""Hard filters, the shortlist, and a stored screen."""
 
 from __future__ import annotations
 
+import io
 import unittest
 
 import methodology
+import s3io
 import screen
 
 
@@ -43,6 +45,90 @@ class ScreenTest(unittest.TestCase):
         ]
         picked = screen.shortlist(rows, register)
         self.assertEqual([row["symbol"] for row in picked], ["HIGH"])
+
+    def test_thirty_companies_rank_only_the_names_that_pass(self) -> None:
+        register = methodology.load()
+        register["screen"]["shortlistSize"] = 5
+        rows = [_company(register, f"S{index:02d}", index) for index in range(30)]
+        rows.append(_company(register, "FAIL", 100, income=-1))
+        rows.append(_company(register, "EMPTY", 100, present=False))
+        rows.extend([_company(register, symbol, 12) for symbol in ("MMM", "AAA")])
+        scored = screen.score(rows, register)
+        by_symbol = {row["symbol"]: row for row in scored}
+        self.assertIsNone(by_symbol["FAIL"]["rank"])
+        self.assertEqual(by_symbol["FAIL"]["failedFilters"], ["positiveOperatingIncome"])
+        self.assertIsNone(by_symbol["EMPTY"]["rank"])
+        self.assertEqual(by_symbol["EMPTY"]["failedFilters"], ["composite"])
+        ranked = sorted((row for row in scored if row["rank"] is not None), key=lambda row: row["rank"])
+        self.assertEqual([row["symbol"] for row in ranked[:5]], ["S29", "S28", "S27", "S26", "S25"])
+        self.assertLess(by_symbol["AAA"]["rank"], by_symbol["MMM"]["rank"])
+        table = _Table()
+        bucket = _Bucket()
+        screen.publish("2017-02-28", scored, register, bucket="data", client=bucket, table=table)
+        screen.publish("2017-02-28", scored, register, bucket="data", client=bucket, table=table)
+        stored = list(s3io.get_jsonl_gz("data", "screens/date=2017-02-28/scores.jsonl.gz", client=bucket))
+        self.assertEqual([row["symbol"] for row in stored], sorted(row["symbol"] for row in scored))
+        self.assertEqual(len(table.query_pk("SCREEN#2017-02-28", "RANK#")), 5)
+
+
+def _company(register: dict, symbol: str, level: int, *, income: float = 10, present: bool = True) -> dict:
+    weights = register["composite"]["groupWeights"]
+    row = {
+        "symbol": symbol,
+        "name": symbol,
+        "sector": "tech",
+        "operatingIncome_ttm": income,
+        "freeCashFlow_ttm": 4,
+        "longTermDebt": 0,
+        "shortTermDebt": 0,
+        "cash": 1,
+    }
+    for factor in register["factors"]:
+        if not present:
+            row[factor["id"]] = None
+            continue
+        if factor["id"] in {"netDebtToEbitda", "accruals"}:
+            row[factor["id"]] = 1
+        elif factor["group"] in weights or factor["group"] == "reported":
+            row[factor["id"]] = level
+    return row
+
+
+class _Table:
+    def __init__(self) -> None:
+        self.rows: dict[tuple[str, str], dict] = {}
+
+    def put(self, item: dict) -> None:
+        self.rows[(item["pk"], item["sk"])] = dict(item)
+
+    def delete(self, pk: str, sk: str) -> None:
+        self.rows.pop((pk, sk), None)
+
+    def query_pk(self, pk: str, prefix: str = "") -> list[dict]:
+        return [item for (key, sk), item in self.rows.items() if key == pk and sk.startswith(prefix)]
+
+
+class _Body:
+    def __init__(self, payload: bytes) -> None:
+        self._buffer = io.BytesIO(payload)
+
+    def read(self, n: int = -1) -> bytes:
+        return self._buffer.read(n)
+
+    def close(self) -> None:
+        self._buffer.close()
+
+
+class _Bucket:
+    def __init__(self) -> None:
+        self.objects: dict[tuple[str, str], bytes] = {}
+
+    def put_object(self, *, Bucket: str, Key: str, Body: bytes, ContentType: str) -> None:
+        del ContentType
+        self.objects[(Bucket, Key)] = Body
+
+    def get_object(self, *, Bucket: str, Key: str) -> dict:
+        return {"Body": _Body(self.objects[(Bucket, Key)])}
 
 
 if __name__ == "__main__":
