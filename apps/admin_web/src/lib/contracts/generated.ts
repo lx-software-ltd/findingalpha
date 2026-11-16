@@ -601,7 +601,8 @@ export const roadmap = {
         "https://github.com/lx-software-ltd/findingalpha/pull/9",
         "https://github.com/lx-software-ltd/findingalpha/pull/11",
         "https://github.com/lx-software-ltd/findingalpha/pull/12",
-        "https://github.com/lx-software-ltd/findingalpha/pull/13"
+        "https://github.com/lx-software-ltd/findingalpha/pull/13",
+        "https://github.com/lx-software-ltd/findingalpha/pull/15"
       ],
       "steps": [
         {
@@ -642,7 +643,7 @@ export const roadmap = {
         {
           "id": "M04-T08",
           "title": "Universe",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T09",
