@@ -245,9 +245,13 @@ export const jobs = {
 } as const;
 
 export const methodology = {
-  "version": 1,
+  "version": 2,
   "universe": {
     "status": "provisional",
+    "confirmed": [
+      "excludeSicRanges",
+      "minFundamentalsYears"
+    ],
     "exchanges": [
       "NYSE",
       "NASDAQ"
@@ -257,6 +261,10 @@ export const methodology = {
     "excludeSicRanges": [
       [
         6000,
+        6323
+      ],
+      [
+        6325,
         6799
       ]
     ],
@@ -668,12 +676,12 @@ export const roadmap = {
         {
           "id": "M04-T09",
           "title": "Jobs, schedules, routes",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T10",
           "title": "Dashboard: data status",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M04-T11",
@@ -1243,8 +1251,26 @@ export const roadmap = {
 } as const;
 
 export const sicSectors = {
-  "version": 1,
-  "status": "provisional",
+  "version": 2,
+  "status": "confirmed",
+  "companySectors": [
+    {
+      "cik": "0001403161",
+      "sector": "Financials"
+    },
+    {
+      "cik": "0001141391",
+      "sector": "Financials"
+    },
+    {
+      "cik": "0001177609",
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "cik": "0001639300",
+      "sector": "Consumer Discretionary"
+    }
+  ],
   "ranges": [
     {
       "from": 100,
@@ -1493,8 +1519,13 @@ export const sicSectors = {
     },
     {
       "from": 5200,
-      "to": 5399,
+      "to": 5329,
       "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 5330,
+      "to": 5399,
+      "sector": "Consumer Staples"
     },
     {
       "from": 5400,
@@ -1518,6 +1549,16 @@ export const sicSectors = {
     },
     {
       "from": 6000,
+      "to": 6323,
+      "sector": "Financials"
+    },
+    {
+      "from": 6324,
+      "to": 6324,
+      "sector": "Health Care"
+    },
+    {
+      "from": 6325,
       "to": 6499,
       "sector": "Financials"
     },

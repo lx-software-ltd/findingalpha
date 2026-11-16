@@ -1,6 +1,24 @@
 {
-  "version": 1,
-  "status": "provisional",
+  "version": 2,
+  "status": "confirmed",
+  "companySectors": [
+    {
+      "cik": "0001403161",
+      "sector": "Financials"
+    },
+    {
+      "cik": "0001141391",
+      "sector": "Financials"
+    },
+    {
+      "cik": "0001177609",
+      "sector": "Consumer Discretionary"
+    },
+    {
+      "cik": "0001639300",
+      "sector": "Consumer Discretionary"
+    }
+  ],
   "ranges": [
     {
       "from": 100,
@@ -249,8 +267,13 @@
     },
     {
       "from": 5200,
-      "to": 5399,
+      "to": 5329,
       "sector": "Consumer Discretionary"
+    },
+    {
+      "from": 5330,
+      "to": 5399,
+      "sector": "Consumer Staples"
     },
     {
       "from": 5400,
@@ -274,6 +297,16 @@
     },
     {
       "from": 6000,
+      "to": 6323,
+      "sector": "Financials"
+    },
+    {
+      "from": 6324,
+      "to": 6324,
+      "sector": "Health Care"
+    },
+    {
+      "from": 6325,
       "to": 6499,
       "sector": "Financials"
     },

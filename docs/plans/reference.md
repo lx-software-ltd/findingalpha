@@ -76,7 +76,7 @@ come from the GitHub `production` environment, not from the file.
 | `BriefFromLocalPart` | params file | `brief` | Sender is `brief@<domain>` |
 | `BriefRecipientEmail` | GitHub secret `BRIEF_RECIPIENT_EMAIL` | empty | Environment `production` |
 | `SecContactEmail` | GitHub secret `SEC_CONTACT_EMAIL` | empty | Goes in the SEC `User-Agent`. Environment `production` |
-| `IngestEnabled` | params file | `false` | Kill switch |
+| `IngestEnabled` | params file | `true` | Kill switch. CDK default stays `false`. The runtime switch must also be on |
 | `CommitteeEnabled` | params file | `false` | Kill switch |
 | `TradingEnabled` | params file | `false` | Kill switch |
 | `LeverageEnabled` | params file | `false` | Kill switch |
