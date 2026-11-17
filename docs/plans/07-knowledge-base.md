@@ -42,12 +42,14 @@ Owner decisions, the same evening, with the review of 17 November 2026
   move from `theory/` to `scans/` before the first sync. That sync
   covers the 131 text books. Three scanned books are a later trial.
 - Alarm: `RawDataSize` above 2.0. The unit on the metric is gigabytes.
-  The first sync shows whether that is decimal or binary; the threshold
-  stays 2.0 either way. Missing data keeps the alarm quiet, and nothing
-  is notified, matching the other alarms.
-- `AdminApiFn` and `EngineFn` bundle `boto3==1.44.3`, because both are
-  built from the engine directory. The change is
-  `docs/plans/m07-pin-boto3.md`.
+  The first sync shows whether that is decimal or binary, and the
+  threshold is revisited after that sync. A missing sample keeps the
+  previous alarm state, so a breach stays up until a later sync
+  publishes a value at or under 2.0. Nothing is notified, matching the
+  other alarms.
+- `AdminApiFn` and `EngineFn` bundle `boto3==1.44.3` and
+  `botocore==1.44.3`, because both are built from the engine directory.
+  The change is `docs/plans/m07-pin-boto3.md`.
 
 - Managed Knowledge Base (`type: MANAGED`) is available in
   `ap-southeast-1`. Hybrid search is always on. Embedding, reranking
@@ -76,6 +78,18 @@ Owner decisions, the same evening, with the review of 17 November 2026
 - The MCP server `awslabs.bedrock-kb-retrieval-mcp-server` supports
   managed knowledge bases and finds them by the tag
   `mcp-multirag-kb=true`.
+
+## Merge and deploy order
+
+Three pull requests carry this work. Merge them in this order:
+
+1. The pin, into `main`. That deploy ships `boto3==1.44.3` and
+   `botocore==1.44.3` in `AdminApiFn` and `EngineFn`.
+2. The research memo, into `main`.
+3. The knowledge base resources, into `main`, after that pull request
+   retargets from the memo branch. That merge is the create. Merging
+   it while it still targets the memo branch updates the memo branch
+   and leaves production unchanged.
 
 ## Files
 
@@ -157,11 +171,14 @@ by reverting the change.
    fixed size, 800 tokens, 15% overlap. Parsing: Smart Parsing. File
    size cap 50 MB. Data deletion policy `DELETE`. Deletion protection
    enabled at 15%. No sync schedule, so deploy creates the resources
-   and ingests nothing. The data sources use the default removal
-   policy, so removing one deletes it. The PDFs in S3 are the source
-   of truth, and a re-sync rebuilds the index. Chunking is create-only;
-   a later change is a new data source under a new name, and retaining
-   the old one would leave it indexed and billed.
+   and ingests nothing. The three data sources are created one after
+   another: `theory`, then `formula-notes`, then `journal`. Each create
+   is asynchronous, and the next starts when the previous one is
+   available. The data sources use the default removal policy, so
+   removing one deletes it. The PDFs in S3 are the source of truth, and
+   a re-sync rebuilds the index. Chunking is create-only; a later change
+   is a new data source under a new name, and retaining the old one
+   would leave it indexed and billed.
 4. Environment for `EngineFn`: `KNOWLEDGE_BASE_ID` and
    `KB_DATA_SOURCE_IDS` (JSON map of prefix to id).
 5. IAM for `EngineFn`: `bedrock:Retrieve`, `bedrock:StartIngestionJob`,
@@ -169,13 +186,17 @@ by reverting the change.
    `bedrock:ListKnowledgeBaseDocuments` on the knowledge base ARN.
    `AdminApiFn` gets none.
 6. Alarm: `RawDataSize` above 2.0, dimension `KnowledgeBaseId` =
-   `knowledge-base/<id>`. Missing data does not alarm. No notification
-   target, same as the other alarms.
+   `knowledge-base/<id>`. A missing sample keeps the previous state
+   (`treatMissingData: ignore`). No notification target, same as the
+   other alarms. The threshold is revisited after the first sync
+   reports whether a gigabyte is decimal or binary.
 7. Output: `KnowledgeBaseId`. `KbBucketName` already exists.
 8. Jest assertions: list is bucket-wide and object reads are the three
    prefixes; `AdminApiFn` has no Bedrock statement; both tags are set;
    the knowledge base is retain-except-on-create and the data sources
-   are not retained; the alarm threshold is 2; there is no sync
+   are not retained; the data sources are created in the order
+   `theory`, `formula-notes`, `journal`; the alarm threshold is 2 and
+   a missing sample keeps the previous state; there is no sync
    schedule. `AWS::Bedrock::DataSource` is added to the untagged-types
    list, because that resource has no tag property.
 
@@ -185,7 +206,8 @@ engine has no handler for it yet.
 After the first sync, `numberOfDocumentsScanned` is 131 for `theory/`
 and 0 for the other two. A larger theory count means the prefix filter
 was ignored. The `RawDataSize` value from that sync shows whether a
-gigabyte here is decimal or binary.
+gigabyte here is decimal or binary, and the alarm threshold is
+revisited from that value.
 
 ### M07-T03 Sync
 
