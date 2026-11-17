@@ -208,10 +208,20 @@ sync refuses to run and the dashboard says so.
     "id": "q01",
     "question": "How is return on invested capital defined?",
     "expectedDocument": "file name of the PDF",
-    "expectedText": "a short phrase that appears in the right passage"
+    "expectedText": "a short phrase that appears in the right passage",
+    "page": 327,
+    "formula": "the formula in plain text"
   }
 ]
 ```
+
+`expectedDocument` is the file name without `theory/`. `expectedText`
+is three to twelve plain words from one printed line beside the
+formula: letters, digits and spaces only, so a hyphenated line break or
+a ligature cannot hide it. `page` is the page a PDF viewer shows for
+that file. `formula` is the expected answer, for the person who reads
+the returned passages by hand. The evaluation scores a question on
+`expectedDocument` and `expectedText` only.
 
 ### O14 OpenRouter key
 
