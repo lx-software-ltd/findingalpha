@@ -1,1 +1,4 @@
-# boto3 is included in the Lambda Python 3.12 runtime.
+# EngineFn bundles this boto3. Managed knowledge base calls need
+# botocore >= 1.43.64, and the copy inside the Lambda runtime varies
+# by region. 1.44.3 is the release checked on 17 November 2026.
+boto3==1.44.3
