@@ -218,6 +218,23 @@ class AlpacaDataTest(unittest.TestCase):
         self.assertEqual(limiter.calls, 2)
         self.assertNotIn("n", bars[0])
 
+    def test_the_current_new_york_day_ends_before_the_sip_window(self) -> None:
+        client, script, _limiter = _client(b'{"bars":{},"next_page_token":null}')
+        now = datetime(2026, 11, 16, 19, 20, tzinfo=ZoneInfo("America/New_York"))
+        self.assertEqual(list(client.daily_bars(["AAPL"], "2026-11-16", "2026-11-16", "raw", now=now)), [])
+        query = _query(script.urls[0])
+        self.assertEqual(query["feed"], ["sip"])
+        self.assertEqual(query["start"], ["2026-11-16"])
+        self.assertEqual(query["end"], ["2026-11-16T19:04:00-05:00"])
+
+    def test_a_close_inside_the_sip_window_is_not_requested(self) -> None:
+        client, script, _limiter = _client(b'{"bars":{},"next_page_token":null}')
+        now = datetime(2026, 11, 16, 16, 10, tzinfo=ZoneInfo("America/New_York"))
+        list(client.daily_bars(["AAPL"], "2026-11-01", "2026-11-16", "raw", now=now))
+        query = _query(script.urls[0])
+        self.assertEqual(query["start"], ["2026-11-01"])
+        self.assertEqual(query["end"], ["2026-11-15"])
+
     def test_daily_bars_batch_two_hundred_symbols(self) -> None:
         empty = b'{"bars":{},"next_page_token":null}'
         client, script, limiter = _client(empty, empty)

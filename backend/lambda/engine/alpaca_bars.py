@@ -4,13 +4,43 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterator
+from datetime import date, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import http_client
 
 logger = logging.getLogger(__name__)
 
 _SKIP_LIMIT = 20
+_NEW_YORK = ZoneInfo("America/New_York")
+_SIP_LAG = timedelta(minutes=16)
+_CLOSE = time(16, 0)
+
+
+def sip_end(day: str, now: datetime | None = None) -> str:
+    """The ``end`` for a SIP daily request.
+
+    A past day stays a date. The current New York day is a timestamp 16
+    minutes ago: a bare date is read through the present, and the free
+    plan refuses SIP inside the last 15 minutes. The extra minute covers
+    a clock that is slightly ahead. When that timestamp is still before
+    the 16:00 close, the end stays on the previous day.
+    """
+    session = date.fromisoformat(str(day)[:10])
+    moment = now or datetime.now(_NEW_YORK)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=_NEW_YORK)
+    else:
+        moment = moment.astimezone(_NEW_YORK)
+    if session != moment.date():
+        return session.isoformat()
+    safe = moment - _SIP_LAG
+    close = datetime.combine(session, _CLOSE, tzinfo=_NEW_YORK)
+    if safe < close:
+        return (session - timedelta(days=1)).isoformat()
+    return safe.isoformat(timespec="seconds")
+
 
 Fetch = Callable[[str, dict[str, str]], Iterator[dict[str, Any]]]
 Rows = Callable[[dict[str, Any]], Iterator[dict[str, Any]]]
