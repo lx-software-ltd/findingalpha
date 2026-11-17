@@ -203,6 +203,7 @@ object per line.
 | `reference/assets/date=<date>/assets.jsonl.gz` | Alpaca asset list |
 | `reference/sec/company_tickers_exchange.json.gz` | SEC ticker to CIK map |
 | `universe/date=<date>/members.jsonl.gz` | Universe members with sector and liquidity |
+| `universe/date=<date>/build.json` | In-progress universe build, plain JSON rather than jsonl.gz: the company list, the cursor, and rows already prepared. A short `written` marker replaces that list once the members file is saved, and the object is removed when the weekly job finishes the coverage report |
 | `prices/raw/date=<date>/bars.jsonl.gz` | Unadjusted daily bars, all symbols, one file per day |
 | `prices/adj/part=<000>/bars.jsonl.gz` | Split- and dividend-adjusted history (total return), 100 symbols per part, rewritten weekly |
 | `prices/split/part=<000>/bars.jsonl.gz` | Split-adjusted history (price only), same parts |

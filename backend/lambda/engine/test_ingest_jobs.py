@@ -18,6 +18,72 @@ ASSET = {"symbol": "EXMPL", "exchange": "NYSE", "status": "active", "tradable": 
 TICKERS = {"EXMPL": {"cik": "0000000001", "name": "Example Co"}}
 
 
+def _record_claim(put):
+    def update(pk: str, sk: str, _expression: str, values: dict[str, object], _condition: str, _names=None) -> None:
+        del _names
+        put(
+            {
+                "pk": pk,
+                "sk": sk,
+                "status": values[":running"],
+                "leaseUntil": values[":lease"],
+                "updatedAt": values[":now"],
+                "hardStops": values[":stops"],
+                "params": values[":params"],
+                "gsi1pk": values[":gsi1pk"],
+                "gsi1sk": values[":gsi1sk"],
+            }
+        )
+
+    return update
+
+
+class _JobRows:
+    def __init__(self) -> None:
+        self.items: dict[tuple[str, str], dict[str, object]] = {}
+
+    def get(self, pk: str, sk: str) -> dict[str, object] | None:
+        item = self.items.get((pk, sk))
+        return None if item is None else dict(item)
+
+    def put(self, item: dict[str, object]) -> None:
+        self.items[(str(item["pk"]), str(item["sk"]))] = dict(item)
+
+    def update(self, pk: str, sk: str, _expression: str, values: dict[str, object], _condition: str, _names=None):
+        del _names
+        import store
+
+        current = self.items.get((pk, sk), {})
+        lease = str(current.get("leaseUntil") or "")
+        allowed = not lease or lease < str(values[":now"]) or current.get("status") != "running"
+        if current and not allowed:
+            raise store.ConditionNotMet(pk)
+        self.items[(pk, sk)] = {
+            "pk": pk,
+            "sk": sk,
+            "status": values[":running"],
+            "leaseUntil": values[":lease"],
+            "updatedAt": values[":now"],
+            "gsi1pk": values[":gsi1pk"],
+            "gsi1sk": values[":gsi1sk"],
+            "cursor": values[":cursor"],
+            "total": values[":total"],
+            "params": dict(values[":params"]),  # type: ignore[arg-type]
+            "hardStops": values[":stops"],
+        }
+        return dict(current) if current else None
+
+
+def _bind_rows(rows: _JobRows):
+    from unittest.mock import patch
+
+    return (
+        patch("store.get", rows.get),
+        patch("store.put", rows.put),
+        patch("store.update_conditional", rows.update),
+    )
+
+
 class IngestJobsTest(unittest.TestCase):
     def test_a_resume_reads_a_parameter_block_kept_in_the_state_row(self) -> None:
         from unittest.mock import patch
@@ -283,7 +349,12 @@ class IngestJobsTest(unittest.TestCase):
         def coverage(_ciks: list[str], _day: date) -> None:
             raise RuntimeError("stopped")
 
-        with patch("store.put", put), self.assertRaises(RuntimeError):
+        with (
+            patch("store.get", return_value=None),
+            patch("store.put", put),
+            patch("store.update_conditional", _record_claim(put)),
+            self.assertRaises(RuntimeError),
+        ):
             ingest_jobs.weekly_refresh(
                 {},
                 None,
@@ -297,6 +368,12 @@ class IngestJobsTest(unittest.TestCase):
         row = saved[("JOB#refresh_adjusted", "STATE")]
         self.assertEqual(row["status"], "running")
         self.assertGreater(str(row["leaseUntil"]), str(row["updatedAt"]))
+        import chunked
+
+        failed = saved[("JOB#universe_build", "STATE")]
+        self.assertEqual(failed["status"], "failed")
+        self.assertNotIn("failures", failed)
+        self.assertFalse(chunked._resumable(failed, "2999-01-01T00:00:00.000Z"))
         self.assertEqual(row["params"]["symbols"], ["EXMPL"])
 
     def test_this_run_drops_the_adjusted_lease_before_it_claims_the_job(self) -> None:
@@ -316,7 +393,12 @@ class IngestJobsTest(unittest.TestCase):
         def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
             return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
 
-        with patch("store.put", put), patch.object(ingest_jobs, "_adjusted", adjusted):
+        with (
+            patch("store.get", return_value=None),
+            patch("store.put", put),
+            patch("store.update_conditional", lambda *args, **kwargs: None),
+            patch.object(ingest_jobs, "_adjusted", adjusted),
+        ):
             ingest_jobs.weekly_refresh(
                 {},
                 None,
@@ -489,6 +571,230 @@ class IngestJobsTest(unittest.TestCase):
         self.assertEqual(jobs_handler.switch_for("ingest_filings_refresh#2024-06-03"), "ingestEnabled")
         self.assertIs(jobs_handler.handler_for(ingest_jobs.ADJUSTED_JOB), jobs_handler._adjusted)
         self.assertIs(jobs_handler.handler_for(ingest_jobs.UNIVERSE_BUILD_JOB), jobs_handler._universe_build)
+
+    def test_the_build_is_leased_before_it_runs_and_the_lease_is_dropped_when_it_stops(self) -> None:
+        from unittest.mock import patch
+
+        order: list[str] = []
+        last: dict[str, object] = {}
+
+        def put(item: dict[str, object]) -> None:
+            if item.get("pk") != "JOB#universe_build":
+                return
+            order.append("lease" if "leaseUntil" in item else str(item.get("status")))
+            last.clear()
+            last.update(item)
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            order.append("build")
+            return {"status": "running", "pending": 4}
+
+        with (
+            patch("store.get", return_value=None),
+            patch("store.put", put),
+            patch("store.update_conditional", _record_claim(put)),
+        ):
+            result = ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+                coverage=lambda *_args: None,
+            )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(order, ["lease", "build", "running"])
+        self.assertNotIn("leaseUntil", last)
+
+    def test_a_facts_refresh_clears_the_build_lease(self) -> None:
+        from unittest.mock import patch
+
+        calls = {"n": 0}
+        deleted: list[tuple[str, str]] = []
+
+        def get(_pk: str, _sk: str) -> dict[str, str] | None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return {"status": "running"}
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            return {"status": "running", "pending": 2}
+
+        with (
+            patch("store.get", side_effect=get),
+            patch("store.put", lambda _item: None),
+            patch("store.update_conditional", lambda *args, **kwargs: None),
+            patch("store.delete", lambda pk, sk: deleted.append((pk, sk))),
+        ):
+            result = ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+            )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(deleted, [("JOB#universe_build", "STATE")])
+
+    def test_a_raised_build_is_failed_and_tick_does_not_resume_it(self) -> None:
+        import chunked
+        import universe
+
+        rows = _JobRows()
+        calls: list[int] = []
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            calls.append(1)
+            if len(calls) == 1:
+                raise universe.PriceSessionMissing("no file")
+            return {"status": "running", "pending": 1}
+
+        patches = _bind_rows(rows)
+        with patches[0], patches[1], patches[2]:
+            with self.assertRaises(universe.PriceSessionMissing):
+                _weekly(build)
+            failed = rows.items[("JOB#universe_build", "STATE")]
+            self.assertEqual(failed["status"], "failed")
+            self.assertNotIn("failures", failed)
+            self.assertNotIn("leaseUntil", failed)
+            self.assertFalse(chunked._resumable(failed, "2999-01-01T00:00:00.000Z"))
+            again = _weekly(build)
+        self.assertEqual(calls, [1, 1])
+        self.assertEqual(again["status"], "running")
+
+    def test_a_live_lease_does_not_start_a_second_build(self) -> None:
+        rows = _JobRows()
+        calls: list[int] = []
+
+        class Killed(BaseException):
+            pass
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            calls.append(1)
+            raise Killed()
+
+        patches = _bind_rows(rows)
+        with patches[0], patches[1], patches[2]:
+            with self.assertRaises(Killed):
+                _weekly(build)
+            result = _weekly(build)
+        self.assertEqual(calls, [1])
+        self.assertEqual(result["status"], "running")
+        self.assertNotIn("build", result)
+
+    def test_three_hard_stops_mark_the_build_failed(self) -> None:
+        import chunked
+
+        rows = _JobRows()
+        calls: list[int] = []
+
+        class Killed(BaseException):
+            pass
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            calls.append(1)
+            raise Killed()
+
+        key = ("JOB#universe_build", "STATE")
+        patches = _bind_rows(rows)
+        with patches[0], patches[1], patches[2]:
+            for _ in range(3):
+                with self.assertRaises(Killed):
+                    _weekly(build)
+                rows.items[key]["leaseUntil"] = "2000-01-01T00:00:00.000Z"
+            result = _weekly(build)
+        self.assertEqual(calls, [1, 1, 1])
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(rows.items[key]["status"], "failed")
+        self.assertNotIn("failures", rows.items[key])
+        self.assertFalse(chunked._resumable(rows.items[key], "2999-01-01T00:00:00.000Z"))
+
+    def test_a_graceful_stop_clears_the_hard_stop_count(self) -> None:
+        rows = _JobRows()
+        key = ("JOB#universe_build", "STATE")
+        rows.put(
+            {
+                "pk": key[0],
+                "sk": key[1],
+                "status": "running",
+                "hardStops": 2,
+                "updatedAt": "2000-01-01T00:00:00.000Z",
+            }
+        )
+        seen: list[object] = []
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            seen.append(rows.items[key].get("hardStops"))
+            return {"status": "running", "pending": 1}
+
+        patches = _bind_rows(rows)
+        with patches[0], patches[1], patches[2]:
+            result = _weekly(build)
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(seen, [0])
+        self.assertNotIn("leaseUntil", rows.items[key])
+        self.assertNotIn("hardStops", rows.items[key])
+
+    def test_a_short_clock_retries_the_coverage_report_without_marking_done(self) -> None:
+        from unittest.mock import patch
+
+        rows = _JobRows()
+        seen: list[int] = []
+
+        class Short:
+            def get_remaining_time_in_millis(self) -> int:
+                return 1_000
+
+        class Open:
+            def get_remaining_time_in_millis(self) -> int:
+                return 900_000
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
+
+        def run(context: object) -> dict[str, object]:
+            return ingest_jobs.weekly_refresh(
+                {},
+                context,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+                adjusted=lambda *_args, **_kwargs: {"status": "done"},
+                coverage=lambda *_args: seen.append(1),
+            )
+
+        patches = _bind_rows(rows)
+        with patches[0], patches[1], patches[2], patch("monthly_stats._covered_symbols", return_value=(set(), False)):
+            first = run(Short())
+            self.assertEqual(seen, [])
+            self.assertEqual(first["status"], "running")
+            self.assertEqual(first["build"]["status"], "running")  # type: ignore[index]
+            row = rows.items[("JOB#universe_build", "STATE")]
+            self.assertEqual(row["status"], "running")
+            self.assertNotIn("leaseUntil", row)
+            second = run(Open())
+        self.assertEqual(seen, [1])
+        self.assertEqual(second["status"], "done")
+
+
+def _weekly(build) -> dict[str, object]:
+    return ingest_jobs.weekly_refresh(
+        {},
+        None,
+        now=SATURDAY_OPEN,
+        sessions=[FRIDAY],
+        assets=[ASSET],
+        tickers=TICKERS,
+        build=build,
+        coverage=lambda *_args: None,
+    )
 
 
 if __name__ == "__main__":
