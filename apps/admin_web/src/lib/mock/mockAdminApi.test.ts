@@ -27,6 +27,17 @@ describe("mock admin api", () => {
     expect(universe.backfill.prices.cursor).toBe(2);
     const run = await mockAdminFetch("/jobs/ingest_daily/run", { method: "POST" });
     expect(run.status).toBe(202);
+    const refused = await mockAdminFetch("/jobs/ingest_daily/run", {
+      method: "POST",
+      body: JSON.stringify({ day: "2026-11-16" }),
+    });
+    expect(refused.status).toBe(400);
+    const sized = await mockAdminFetch("/jobs/backtest/run", {
+      method: "POST",
+      body: JSON.stringify({ portfolioSize: 15 }),
+    });
+    expect(sized.status).toBe(202);
+    expect((await sized.json()).portfolioSize).toBe(15);
   });
 
   it("keeps a PUT in memory", async () => {

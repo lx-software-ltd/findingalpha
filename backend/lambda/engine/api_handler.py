@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 from pathlib import Path
@@ -108,24 +110,103 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
         return not_found()
     if _key_caller(event) and _backfill_finished(name):
         return _json_response(409, {"message": f"{name} already finished"})
+    parsed = _run_params(name, event)
+    if isinstance(parsed, str):
+        return _json_response(400, {"message": parsed})
+    params, chosen = parsed
+    if name == "backtest" and chosen is not None:
+        import backtest
+        import store
+
+        conflict = backtest.size_conflict(store.get("JOB#backtest", "STATE") or {}, chosen)
+        if conflict:
+            return _json_response(409, {"message": conflict})
     actor = str(event.get("actor") or "") if _key_caller(event) else str(_claims(event).get("sub") or "")
-    _invoke_engine(name, actor)
+    if params:
+        _invoke_engine(name, actor, params)
+    else:
+        _invoke_engine(name, actor)
     import audit
 
-    audit.write(actor, "job.run", name, event)
-    return _json_response(202, {"accepted": True})
+    target = name if chosen is None else f"{name} {chosen}"
+    audit.write(actor, "job.run", target, event)
+    accepted: dict[str, Any] = {"accepted": True}
+    if params:
+        accepted["portfolioSize"] = params["portfolioSize"]
+    return _json_response(202, accepted)
 
 
-def _invoke_engine(name: str, sub: str) -> None:
+def _request_object(event: dict[str, Any]) -> dict[str, Any] | None:
+    """The JSON object in the body. ``{}`` when the body is absent. None when it is unreadable."""
+    raw = event.get("body")
+    if event.get("isBase64Encoded") and isinstance(raw, str) and raw:
+        try:
+            raw = base64.b64decode(raw, validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError, binascii.Error):
+            return None
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return {}
+    if not isinstance(raw, str):
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _run_params(name: str, event: dict[str, Any]) -> str | tuple[dict[str, int], int | None]:
+    """Params to forward and the backtest size, or the refusal message."""
+    body = _request_object(event)
+    if body is None:
+        return "body must be a JSON object"
+    if not body:
+        if name != "backtest":
+            return {}, None
+        import methodology
+
+        return {}, int(methodology.load()["backtest"]["portfolioSize"])
+    if name != "backtest":
+        return "this job does not take a body"
+    if set(body) != {"portfolioSize"}:
+        return "only portfolioSize is allowed"
+    raw = body["portfolioSize"]
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return _size_message()
+    import backtest
+    import methodology
+
+    register = methodology.load()
+    size = backtest.portfolio_size(raw, register)
+    if size is None:
+        return _size_message(register)
+    return {"portfolioSize": size}, size
+
+
+def _size_message(register: dict[str, Any] | None = None) -> str:
+    if register is None:
+        import methodology
+
+        register = methodology.load()
+    bounds = register["backtest"]
+    return f"portfolioSize must be an integer from {bounds['portfolioSizeMin']} to {bounds['portfolioSizeMax']}"
+
+
+def _invoke_engine(name: str, sub: str, params: dict[str, Any] | None = None) -> None:
     function = os.environ.get("ENGINE_FUNCTION_NAME", "")
     if not function:
         return
     import boto3
 
+    payload: dict[str, Any] = {"job": name, "trigger": "manual", "by": sub}
+    if params:
+        payload["params"] = params
     boto3.client("lambda").invoke(
         FunctionName=function,
         InvocationType="Event",
-        Payload=json.dumps({"job": name, "trigger": "manual", "by": sub}).encode(),
+        Payload=json.dumps(payload).encode(),
     )
 
 

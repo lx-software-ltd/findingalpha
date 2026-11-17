@@ -42,6 +42,7 @@ export const statusFixture = {
       manualRun: true,
     },
     { job: "reconcile", schedule: "30 12 ? * TUE-SAT * Asia/Hong_Kong", lastRun: null, manualRun: false },
+    { job: "backtest", schedule: "", lastRun: null, manualRun: true },
   ],
 };
 

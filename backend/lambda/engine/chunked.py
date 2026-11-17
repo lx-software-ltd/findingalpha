@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Callable
 
 import store
@@ -156,6 +157,7 @@ def resume_stalled(
     moment = timeutil.format_iso_millis(now())
     send = invoke or _invoke_self
     started: list[str] = []
+    failed: list[dict[str, str]] = []
     for item in store.query_gsi1(_GSI_PK):
         if item.get("sk") != _STATE_SK or not _resumable(item, moment):
             continue
@@ -165,10 +167,11 @@ def resume_stalled(
         try:
             send(job)
         except Exception as exc:
-            logger.info("resume invoke failed job=%s error=%s", job, type(exc).__name__)
+            logger.error("resume invoke failed job=%s error=%s", job, type(exc).__name__)
+            failed.append({"job": job, "error": type(exc).__name__})
             continue
         started.append(job)
-    return started
+    return {"started": started, "failed": failed}
 
 
 def _resumable(item: dict[str, Any], moment: str) -> bool:
@@ -201,12 +204,23 @@ def _invoke_self(job: str) -> None:
     )
 
 
+def _whole_number(value: Any) -> int:
+    """DynamoDB returns a whole number as Decimal. The resumed job expects an int."""
+    if isinstance(value, Decimal):
+        try:
+            if value.is_finite() and value == value.to_integral_value():
+                return int(value)
+        except (ArithmeticError, ValueError):
+            pass
+    raise TypeError(type(value).__name__)
+
+
 def _payload(job: str, params: object) -> bytes:
     """The resume event. A parameter block over 200 KB stays in the state row."""
     body: dict[str, object] = {"job": job}
     if not params:
         return json.dumps(body).encode("utf-8")
-    encoded = json.dumps({"job": job, "params": params}).encode("utf-8")
+    encoded = json.dumps({"job": job, "params": params}, default=_whole_number).encode("utf-8")
     if len(encoded) <= _PAYLOAD_MAX:
         return encoded
     body["paramsInState"] = True

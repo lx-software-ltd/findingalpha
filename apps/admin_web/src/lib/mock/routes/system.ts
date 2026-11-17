@@ -8,6 +8,7 @@ import {
   settingsFixture,
   statusFixture,
 } from "../fixtures";
+import { methodology } from "../../contracts/generated";
 import { json } from "./context";
 import type { MockCtx } from "./types";
 
@@ -29,6 +30,34 @@ export function resetSystemMock(): void {
 function readBody(ctx: MockCtx): Record<string, unknown> {
   if (typeof ctx.init.body !== "string") return {};
   return JSON.parse(ctx.init.body) as Record<string, unknown>;
+}
+
+function runJob(ctx: MockCtx): Json {
+  const job = ctx.path.split("/")[2] ?? "";
+  const raw = ctx.init.body;
+  let record: Record<string, unknown> = {};
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return json(400, { message: "body must be a JSON object" });
+      }
+      record = parsed as Record<string, unknown>;
+    } catch {
+      return json(400, { message: "body must be a JSON object" });
+    }
+  }
+  if (Object.keys(record).length === 0) return json(202, { accepted: true });
+  if (job !== "backtest") return json(400, { message: "this job does not take a body" });
+  if (Object.keys(record).some((key) => key !== "portfolioSize")) {
+    return json(400, { message: "only portfolioSize is allowed" });
+  }
+  const size = record.portfolioSize;
+  const { portfolioSizeMin, portfolioSizeMax } = methodology.backtest;
+  if (typeof size !== "number" || !Number.isInteger(size) || size < portfolioSizeMin || size > portfolioSizeMax) {
+    return json(400, { message: `portfolioSize must be an integer from ${portfolioSizeMin} to ${portfolioSizeMax}` });
+  }
+  return json(202, { accepted: true, portfolioSize: size });
 }
 
 export function handleSystem(ctx: MockCtx): Json | null {
@@ -118,6 +147,6 @@ export function handleSystem(ctx: MockCtx): Json | null {
       },
     });
   }
-  if (ctx.method === "POST" && /^\/jobs\/[^/]+\/run$/.test(ctx.path)) return json(202, { accepted: true });
+  if (ctx.method === "POST" && /^\/jobs\/[^/]+\/run$/.test(ctx.path)) return runJob(ctx);
   return null;
 }

@@ -183,6 +183,8 @@
     "status": "provisional",
     "firstScreenMonth": "2017-02",
     "portfolioSize": 20,
+    "portfolioSizeMin": 10,
+    "portfolioSizeMax": 40,
     "weighting": "equal",
     "maxNamesPerSector": 5,
     "tradeDelaySessions": 1,

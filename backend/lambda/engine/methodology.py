@@ -100,7 +100,12 @@ def _backtest(block: dict[str, Any]) -> None:
     month = str(block.get("firstScreenMonth") or "")
     if len(month) != 7 or month[4] != "-" or not month[:4].isdigit() or not month[5:].isdigit():
         raise MethodologyError("firstScreenMonth")
+    _whole(block.get("portfolioSizeMin"), "portfolioSizeMin")
+    _whole(block.get("portfolioSizeMax"), "portfolioSizeMax")
     _whole(block.get("portfolioSize"), "portfolioSize")
+    low, high, size = block["portfolioSizeMin"], block["portfolioSizeMax"], block["portfolioSize"]
+    if low > high or not low <= size <= high:
+        raise MethodologyError("portfolioSize")
     if block.get("weighting") != "equal":
         raise MethodologyError("weighting")
     _whole(block.get("maxNamesPerSector"), "maxNamesPerSector")
