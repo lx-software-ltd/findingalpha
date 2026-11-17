@@ -138,12 +138,12 @@ These follow from the answers. Each is a correction to
 | --- | --- | --- |
 | T02.3 "Data deletion policy: retain" | "For managed knowledge bases, the only supported option is DELETE, which is also the default" (CreateDataSource reference) | Use `DELETE`. Protect the resources with `RemovalPolicy.RETAIN` on the knowledge base and on each data source. The PDFs in S3 stay the source of truth |
 | T02.3 data source on S3 | A managed knowledge base takes `type: MANAGED_KNOWLEDGE_BASE_CONNECTOR` with `connectorParameters`. The `s3Configuration` shape is for self-managed knowledge bases | Use the request in "Request shapes". One prefix per data source through `filterConfiguration.inclusionPrefixes` |
-| T02.6 "`RawDataSize` above 1.5 GB" | The metric's unit is Gigabytes and its dimension is `KnowledgeBaseId` with the value `knowledge-base/<id>` (Observability page). The bucket holds 1.96 GB today | Threshold `1.5` in GB would be in alarm after the first sync. The owner picks: a threshold near the cap (2.0), or fewer books |
+| T02.6 "`RawDataSize` above 1.5 GB" | The metric's unit is Gigabytes and its dimension is `KnowledgeBaseId` with the value `knowledge-base/<id>` (Observability page). The bucket holds 1.96 GB today | **Decided** on 17 November 2026 (Hong Kong): threshold 2.0 GB |
 | T02.1 service role | Runtime metrics are published with the service role's credentials and need `cloudwatch:PutMetricData` limited to the namespace `AWS/Bedrock/KnowledgeBases` | Add that statement. Without it the metrics are silently missing |
 | "Deleting more than 15% ... is blocked by default" | The threshold defaults to 15 when protection is enabled. The default status is undocumented. A sync over the threshold "skips its delete phase" and still adds and updates | Set `deletionProtectionStatus: ENABLED` and threshold 15 explicitly. The `blocked_deletion` status in `kb_sync` stays the gate that stops a sync |
 | T03 "Failed documents are listed by key" | `GetIngestionJob` returns counts only (scanned, indexed, failed, skipped, deleted) | Read keys from `ListKnowledgeBaseDocuments` (status and S3 location per document). `EngineFn` then needs `bedrock:ListKnowledgeBaseDocuments`. Record `numberOfDocumentsSkipped` too |
 | T04 `source_types` "when sidecars carry it" | Managed knowledge bases add reserved metadata with an underscore prefix, such as `_source_uri` and `_data_source_id` (Query configurations page). The AWS MCP server filters managed knowledge bases with `in` on `_data_source_id` | Filter on `_data_source_id` with the ids from `KB_DATA_SOURCE_IDS`. No sidecar is needed for this. **Unverified** until the first `Retrieve` |
-| T04 client | `managedSearchConfiguration` needs botocore 1.43.64 or later. The version inside the Lambda runtime "depends on the runtime version and your AWS Region" (Lambda Python page) | Pin `boto3` in `backend/lambda/engine/requirements.txt`, or log the runtime's version once and decide. This turns on pip bundling for `EngineFn` |
+| T04 client | `managedSearchConfiguration` needs botocore 1.43.64 or later. The version inside the Lambda runtime "depends on the runtime version and your AWS Region" (Lambda Python page) | **Decided** the same day: pin `boto3==1.44.3` in `backend/lambda/engine/requirements.txt`. That release is above the floor and is the one checked for this memo. The pin turns on pip bundling for `EngineFn` |
 | T07 profile actions | Server 1.1.2 calls `GetKnowledgeBase` for every knowledge base to read its ARN and type | Add `bedrock:GetKnowledgeBase`. Keep `bedrock:AgenticRetrieveStream` out, so the server's agentic tool is denied by IAM |
 | Open question "budget alert on the Bedrock service" | Billing uses its own service, "Amazon Bedrock Managed Knowledge Base" (service code `AmazonKnowledgeBase`) | A budget filtered to Amazon Bedrock would miss this cost. Filter on the new service or on the tag `Project` |
 
@@ -527,6 +527,11 @@ Options for the owner:
 Option 2 is the recommendation. The evaluation in T05 is unaffected,
 and the trial answers the question for the cost of three files.
 
+The owner chose option 2 on 17 November 2026 (Hong Kong). The 47 files
+move from `theory/` to `scans/` before the first sync. Three of them
+are the later trial. The move runs from an identity that can write the
+bucket.
+
 One PDF with a text layer has no space characters in that layer. Its
 keyword matches may be poor. T05's hand check should include it.
 
@@ -578,17 +583,13 @@ tests with a stubbed Bedrock client.
 - 1 October 2026: the current knowledge base prices took effect in the
   price list.
 - 17 November 2026: this memo. The owner had uploaded the PDFs (O12) and
-  the questions file (O13).
+  the questions file (O13). The same evening the owner chose scanned-book
+  option 2, a `RawDataSize` alarm at 2.0 GB, and a boto3 pin of 1.44.3.
 
 ## Open questions
 
 - Does the first deploy of `CfnKnowledgeBase` with managed embedding
   succeed in `ap-southeast-1`? T02 answers it.
-- Scanned books: option 1 or option 2. The owner decides before the
-  first sync.
-- The alarm threshold for `RawDataSize`, given 1.96 GB today.
-- Which boto3 version the Lambda runtime includes in `ap-southeast-1`,
-  or a pin in `requirements.txt`. T04 decides.
 - Does `Retrieve` return a page number, and does the `_data_source_id`
   filter work? The first `Retrieve` in T05 answers both.
 - Is the default deletion protection status enabled? T02 sets it
