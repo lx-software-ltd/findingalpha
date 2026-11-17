@@ -104,7 +104,7 @@ Writes a key with `operate` may do:
 | Write | Limit |
 | --- | --- |
 | `PUT /public/settings` | Only to turn switches **off**. A body that sets any switch to `true` is refused |
-| `POST /public/jobs/{jobName}/run` | Only jobs marked `keyRun: true` in `contracts/jobs.json`. Broker and drill jobs are never marked |
+| `POST /public/jobs/{jobName}/run` | Only jobs marked `keyRun: true` in `contracts/jobs.json`. Every job is marked |
 | `POST /public/kb/sync` | Same caps as from the dashboard |
 | `POST /public/holds/{holdId}/veto` | Same rules as from the dashboard |
 
@@ -118,8 +118,10 @@ Owner-only, never reachable with any key, whatever its tier:
 - every approval of a real-money order (M12).
 
 The reason is the same as in the sibling: a leaked key must not be
-able to start trading, clear an alarm or widen its own access. The
-production parameter file later sets `PublicApiWritesEnabled` to
+able to turn a switch on, clear an alarm, or widen its own access.
+A key with `operate` and writes enabled can start every job, including
+broker jobs and drills. Each job still checks its own kill switch.
+The production parameter file later sets `PublicApiWritesEnabled` to
 `true`. The parameter default stays `false`, and this owner-only list
 does not change.
 

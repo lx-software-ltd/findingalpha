@@ -206,27 +206,15 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(self.audit.call_args.args[0], "user-1")
 
-    def test_key_run_matches_the_jobs_the_panel_can_start(self) -> None:
+    def test_every_job_allows_a_key_run(self) -> None:
         payload = json.loads((Path(__file__).resolve().parents[3] / "contracts" / "jobs.json").read_text())
-        runnable = {job["name"] for job in payload["jobs"] if job["keyRun"]}
-        self.assertEqual(
-            runnable,
-            {"tick", "ingest_daily", "backfill_prices", "backfill_fundamentals"},
-        )
-        blocked = {
-            "weekly_refresh",
-            "broker_setup",
-            "broker_smoke",
-            "breaker_drill",
-            "record_drill",
-            "execute_holds",
-            "screen",
-        }
+        names = [job["name"] for job in payload["jobs"]]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertTrue(names)
         for job in payload["jobs"]:
-            if job["name"] in blocked:
-                self.assertFalse(job["keyRun"])
+            self.assertIs(job["keyRun"], True)
 
-    def test_a_key_can_start_the_same_ingest_jobs_as_the_panel(self) -> None:
+    def test_a_key_can_start_every_marked_job(self) -> None:
         sent: list[str] = []
 
         def invoke(name: str, _sub: str) -> None:
@@ -243,13 +231,24 @@ class PublicApiTest(unittest.TestCase):
             screen = api_handler.lambda_handler(_event("POST", "/public/jobs/screen/run", key=_key()), None)
             drill = api_handler.lambda_handler(_event("POST", "/public/jobs/breaker_drill/run", key=_key()), None)
         self.assertEqual(prices["statusCode"], 202)
-        self.assertEqual(weekly["statusCode"], 404)
+        self.assertEqual(weekly["statusCode"], 202)
         self.assertEqual(panel["statusCode"], 202)
         self.assertEqual(daily["statusCode"], 202)
         self.assertEqual(facts["statusCode"], 202)
-        self.assertEqual(screen["statusCode"], 404)
-        self.assertEqual(drill["statusCode"], 404)
-        self.assertEqual(sent, ["backfill_prices", "weekly_refresh", "ingest_daily", "backfill_fundamentals"])
+        self.assertEqual(screen["statusCode"], 202)
+        self.assertEqual(drill["statusCode"], 202)
+        self.assertEqual(
+            sent,
+            [
+                "backfill_prices",
+                "weekly_refresh",
+                "weekly_refresh",
+                "ingest_daily",
+                "backfill_fundamentals",
+                "screen",
+                "breaker_drill",
+            ],
+        )
         actors = [call.args[0] for call in audit.call_args_list]
         self.assertIn("user-1", actors)
         self.assertEqual(audit.call_args.args[0], "apikey:abc123")
