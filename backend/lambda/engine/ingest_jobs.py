@@ -1,7 +1,9 @@
 """The ingest jobs tick and the dashboard can start.
 
-A resumed price backfill keeps its saved window. A universe build that
-stops, and the adjusted refresh, are saved so tick can run them again.
+A run at 12:00 in Hong Kong is after the New York close and the SEC daily
+index. A resumed price backfill keeps the ``start`` and ``end`` saved with
+the job. A universe build that stops early is saved so tick can run it again,
+and the adjusted refresh resumes too.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ Coverage = Callable[[list[str], date], None]
 
 
 def closed_session(now: datetime | None, calendar: list[date]) -> date | None:
+    """The latest session whose 16:00 New York close is already in the past."""
     moment = (now or datetime.now(NEW_YORK)).astimezone(NEW_YORK)
     today = moment.date()
     after_close = moment.time() >= _CLOSE
@@ -90,6 +93,7 @@ def ingest_daily(
     load_assets: Assets | None = None,
     load_tickers: Tickers | None = None,
 ) -> dict[str, Any]:
+    """One closed New York session: prices, corporate actions, filings, and news."""
     moment = _moment(now)
     calendar = _calendar(sessions, load_sessions, date(moment.year - 1, 1, 1), moment.date())
     saved = _params(event).get("day")
@@ -139,6 +143,7 @@ def weekly_refresh(
     note_build: Note | None = None,
     coverage: Coverage | None = None,
 ) -> dict[str, Any]:
+    """Refresh the lists, build the universe, then the adjusted prices."""
     moment = _moment(now)
     calendar = _calendar(sessions, load_sessions, date(moment.year - 1, 1, 1), moment.date())
     saved = _params(event).get("day")
@@ -230,6 +235,7 @@ def resume_universe(
     note_build: Note | None = None,
     coverage: Coverage | None = None,
 ) -> dict[str, Any]:
+    """Finish the facts refresh, then build the universe for the saved date."""
     params = _params(event)
     result = (refresh or _facts)(
         list(params.get("ciks") or []),
@@ -259,6 +265,7 @@ def resume_build(
     note_build: Note | None = None,
     coverage: Coverage | None = None,
 ) -> dict[str, Any]:
+    """Continue a universe build that stopped before it finished."""
     params = _params(event)
     if not params.get("asOf"):
         return {"ok": False, "status": "missing_inputs"}
@@ -269,6 +276,7 @@ def resume_build(
 
 
 def resume_adjusted(event: dict[str, Any], context: Any) -> dict[str, Any]:
+    """Continue the adjusted-price refresh from the symbols saved with it."""
     params = _params(event)
     symbols = [str(symbol) for symbol in params.get("symbols") or [] if str(symbol)]
     end = str(params.get("end") or "")
@@ -314,32 +322,55 @@ def _follow(
     note_build: Note | None,
     coverage: Coverage | None,
 ) -> dict[str, Any]:
-    held = False
+    import ingest_job_state
+
+    owned = False
     if note_build is None and not _facts_open():
-        _note_build(day, "running", hold=True)
-        held = True
-    outcome = (build or _universe)(day, context, assets=listed, tickers=mapped, sessions=calendar)
+        claim = ingest_job_state.claim_build(UNIVERSE_BUILD_JOB, day)
+        if claim == "busy":
+            return {"ok": True, "status": "running", "asOf": day.isoformat()}
+        if claim == "stopped":
+            return {"ok": False, "status": "failed", "asOf": day.isoformat()}
+        owned = True
+    try:
+        outcome = (build or _universe)(day, context, assets=listed, tickers=mapped, sessions=calendar)
+    except Exception:
+        if owned:
+            _note_build(day, "failed")
+        raise
     status = str(outcome.get("status") or "running") if isinstance(outcome, dict) else "running"
     body: dict[str, Any] = {"ok": status != "failed", "status": status, "asOf": day.isoformat(), "build": outcome}
     if status != "done":
         if status == "running" and _facts_open():
-            if held:
+            if owned:
                 import store
 
                 store.delete(f"JOB#{UNIVERSE_BUILD_JOB}", "STATE")
         else:
             (note_build or _note_build)(day, "running" if status == "running" else "failed")
         return body
-    (note_build or _note_build)(day, "done")
-    import monthly_stats
+    if ingest_job_state.time_short(context):
+        (note_build or _note_build)(day, "running")
+        body["status"] = "running"
+        if isinstance(outcome, dict):
+            body["build"] = {**outcome, "status": "running"}
+        return body
+    try:
+        import monthly_stats
 
-    symbols = monthly_stats.adjusted_symbols(body, [str(symbol) for symbol in (outcome.get("symbols") or [])], mapped)
-    if adjusted is None:
-        _save_adjusted(symbols, day, hold=True)
-    (coverage or _coverage)([str(cik) for cik in (outcome.get("ciks") or [])], day)
-    if adjusted is None:
-        _save_adjusted(symbols, day, hold=False)
-    refreshed = (adjusted or _adjusted)(symbols, BACKFILL_START, day, context)
+        symbols = monthly_stats.adjusted_symbols(body, [str(s) for s in (outcome.get("symbols") or [])], mapped)
+        if adjusted is None:
+            _save_adjusted(symbols, day, hold=True)
+        (coverage or _coverage)([str(cik) for cik in (outcome.get("ciks") or [])], day)
+        if adjusted is None:
+            _save_adjusted(symbols, day, hold=False)
+        refreshed = (adjusted or _adjusted)(symbols, BACKFILL_START, day, context)
+    except Exception:
+        if owned:
+            _note_build(day, "failed")
+        raise
+    (note_build or _note_build)(day, "done")
+    ingest_job_state.clear_progress(day)
     body["status"] = refreshed.get("status", "done")
     return body
 
@@ -361,59 +392,28 @@ def _raw_symbols(assets: list[dict[str, Any]], include_inactive: bool) -> list[s
     return ingest_prices.raw_symbols(assets, include_inactive=include_inactive)
 
 
-def _note_build(day: date, status: str, *, hold: bool = False) -> None:
-    import store
-    import timeutil
+def _note_build(day: date, status: str) -> None:
+    import ingest_job_state
 
-    kept = status if status in {"running", "paused", "failed", "done"} else "failed"
-    now = timeutil.utc_now()
-    item: dict[str, Any] = {
-        "pk": f"JOB#{UNIVERSE_BUILD_JOB}",
-        "sk": "STATE",
-        "status": kept,
-        "cursor": 0 if kept == "running" else 1,
-        "total": 1,
-        "gsi1pk": "JOBSTATE",
-        "gsi1sk": UNIVERSE_BUILD_JOB,
-        "params": {"asOf": day.isoformat()},
-        "updatedAt": timeutil.format_iso_millis(now),
-    }
-    if hold:
-        import chunked
-
-        item["leaseUntil"] = timeutil.format_iso_millis(now + chunked.LEASE)
-    store.put(item)
+    ingest_job_state.note_build(UNIVERSE_BUILD_JOB, day, status)
 
 
 def _facts_open() -> bool:
     """The facts refresh is the job tick should resume, not a second build."""
-    import store
+    import ingest_job_state
 
-    item = store.get(f"JOB#{UNIVERSE_REFRESH_JOB}", "STATE") or {}
-    return item.get("status") in {"running", "paused"}
+    return ingest_job_state.facts_open(UNIVERSE_REFRESH_JOB)
 
 
 def _save_adjusted(symbols: list[str], day: date, *, hold: bool) -> None:
-    """Lease the adjusted refresh, then release it. An empty list still writes SPY and BIL."""
-    import chunked
-    import store
-    import timeutil
+    """Save the adjusted refresh before the coverage report.
 
-    now = timeutil.utc_now()
-    item: dict[str, Any] = {
-        "pk": f"JOB#{ADJUSTED_JOB}",
-        "sk": "STATE",
-        "status": "running",
-        "cursor": 0,
-        "total": 1,
-        "gsi1pk": "JOBSTATE",
-        "gsi1sk": ADJUSTED_JOB,
-        "params": {"symbols": list(symbols), "start": BACKFILL_START, "end": day.isoformat()},
-        "updatedAt": timeutil.format_iso_millis(now),
-    }
-    if hold:
-        item["leaseUntil"] = timeutil.format_iso_millis(now + chunked.LEASE)
-    store.put(item)
+    The lease keeps tick from starting a second copy. An empty list is kept
+    because the refresh still writes SPY and BIL.
+    """
+    import ingest_job_state
+
+    ingest_job_state.save_adjusted(ADJUSTED_JOB, symbols, day, BACKFILL_START, hold=hold)
 
 
 def _coverage(ciks: list[str], day: date) -> None:

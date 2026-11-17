@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, Callable
 
 import fundamentals_pit
-import share_count
 import universe_data
 from alpaca_data import IngestDisabled
 
@@ -377,17 +376,34 @@ def build(
     joined = _joined(listed, tickers)
     needed = int(chosen["dollarVolumeWindowSessions"])
     window = _window(sessions, day, needed)
-    if joined and len(window) < needed:
+    import universe_screen
+
+    done = universe_screen.published(day, name, client)
+    if done is not None:
+        return done
+    saved = universe_screen.saved_liquid(day, name, client)
+    if saved is None and joined and len(window) < needed:
         raise PriceWindowShort(day.isoformat())
-    if joined and _out_of_time(context):
+    if saved is not None and _out_of_time(context):
+        return {"asOf": day.isoformat(), "status": "running", "pending": len(saved["companies"])}
+    if saved is None and joined and _out_of_time(context):
         return {"asOf": day.isoformat(), "status": "running", "pending": len(joined)}
-    priced, liquid = _prices(joined, bars_of, window, chosen)
-    priced_companies = _one_listing(priced)
-    companies = _one_listing(liquid)
+    if saved is not None:
+        companies = list(saved["companies"])
+        funnel = dict(saved["funnel"])
+        price_as_of = saved["priceAsOf"] if saved["priceAsOf"] is not None else (window[-1] if window else None)
+    else:
+        priced, liquid = _prices(joined, bars_of, window, chosen)
+        companies = _one_listing(liquid)
+        funnel = {
+            "assets": len(listed),
+            "withCik": len(joined),
+            "price": len(_one_listing(priced)),
+            "dollarVolume": len(companies),
+        }
+        price_as_of = window[-1] if window else None
 
     def screen(allow_refresh: bool) -> dict[str, Any]:
-        import universe_screen
-
         return universe_screen.collect(
             companies,
             day,
@@ -400,6 +416,8 @@ def build(
             bucket=name,
             client=client,
             allow_refresh=allow_refresh,
+            funnel=funnel,
+            price_as_of=price_as_of,
         )
 
     screened = screen(True)
@@ -415,77 +433,19 @@ def build(
             "status": str(screened.get("status") or "running"),
             "pending": int(screened.get("pending") or 0),
         }
-    prepared = list(screened["prepared"])
-    stage = screened["counts"]
-    earliest: date | None = None
-    for _row, picked in prepared:
-        if earliest is None or picked.after < earliest:
-            earliest = picked.after
-    events = (
-        universe_data.split_events(day, earliest, sessions, read_actions, name, client)
-        if prepared and earliest is not None
-        else {}
-    )
-    floor = float(chosen["minMarketCapUsd"])
-    sized: list[dict[str, Any]] = []
-    for row, picked in prepared:
-        factor = share_count.split_factor(events.get(row["symbol"], []), picked.after, day)
-        cap = picked.value * factor * float(row["close"])
-        if cap < floor:
-            continue
-        carried = dict(row)
-        carried["marketCap"] = cap
-        carried["sharesSource"] = picked.source
-        carried["sector"] = sector_for(row["sic"], ranges, cik=str(row["cik"]), companies=chosen_companies)
-        sized.append(carried)
-    members = [
-        {
-            "symbol": row["symbol"],
-            "cik": row["cik"],
-            "name": row["name"],
-            "sic": None if row["sic"] is None else str(row["sic"]),
-            "sector": row["sector"],
-            "close": row["close"],
-            "medianDollarVolume": row["medianDollarVolume"],
-            "marketCap": row["marketCap"],
-            "sharesSource": row["sharesSource"],
-        }
-        for row in sorted(sized, key=lambda item: item["symbol"])
-    ]
-    counts = {
-        "assets": len(listed),
-        "withCik": len(joined),
-        "price": len(priced_companies),
-        "dollarVolume": len(companies),
-        "fundamentals": stage["fundamentals"],
-        "sic": stage["sic"],
-        "annualReport": stage["annualReport"],
-        "history": stage["history"],
-        "marketCap": len(members),
-    }
-    sector_counts: dict[str, int] = {}
-    share_sources: dict[str, int] = {}
-    for row in members:
-        sector_counts[row["sector"]] = sector_counts.get(row["sector"], 0) + 1
-        share_sources[row["sharesSource"]] = share_sources.get(row["sharesSource"], 0) + 1
-    universe_data.write_universe(
+    if _out_of_time(context):
+        return {"asOf": day.isoformat(), "status": "running", "pending": 0}
+    return universe_screen.publish(
+        list(screened["prepared"]),
+        screened["counts"],
+        funnel,
         day,
-        members,
-        counts,
-        sector_counts,
+        chosen,
+        sessions,
+        read_actions,
         name,
         client,
-        float(chosen["maxMemberDropFraction"]),
-        share_sources,
-        window[-1] if window else None,
+        ranges,
+        chosen_companies,
+        price_as_of,
     )
-    return {
-        "asOf": day.isoformat(),
-        "status": "done",
-        "members": len(members),
-        "counts": counts,
-        "sectors": sector_counts,
-        "shareSources": share_sources,
-        "symbols": [str(row["symbol"]) for row in members],
-        "ciks": sorted({str(row["cik"]) for row in members}),
-    }

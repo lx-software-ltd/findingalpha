@@ -1,6 +1,7 @@
 """One company at a time for the universe build.
 
-The raw facts are not kept. A later run continues from the saved company.
+The raw facts are not kept. A later run continues from the saved company
+and the company list stored with it.
 """
 
 from __future__ import annotations
@@ -16,8 +17,37 @@ Facts = Callable[[str], list[dict[str, Any]] | None]
 Probe = Callable[[str], bool]
 Submissions = Callable[[str], dict[str, Any]]
 Cover = Callable[[str, date], dict[str, Any] | None]
+Actions = Callable[[date], list[dict[str, Any]]]
 _GATES = ("fundamentals", "sic", "annualReport", "history")
+_FUNNEL = ("assets", "withCik", "price", "dollarVolume")
 _BATCH = 100
+
+
+def published(day: date, bucket: str, client: Any) -> dict[str, Any] | None:
+    """The result saved after the members file was written."""
+    found = universe_data.read_build_progress(day, bucket, client) or {}
+    result = found.get("result")
+    if found.get("phase") == "written" and isinstance(result, dict):
+        return dict(result)
+    return None
+
+
+def saved_liquid(day: date, bucket: str, client: Any) -> dict[str, Any] | None:
+    """The company list from a build that has not been written yet."""
+    found = universe_data.read_build_progress(day, bucket, client) or {}
+    if found.get("phase") not in {"exists", "qualify"}:
+        return None
+    rows = found.get("companies")
+    if not isinstance(rows, list):
+        return None
+    companies = [dict(row) for row in rows if isinstance(row, dict)]
+    if not companies:
+        return None
+    raw = found.get("funnel") if isinstance(found.get("funnel"), dict) else {}
+    funnel = {key: int(raw.get(key) or 0) for key in _FUNNEL}
+    text = str(found.get("priceAsOf") or "")
+    price_as_of = date.fromisoformat(text[:10]) if text else None
+    return {"companies": companies, "funnel": funnel, "priceAsOf": price_as_of}
 
 
 def collect(
@@ -33,15 +63,18 @@ def collect(
     bucket: str,
     client: Any,
     allow_refresh: bool = True,
+    funnel: dict[str, int] | None = None,
+    price_as_of: date | None = None,
 ) -> dict[str, Any]:
     """The small records that passed the fact rules, or a reason to stop."""
+    kept = dict(funnel or {})
     if not companies:
         universe_data.clear_build_progress(day, bucket, client)
         return _ready([], _blank())
     ciks = [str(row["cik"]) for row in companies]
     saved = _saved(day, ciks, bucket, client) if allow_refresh else {}
     if probe is not None and allow_refresh and saved.get("phase") != "qualify":
-        stopped = _exists(companies, day, ciks, context, probe, saved, bucket, client)
+        stopped = _exists(companies, day, ciks, context, probe, saved, kept, price_as_of, bucket, client)
         if stopped is not None:
             return stopped
         saved = {}
@@ -51,6 +84,7 @@ def collect(
         rules,
         context,
         facts_of=facts_of,
+        probe=probe,
         subs_of=subs_of,
         cover_of=cover_of,
         bucket=bucket,
@@ -58,7 +92,100 @@ def collect(
         allow_refresh=allow_refresh,
         saved=saved,
         ciks=ciks,
+        funnel=kept,
+        price_as_of=price_as_of,
     )
+
+
+def publish(
+    prepared: list[tuple[dict[str, Any], share_count.Chosen]],
+    stage: dict[str, int],
+    funnel: dict[str, int],
+    day: date,
+    rules: dict[str, Any],
+    sessions: list[date],
+    read_actions: Actions | None,
+    bucket: str,
+    client: Any,
+    ranges: list[dict[str, Any]],
+    company_sectors: dict[str, str],
+    price_as_of: date | None,
+) -> dict[str, Any]:
+    """Write the members, then keep a short marker so a retry skips this work."""
+    earliest: date | None = None
+    for _row, picked in prepared:
+        if earliest is None or picked.after < earliest:
+            earliest = picked.after
+    events = (
+        universe_data.split_events(day, earliest, sessions, read_actions, bucket, client)
+        if prepared and earliest is not None
+        else {}
+    )
+    floor = float(rules["minMarketCapUsd"])
+    sized: list[dict[str, Any]] = []
+    for row, picked in prepared:
+        factor = share_count.split_factor(events.get(row["symbol"], []), picked.after, day)
+        cap = picked.value * factor * float(row["close"])
+        if cap < floor:
+            continue
+        carried = dict(row)
+        carried["marketCap"] = cap
+        carried["sharesSource"] = picked.source
+        carried["sector"] = universe.sector_for(row["sic"], ranges, cik=str(row["cik"]), companies=company_sectors)
+        sized.append(carried)
+    members = [
+        {
+            "symbol": row["symbol"],
+            "cik": row["cik"],
+            "name": row["name"],
+            "sic": None if row["sic"] is None else str(row["sic"]),
+            "sector": row["sector"],
+            "close": row["close"],
+            "medianDollarVolume": row["medianDollarVolume"],
+            "marketCap": row["marketCap"],
+            "sharesSource": row["sharesSource"],
+        }
+        for row in sorted(sized, key=lambda item: item["symbol"])
+    ]
+    counts = {
+        "assets": int(funnel.get("assets") or 0),
+        "withCik": int(funnel.get("withCik") or 0),
+        "price": int(funnel.get("price") or 0),
+        "dollarVolume": int(funnel.get("dollarVolume") or 0),
+        "fundamentals": stage["fundamentals"],
+        "sic": stage["sic"],
+        "annualReport": stage["annualReport"],
+        "history": stage["history"],
+        "marketCap": len(members),
+    }
+    sector_counts: dict[str, int] = {}
+    share_sources: dict[str, int] = {}
+    for row in members:
+        sector_counts[row["sector"]] = sector_counts.get(row["sector"], 0) + 1
+        share_sources[row["sharesSource"]] = share_sources.get(row["sharesSource"], 0) + 1
+    universe_data.write_universe(
+        day,
+        members,
+        counts,
+        sector_counts,
+        bucket,
+        client,
+        float(rules["maxMemberDropFraction"]),
+        share_sources,
+        price_as_of,
+    )
+    result = {
+        "asOf": day.isoformat(),
+        "status": "done",
+        "members": len(members),
+        "counts": counts,
+        "sectors": sector_counts,
+        "shareSources": share_sources,
+        "symbols": [str(row["symbol"]) for row in members],
+        "ciks": sorted({str(row["cik"]) for row in members}),
+    }
+    universe_data.write_build_progress(day, {"phase": "written", "result": result}, bucket, client)
+    return result
 
 
 def _blank() -> dict[str, int]:
@@ -126,14 +253,27 @@ def _pack(row: dict[str, Any], picked: share_count.Chosen) -> dict[str, Any]:
     }
 
 
+def _liquid(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "symbol": str(row["symbol"]),
+        "cik": str(row["cik"]),
+        "name": str(row.get("name") or ""),
+        "close": float(row["close"]),
+        "medianDollarVolume": float(row["medianDollarVolume"]),
+    }
+
+
 def _write(
     day: date,
+    companies: list[dict[str, Any]],
     ciks: list[str],
     phase: str,
     cursor: int,
     missing: list[str],
     counts: dict[str, int],
     prepared: list[tuple[dict[str, Any], share_count.Chosen]],
+    funnel: dict[str, int],
+    price_as_of: date | None,
     bucket: str,
     client: Any,
 ) -> None:
@@ -141,6 +281,9 @@ def _write(
         day,
         {
             "ciks": ciks,
+            "companies": [_liquid(row) for row in companies],
+            "funnel": funnel,
+            "priceAsOf": None if price_as_of is None else price_as_of.isoformat(),
             "phase": phase,
             "cursor": cursor,
             "missing": missing,
@@ -159,22 +302,28 @@ def _exists(
     context: Any,
     probe: Probe,
     saved: dict[str, Any],
+    funnel: dict[str, int],
+    price_as_of: date | None,
     bucket: str,
     client: Any,
 ) -> dict[str, Any] | None:
     """Missing files, without their bodies. ``None`` means every file is there."""
     cursor = int(saved.get("cursor") or 0) if saved.get("phase") == "exists" else 0
     missing = [str(cik) for cik in saved.get("missing") or []] if saved.get("phase") == "exists" else []
+
+    def remember(at: int) -> None:
+        _write(day, companies, ciks, "exists", at, missing, _blank(), [], funnel, price_as_of, bucket, client)
+
     for index, row in enumerate(companies):
         if index < cursor:
             continue
         if universe._out_of_time(context):
-            _write(day, ciks, "exists", index, missing, _blank(), [], bucket, client)
+            remember(index)
             return _running(len(companies) - index)
         if not probe(str(row["cik"])):
             missing.append(str(row["cik"]))
         if (index + 1) % _BATCH == 0:
-            _write(day, ciks, "exists", index + 1, missing, _blank(), [], bucket, client)
+            remember(index + 1)
     if not missing:
         universe_data.clear_build_progress(day, bucket, client)
         return None
@@ -195,6 +344,7 @@ def _qualify(
     context: Any,
     *,
     facts_of: Facts,
+    probe: Probe | None,
     subs_of: Submissions,
     cover_of: Cover,
     bucket: str,
@@ -202,6 +352,8 @@ def _qualify(
     allow_refresh: bool,
     saved: dict[str, Any],
     ciks: list[str],
+    funnel: dict[str, int],
+    price_as_of: date | None,
 ) -> dict[str, Any]:
     qualify = saved.get("phase") == "qualify"
     try:
@@ -218,7 +370,7 @@ def _qualify(
     min_years = int(rules["minFundamentalsYears"])
 
     def remember(at: int) -> None:
-        _write(day, ciks, "qualify", at, missing, counts, prepared, bucket, client)
+        _write(day, companies, ciks, "qualify", at, missing, counts, prepared, funnel, price_as_of, bucket, client)
 
     for index, row in enumerate(companies):
         if index < cursor:
@@ -226,6 +378,15 @@ def _qualify(
         if universe._out_of_time(context):
             remember(index)
             return _running(len(companies) - index)
+        if missing and allow_refresh and probe is not None:
+            if universe._out_of_time(context):
+                remember(index)
+                return _running(len(companies) - index)
+            if not probe(str(row["cik"])):
+                missing.append(str(row["cik"]))
+            if (index + 1) % _BATCH == 0:
+                remember(index + 1)
+            continue
         facts = facts_of(str(row["cik"]))
         if facts is None:
             if allow_refresh:
@@ -258,7 +419,7 @@ def _qualify(
             "prepared": [],
             "counts": _blank(),
         }
-    universe_data.clear_build_progress(day, bucket, client)
+    remember(len(companies))
     return _ready(prepared, counts)
 
 

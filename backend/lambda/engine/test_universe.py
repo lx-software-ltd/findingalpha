@@ -11,6 +11,7 @@ from unittest.mock import patch
 import s3io
 import universe
 import universe_data
+import universe_screen
 from test_ingest_prices import _bind, _Bucket, _Context, _Memory
 
 AS_OF = date(2024, 6, 3)
@@ -402,6 +403,7 @@ def _build(
     on_submissions: object = None,
     use_bucket_facts: bool = False,
     read_facts: object = None,
+    listed: list[str] | None = None,
 ) -> tuple[dict[str, object], _Bucket, _Memory]:
     chosen = sessions if sessions is not None else _sessions()
     memory = memory or _Memory()
@@ -443,9 +445,10 @@ def _build(
                 stored,  # type: ignore[arg-type]
                 client=bucket,
             )
-    assets = [_asset(str(company["symbol"])) for company in companies]
+    shown = companies if listed is None else [company for company in companies if str(company["symbol"]) in set(listed)]
+    assets = [_asset(str(company["symbol"])) for company in shown]
     tickers = {
-        str(company["symbol"]): {"cik": company["cik"], "name": f"Example {company['symbol']}"} for company in companies
+        str(company["symbol"]): {"cik": company["cik"], "name": f"Example {company['symbol']}"} for company in shown
     }
     with (
         _bind(memory)[0],
@@ -480,6 +483,35 @@ def _counted_facts(facts: dict[str, object], reads: list[str] | None):
         return facts.get(cik)
 
     return read
+
+
+def _liquid(symbol: str, cik: int) -> dict[str, object]:
+    return {
+        "symbol": symbol,
+        "cik": _cik(cik),
+        "name": f"Example {symbol}",
+        "close": 10,
+        "medianDollarVolume": 3_000_000,
+    }
+
+
+def _refuse_facts(_cik: str) -> None:
+    raise AssertionError("facts")
+
+
+def _collect(companies: list[dict[str, object]], bucket: _Bucket, **kwargs: object) -> dict[str, object]:
+    return universe_screen.collect(  # type: ignore[return-value]
+        companies,  # type: ignore[arg-type]
+        AS_OF,
+        universe.load_rules(),
+        kwargs.get("context"),
+        facts_of=kwargs["facts_of"],  # type: ignore[arg-type]
+        probe=kwargs.get("probe"),  # type: ignore[arg-type]
+        subs_of=lambda cik: {"sic": "7372"},
+        cover_of=lambda _cik, _day: None,
+        bucket="data",
+        client=bucket,
+    )
 
 
 def _symbols(bucket: _Bucket) -> list[str]:
@@ -891,9 +923,20 @@ class UniverseReviewTest(unittest.TestCase):
         self.assertEqual(finished["status"], "done")
         self.assertEqual(second_reads, [_cik(2)])
         self.assertEqual(_symbols(bucket), ["ALSO", "PASS"])
-        self.assertNotIn(("data", "universe/date=2024-06-03/build.json"), bucket.objects)
+        kept = s3io.get_json("data", "universe/date=2024-06-03/build.json", client=bucket)
+        self.assertEqual(kept["phase"], "written")
         stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
         self.assertEqual([row["marketCap"] for row in stored], [SHARES * 10, SHARES * 10])
+        third_reads: list[str] = []
+        again, _bucket, _memory = _build(
+            [_company("PASS", cik=1), _company("ALSO", cik=2)],
+            bucket=bucket,
+            memory=memory,
+            fact_reads=third_reads,
+        )
+        self.assertEqual(third_reads, [])
+        self.assertEqual(again["status"], "done")
+        self.assertEqual(again["members"], finished["members"])
 
     def test_a_missing_company_file_is_not_downloaded(self) -> None:
         def download(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
@@ -932,6 +975,260 @@ class UniverseReviewTest(unittest.TestCase):
         saved = memory.items[("UNIVERSE#2024-06-04", "META")]
         self.assertEqual(saved["asOf"], "2024-06-04")
         self.assertEqual(saved["lastPriceDate"], "2024-06-03")
+
+    def test_a_short_clock_after_the_screen_does_not_write_members(self) -> None:
+        reads: list[str] = []
+
+        class Clock:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def get_remaining_time_in_millis(self) -> int:
+                self.calls += 1
+                return 60_000 if self.calls >= 4 else 900_000
+
+        stopped, bucket, memory = _build([_company("PASS")], fact_reads=reads, context=Clock())
+        progress = s3io.get_json("data", "universe/date=2024-06-03/build.json", client=bucket)
+        self.assertEqual(stopped["status"], "running")
+        self.assertEqual(reads, [_cik(1)])
+        self.assertEqual(_symbols(bucket), [])
+        self.assertEqual(progress["phase"], "qualify")
+        self.assertEqual(progress["cursor"], 1)
+        self.assertEqual(progress["companies"][0]["cik"], _cik(1))
+        again: list[str] = []
+        finished, bucket, _memory = _build([_company("PASS")], bucket=bucket, memory=memory, fact_reads=again)
+        self.assertEqual(again, [])
+        self.assertEqual(finished["status"], "done")
+        self.assertEqual(_symbols(bucket), ["PASS"])
+
+    def test_a_changed_company_list_keeps_the_saved_screen(self) -> None:
+        clock = {"open": True}
+        first_reads: list[str] = []
+        second_reads: list[str] = []
+        bucket = _Bucket()
+        memory = _Memory()
+
+        class Clock:
+            def get_remaining_time_in_millis(self) -> int:
+                return 900_000 if clock["open"] else 60_000
+
+        stopped, _bucket, _memory = _build(
+            [_company("PASS", cik=1), _company("ALSO", cik=2)],
+            bucket=bucket,
+            memory=memory,
+            fact_reads=first_reads,
+            context=Clock(),
+            on_submissions=lambda _cik: clock.__setitem__("open", False),
+        )
+        self.assertEqual(stopped["status"], "running")
+        self.assertEqual(first_reads, [_cik(1)])
+        finished, bucket, _memory = _build(
+            [_company("PASS", cik=1), _company("ALSO", cik=2)],
+            bucket=bucket,
+            memory=memory,
+            fact_reads=second_reads,
+            listed=["PASS"],
+        )
+        self.assertEqual(second_reads, [_cik(2)])
+        self.assertEqual(finished["status"], "done")
+        self.assertEqual(_symbols(bucket), ["ALSO", "PASS"])
+
+    def test_a_checkpoint_is_written_every_batch(self) -> None:
+        snaps: list[object] = []
+
+        def read(cik: str) -> object:
+            key = ("data", "universe/date=2024-06-03/build.json")
+            snaps.append(s3io.get_json("data", key[1], client=bucket) if key in bucket.objects else None)
+            reads.append(cik)
+            return facts[cik]
+
+        reads: list[str] = []
+        companies = [_company("DROP", facts=[]), _company("PASS", cik=2), _company("ALSO", cik=3)]
+        facts = {str(company["cik"]): company["facts"] for company in companies}
+        bucket = _Bucket()
+        with patch.object(universe_screen, "_BATCH", 1):
+            _build(companies, bucket=bucket, read_facts=read)
+        self.assertEqual(reads, [_cik(1), _cik(2), _cik(3)])
+        self.assertEqual(snaps[1]["cursor"], 1)  # type: ignore[index]
+        self.assertEqual(snaps[1]["prepared"], [])  # type: ignore[index]
+        self.assertEqual(snaps[2]["cursor"], 2)  # type: ignore[index]
+        self.assertEqual(len(snaps[2]["prepared"]), 1)  # type: ignore[index]
+
+    def test_the_exists_scan_stops_and_the_next_run_continues(self) -> None:
+        probes: list[str] = []
+
+        class Clock:
+            def get_remaining_time_in_millis(self) -> int:
+                return 60_000 if probes else 900_000
+
+        def probe(cik: str) -> bool:
+            probes.append(cik)
+            return False
+
+        companies = [_liquid("ONE", 1), _liquid("TWO", 2), _liquid("THREE", 3)]
+        bucket = _Bucket()
+        first = _collect(companies, bucket, probe=probe, context=Clock(), facts_of=_refuse_facts)
+        progress = s3io.get_json("data", "universe/date=2024-06-03/build.json", client=bucket)
+        self.assertEqual(first["status"], "running")
+        self.assertEqual(probes, [_cik(1)])
+        self.assertEqual(progress["phase"], "exists")
+        self.assertEqual(progress["cursor"], 1)
+        self.assertEqual(progress["missing"], [_cik(1)])
+        self.assertEqual([row["symbol"] for row in progress["companies"]], ["ONE", "TWO", "THREE"])
+        later: list[str] = []
+        second = _collect(
+            companies,
+            bucket,
+            probe=lambda cik: later.append(cik) or False,
+            context=_Context(),
+            facts_of=_refuse_facts,
+        )
+        self.assertEqual(later, [_cik(2), _cik(3)])
+        self.assertEqual(second["status"], "refresh")
+        self.assertEqual(second["missing"], [_cik(1), _cik(2), _cik(3)])
+
+    def test_the_exists_scan_checkpoints_each_batch(self) -> None:
+        seen: list[str] = []
+        bucket = _Bucket()
+
+        def probe(cik: str) -> bool:
+            seen.append(cik)
+            if len(seen) == 3:
+                progress = s3io.get_json("data", "universe/date=2024-06-03/build.json", client=bucket)
+                snaps.append(progress["cursor"])
+            return True
+
+        snaps: list[int] = []
+        companies = [_liquid("ONE", 1), _liquid("TWO", 2), _liquid("THREE", 3)]
+        with patch.object(universe_screen, "_BATCH", 2):
+            _collect(companies, bucket, probe=probe, context=_Context(), facts_of=lambda _cik: [])
+        self.assertEqual(snaps, [2])
+
+    def test_a_damaged_progress_row_starts_the_screen_again(self) -> None:
+        companies = [_liquid("ONE", 1), _liquid("TWO", 2)]
+        bucket = _Bucket()
+        universe_data.write_build_progress(
+            AS_OF,
+            {
+                "phase": "qualify",
+                "cursor": 9,
+                "ciks": [_cik(1), _cik(2)],
+                "companies": companies,
+                "missing": [],
+                "counts": {},
+                "prepared": [{}],
+                "funnel": {},
+            },
+            "data",
+            bucket,
+        )
+        reads: list[str] = []
+        result = _collect(
+            companies,
+            bucket,
+            probe=None,
+            context=_Context(),
+            facts_of=lambda cik: reads.append(cik) or _history(SHARES),
+        )
+        self.assertEqual(reads, [_cik(1), _cik(2)])
+        self.assertEqual(result["status"], "ready")
+
+    def test_a_missing_file_does_not_download_the_ones_after_it(self) -> None:
+        companies = [_liquid("ONE", 1), _liquid("TWO", 2)]
+        bucket = _Bucket()
+        universe_data.write_build_progress(
+            AS_OF,
+            {
+                "phase": "qualify",
+                "cursor": 0,
+                "ciks": [_cik(1), _cik(2)],
+                "companies": companies,
+                "missing": [],
+                "counts": {},
+                "prepared": [],
+                "funnel": {},
+            },
+            "data",
+            bucket,
+        )
+        reads: list[str] = []
+        probes: list[str] = []
+
+        def facts(cik: str) -> list[dict[str, object]] | None:
+            reads.append(cik)
+            return None if cik == _cik(1) else _history(SHARES)
+
+        result = _collect(
+            companies,
+            bucket,
+            probe=lambda cik: probes.append(cik) or False,
+            context=_Context(),
+            facts_of=facts,
+        )
+        self.assertEqual(reads, [_cik(1)])
+        self.assertEqual(probes, [_cik(2)])
+        self.assertEqual(result["status"], "refresh")
+        self.assertEqual(result["missing"], [_cik(1), _cik(2)])
+
+    def test_a_short_clock_during_the_rules_retries_that_company(self) -> None:
+        reads: list[str] = []
+
+        class Clock:
+            def get_remaining_time_in_millis(self) -> int:
+                return 60_000 if reads else 900_000
+
+        stopped, bucket, memory = _build(
+            [_company("PASS", cik=1), _company("ALSO", cik=2)],
+            fact_reads=reads,
+            context=Clock(),
+        )
+        progress = s3io.get_json("data", "universe/date=2024-06-03/build.json", client=bucket)
+        self.assertEqual(stopped["status"], "running")
+        self.assertEqual(reads, [_cik(1)])
+        self.assertEqual(progress["cursor"], 0)
+        again: list[str] = []
+        finished, bucket, _memory = _build(
+            [_company("PASS", cik=1), _company("ALSO", cik=2)],
+            bucket=bucket,
+            memory=memory,
+            fact_reads=again,
+        )
+        self.assertEqual(again, [_cik(1), _cik(2)])
+        self.assertEqual(finished["status"], "done")
+        self.assertEqual(_symbols(bucket), ["ALSO", "PASS"])
+
+    def test_a_short_clock_before_the_cover_does_not_download_it(self) -> None:
+        covers: list[str] = []
+
+        class Clock:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def get_remaining_time_in_millis(self) -> int:
+                self.calls += 1
+                return 60_000 if self.calls >= 4 else 900_000
+
+        years = ("2021-12-31", "2022-12-31", "2023-12-31")
+        rows = [_annual(end, "2024-02-01" if end == years[-1] else f"{int(end[:4]) + 1}-02-15") for end in years]
+        seen: list[str] = []
+        stopped, bucket, memory = _build(
+            [_company("PASS", facts=rows)],
+            context=Clock(),
+            on_submissions=lambda cik: seen.append(cik),
+            read_cover=lambda cik, _day: covers.append(cik),
+        )
+        self.assertEqual(stopped["status"], "running")
+        self.assertEqual(seen, [_cik(1)])
+        self.assertEqual(covers, [])
+        finished, bucket, _memory = _build(
+            [_company("PASS", facts=rows)],
+            bucket=bucket,
+            memory=memory,
+            read_cover=lambda cik, _day: covers.append(cik),
+        )
+        self.assertEqual(covers, [_cik(1)])
+        self.assertEqual(finished["status"], "done")
+        self.assertEqual(_symbols(bucket), [])
 
 
 def _weighted(start: str, end: str, value: int) -> dict[str, object]:
