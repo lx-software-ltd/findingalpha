@@ -216,7 +216,9 @@ Needs O12 (PDFs uploaded) and O13 (questions file).
 `expectedText` after lower-casing and collapsing whitespace. Also
 record **hit at 3**. Store the run under `KB#eval` with per-question
 results (question id, hit rank or `null`, the documents returned; no
-passage text).
+passage text). Each question also carries `page` and `formula`. They
+are for the hand check below. The job accepts them and does not score
+them.
 
 Targets: at least 16 of 20 at 8, and at least 12 of 20 at 3.
 
