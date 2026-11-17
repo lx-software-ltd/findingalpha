@@ -41,8 +41,9 @@ Owner decisions, the same evening:
   move from `theory/` to `scans/` before the first sync. That sync
   covers the 131 text books. Three scanned books are a later trial.
 - Alarm: `RawDataSize` above 2.0 GB.
-- `EngineFn` bundles `boto3==1.44.3`. The change is
-  `docs/plans/m07-pin-boto3.md`.
+- `AdminApiFn` and `EngineFn` bundle `boto3==1.44.3` and
+  `botocore==1.44.3`, because both are built from the engine directory.
+  The change is `docs/plans/m07-pin-boto3.md`.
 
 - Managed Knowledge Base (`type: MANAGED`) is available in
   `ap-southeast-1`. Hybrid search is always on. Embedding, reranking
@@ -141,9 +142,10 @@ deps)`:
    policy lists exactly the actions from T01.
 3. **Three data sources**, each on one prefix: `theory`,
    `formula-notes`, `journal`. Chunking: fixed size, 800 tokens, 15%
-   overlap. Data deletion policy: retain. This choice is permanent for
-   a data source, which is why T05 measures it before anything depends
-   on it.
+   overlap. Data deletion policy: `DELETE`. The knowledge base uses
+   retain-except-on-create. Data sources are not retained: chunking is
+   create-only, and a retained data source would stay indexed and
+   billed. The PDFs in S3 are the source of truth.
 4. Environment for `EngineFn`: `KNOWLEDGE_BASE_ID` and
    `KB_DATA_SOURCE_IDS` (JSON map of prefix to id).
 5. IAM for `EngineFn`: `bedrock:Retrieve` on the knowledge base ARN;
