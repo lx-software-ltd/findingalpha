@@ -995,7 +995,7 @@ export const roadmap = {
       "title": "Knowledge base",
       "plan": "docs/plans/07-knowledge-base.md",
       "zone": "red",
-      "status": "not_started",
+      "status": "in_progress",
       "dependsOn": [
         "M02"
       ],
@@ -1004,7 +1004,7 @@ export const roadmap = {
         {
           "id": "M07-T01",
           "title": "Spike and memo",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M07-T02",
