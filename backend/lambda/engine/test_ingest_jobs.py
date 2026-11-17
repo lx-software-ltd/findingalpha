@@ -283,7 +283,7 @@ class IngestJobsTest(unittest.TestCase):
         def coverage(_ciks: list[str], _day: date) -> None:
             raise RuntimeError("stopped")
 
-        with patch("store.put", put), self.assertRaises(RuntimeError):
+        with patch("store.get", return_value=None), patch("store.put", put), self.assertRaises(RuntimeError):
             ingest_jobs.weekly_refresh(
                 {},
                 None,
@@ -316,7 +316,11 @@ class IngestJobsTest(unittest.TestCase):
         def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
             return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
 
-        with patch("store.put", put), patch.object(ingest_jobs, "_adjusted", adjusted):
+        with (
+            patch("store.get", return_value=None),
+            patch("store.put", put),
+            patch.object(ingest_jobs, "_adjusted", adjusted),
+        ):
             ingest_jobs.weekly_refresh(
                 {},
                 None,
@@ -489,6 +493,70 @@ class IngestJobsTest(unittest.TestCase):
         self.assertEqual(jobs_handler.switch_for("ingest_filings_refresh#2024-06-03"), "ingestEnabled")
         self.assertIs(jobs_handler.handler_for(ingest_jobs.ADJUSTED_JOB), jobs_handler._adjusted)
         self.assertIs(jobs_handler.handler_for(ingest_jobs.UNIVERSE_BUILD_JOB), jobs_handler._universe_build)
+
+    def test_the_build_is_leased_before_it_runs_and_the_lease_is_dropped_when_it_stops(self) -> None:
+        from unittest.mock import patch
+
+        order: list[str] = []
+        last: dict[str, object] = {}
+
+        def put(item: dict[str, object]) -> None:
+            if item.get("pk") != "JOB#universe_build":
+                return
+            order.append("lease" if "leaseUntil" in item else str(item.get("status")))
+            last.clear()
+            last.update(item)
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            order.append("build")
+            return {"status": "running", "pending": 4}
+
+        with patch("store.get", return_value=None), patch("store.put", put):
+            result = ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+                coverage=lambda *_args: None,
+            )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(order, ["lease", "build", "running"])
+        self.assertNotIn("leaseUntil", last)
+
+    def test_a_facts_refresh_clears_the_build_lease(self) -> None:
+        from unittest.mock import patch
+
+        calls = {"n": 0}
+        deleted: list[tuple[str, str]] = []
+
+        def get(_pk: str, _sk: str) -> dict[str, str] | None:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return {"status": "running"}
+
+        def build(_day: date, _context: object, **_kwargs: object) -> dict[str, object]:
+            return {"status": "running", "pending": 2}
+
+        with (
+            patch("store.get", side_effect=get),
+            patch("store.put", lambda _item: None),
+            patch("store.delete", lambda pk, sk: deleted.append((pk, sk))),
+        ):
+            result = ingest_jobs.weekly_refresh(
+                {},
+                None,
+                now=SATURDAY_OPEN,
+                sessions=[FRIDAY],
+                assets=[ASSET],
+                tickers=TICKERS,
+                build=build,
+            )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(deleted, [("JOB#universe_build", "STATE")])
 
 
 if __name__ == "__main__":

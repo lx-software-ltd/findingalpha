@@ -379,55 +379,46 @@ def build(
     window = _window(sessions, day, needed)
     if joined and len(window) < needed:
         raise PriceWindowShort(day.isoformat())
+    if joined and _out_of_time(context):
+        return {"asOf": day.isoformat(), "status": "running", "pending": len(joined)}
     priced, liquid = _prices(joined, bars_of, window, chosen)
     priced_companies = _one_listing(priced)
     companies = _one_listing(liquid)
-    loaded: dict[str, list[dict[str, Any]] | None] = {}
 
-    def facts_once(cik: str) -> list[dict[str, Any]] | None:
-        if cik not in loaded:
-            loaded[cik] = facts_of(cik)
-        return loaded[cik]
+    def screen(allow_refresh: bool) -> dict[str, Any]:
+        import universe_screen
 
-    missing = sorted({row["cik"] for row in companies if facts_once(row["cik"]) is None})
-    if missing:
-        outcome = refresh_of(missing, context) or {}
+        return universe_screen.collect(
+            companies,
+            day,
+            chosen,
+            context,
+            facts_of=facts_of,
+            probe=None if read_facts is not None else universe_data.facts_present(name, client),
+            subs_of=subs_of,
+            cover_of=cover_of,
+            bucket=name,
+            client=client,
+            allow_refresh=allow_refresh,
+        )
+
+    screened = screen(True)
+    if screened["status"] == "refresh":
+        outcome = refresh_of(list(screened["missing"]), context) or {}
         if not isinstance(outcome, dict) or outcome.get("status") != "done":
             status = str(outcome.get("status") or "running") if isinstance(outcome, dict) else "running"
-            return {"asOf": day.isoformat(), "status": status, "pending": len(missing)}
-        for cik in missing:
-            loaded.pop(cik, None)
-    kept: list[dict[str, Any]] = []
-    for index, row in enumerate(companies):
-        visible = _visible(facts_once(row["cik"]), day)
-        if not visible:
-            continue
-        if _out_of_time(context):
-            return {"asOf": day.isoformat(), "status": "running", "pending": len(companies) - index}
-        carried = dict(row)
-        carried["sic"] = subs_of(row["cik"]).get("sic")
-        carried["rows"] = visible
-        kept.append(carried)
-    annual_form = str(chosen["requireAnnualReportForm"])
-    allowed = [row for row in kept if not _excluded(row["sic"], chosen["excludeSicRanges"])]
-    max_age = int(chosen["maxAnnualReportAgeDays"])
-    reporting = [row for row in allowed if _recent_annual(row["rows"], annual_form, day, max_age)]
-    seasoned = [
-        row
-        for row in reporting
-        if len(set(_annual_filings(row["rows"], annual_form).values())) >= int(chosen["minFundamentalsYears"])
-    ]
-    prepared: list[tuple[dict[str, Any], share_count.Chosen]] = []
+            return {"asOf": day.isoformat(), "status": status, "pending": len(screened["missing"])}
+        screened = screen(False)
+    if screened["status"] != "ready":
+        return {
+            "asOf": day.isoformat(),
+            "status": str(screened.get("status") or "running"),
+            "pending": int(screened.get("pending") or 0),
+        }
+    prepared = list(screened["prepared"])
+    stage = screened["counts"]
     earliest: date | None = None
-    for index, row in enumerate(seasoned):
-        picked = share_count.choose(row["rows"], day)
-        if picked is None:
-            if _out_of_time(context):
-                return {"asOf": day.isoformat(), "status": "running", "pending": len(seasoned) - index}
-            picked = share_count.from_cover(cover_of(row["cik"], day), day)
-        if picked is None:
-            continue
-        prepared.append((row, picked))
+    for _row, picked in prepared:
         if earliest is None or picked.after < earliest:
             earliest = picked.after
     events = (
@@ -466,10 +457,10 @@ def build(
         "withCik": len(joined),
         "price": len(priced_companies),
         "dollarVolume": len(companies),
-        "fundamentals": len(kept),
-        "sic": len(allowed),
-        "annualReport": len(reporting),
-        "history": len(seasoned),
+        "fundamentals": stage["fundamentals"],
+        "sic": stage["sic"],
+        "annualReport": stage["annualReport"],
+        "history": stage["history"],
         "marketCap": len(members),
     }
     sector_counts: dict[str, int] = {}

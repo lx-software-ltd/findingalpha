@@ -1,10 +1,7 @@
 """The ingest jobs tick and the dashboard can start.
 
-The session is the New York trading day that has already closed. A run
-at 12:00 in Hong Kong is 23:00 New York in winter and midnight in
-summer, after the SEC daily index. A resumed price backfill keeps the
-``start`` and ``end`` saved with the job. A universe build that stops
-early is saved so tick can run it again, and the adjusted refresh resumes too.
+A resumed price backfill keeps its saved window. A universe build that
+stops, and the adjusted refresh, are saved so tick can run them again.
 """
 
 from __future__ import annotations
@@ -33,7 +30,6 @@ Coverage = Callable[[list[str], date], None]
 
 
 def closed_session(now: datetime | None, calendar: list[date]) -> date | None:
-    """The latest session whose 16:00 New York close is already in the past."""
     moment = (now or datetime.now(NEW_YORK)).astimezone(NEW_YORK)
     today = moment.date()
     after_close = moment.time() >= _CLOSE
@@ -94,7 +90,6 @@ def ingest_daily(
     load_assets: Assets | None = None,
     load_tickers: Tickers | None = None,
 ) -> dict[str, Any]:
-    """One closed New York session: prices, corporate actions, filings, and news."""
     moment = _moment(now)
     calendar = _calendar(sessions, load_sessions, date(moment.year - 1, 1, 1), moment.date())
     saved = _params(event).get("day")
@@ -144,7 +139,6 @@ def weekly_refresh(
     note_build: Note | None = None,
     coverage: Coverage | None = None,
 ) -> dict[str, Any]:
-    """Refresh the lists, build the universe, then the adjusted prices."""
     moment = _moment(now)
     calendar = _calendar(sessions, load_sessions, date(moment.year - 1, 1, 1), moment.date())
     saved = _params(event).get("day")
@@ -236,7 +230,6 @@ def resume_universe(
     note_build: Note | None = None,
     coverage: Coverage | None = None,
 ) -> dict[str, Any]:
-    """Finish the facts refresh, then build the universe for the saved date."""
     params = _params(event)
     result = (refresh or _facts)(
         list(params.get("ciks") or []),
@@ -266,7 +259,6 @@ def resume_build(
     note_build: Note | None = None,
     coverage: Coverage | None = None,
 ) -> dict[str, Any]:
-    """Continue a universe build that stopped before it finished."""
     params = _params(event)
     if not params.get("asOf"):
         return {"ok": False, "status": "missing_inputs"}
@@ -277,7 +269,6 @@ def resume_build(
 
 
 def resume_adjusted(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Continue the adjusted-price refresh from the symbols saved with it."""
     params = _params(event)
     symbols = [str(symbol) for symbol in params.get("symbols") or [] if str(symbol)]
     end = str(params.get("end") or "")
@@ -323,11 +314,20 @@ def _follow(
     note_build: Note | None,
     coverage: Coverage | None,
 ) -> dict[str, Any]:
+    held = False
+    if note_build is None and not _facts_open():
+        _note_build(day, "running", hold=True)
+        held = True
     outcome = (build or _universe)(day, context, assets=listed, tickers=mapped, sessions=calendar)
     status = str(outcome.get("status") or "running") if isinstance(outcome, dict) else "running"
     body: dict[str, Any] = {"ok": status != "failed", "status": status, "asOf": day.isoformat(), "build": outcome}
     if status != "done":
-        if not (status == "running" and _facts_open()):
+        if status == "running" and _facts_open():
+            if held:
+                import store
+
+                store.delete(f"JOB#{UNIVERSE_BUILD_JOB}", "STATE")
+        else:
             (note_build or _note_build)(day, "running" if status == "running" else "failed")
         return body
     (note_build or _note_build)(day, "done")
@@ -361,24 +361,28 @@ def _raw_symbols(assets: list[dict[str, Any]], include_inactive: bool) -> list[s
     return ingest_prices.raw_symbols(assets, include_inactive=include_inactive)
 
 
-def _note_build(day: date, status: str) -> None:
+def _note_build(day: date, status: str, *, hold: bool = False) -> None:
     import store
     import timeutil
 
     kept = status if status in {"running", "paused", "failed", "done"} else "failed"
-    store.put(
-        {
-            "pk": f"JOB#{UNIVERSE_BUILD_JOB}",
-            "sk": "STATE",
-            "status": kept,
-            "cursor": 0 if kept == "running" else 1,
-            "total": 1,
-            "gsi1pk": "JOBSTATE",
-            "gsi1sk": UNIVERSE_BUILD_JOB,
-            "params": {"asOf": day.isoformat()},
-            "updatedAt": timeutil.format_iso_millis(timeutil.utc_now()),
-        }
-    )
+    now = timeutil.utc_now()
+    item: dict[str, Any] = {
+        "pk": f"JOB#{UNIVERSE_BUILD_JOB}",
+        "sk": "STATE",
+        "status": kept,
+        "cursor": 0 if kept == "running" else 1,
+        "total": 1,
+        "gsi1pk": "JOBSTATE",
+        "gsi1sk": UNIVERSE_BUILD_JOB,
+        "params": {"asOf": day.isoformat()},
+        "updatedAt": timeutil.format_iso_millis(now),
+    }
+    if hold:
+        import chunked
+
+        item["leaseUntil"] = timeutil.format_iso_millis(now + chunked.LEASE)
+    store.put(item)
 
 
 def _facts_open() -> bool:
@@ -390,11 +394,7 @@ def _facts_open() -> bool:
 
 
 def _save_adjusted(symbols: list[str], day: date, *, hold: bool) -> None:
-    """Save the adjusted refresh before the coverage report.
-
-    The lease keeps tick from starting a second copy. An empty list is kept
-    because the refresh still writes SPY and BIL.
-    """
+    """Lease the adjusted refresh, then release it. An empty list still writes SPY and BIL."""
     import chunked
     import store
     import timeutil

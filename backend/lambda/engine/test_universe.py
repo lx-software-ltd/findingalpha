@@ -399,6 +399,9 @@ def _build(
     bucket: _Bucket | None = None,
     fact_reads: list[str] | None = None,
     context: object = None,
+    on_submissions: object = None,
+    use_bucket_facts: bool = False,
+    read_facts: object = None,
 ) -> tuple[dict[str, object], _Bucket, _Memory]:
     chosen = sessions if sessions is not None else _sessions()
     memory = memory or _Memory()
@@ -425,8 +428,21 @@ def _build(
         return rows
 
     def submissions(cik: str) -> dict[str, object]:
+        if on_submissions is not None:
+            on_submissions(cik)  # type: ignore[operator]
         return {"sic": sics.get(cik)}
 
+    if use_bucket_facts:
+        for company in companies:
+            stored = company["facts"]
+            if not isinstance(stored, list):
+                continue
+            s3io.put_jsonl_gz(
+                "data",
+                f"fundamentals/pit/cik={company['cik']}/facts.jsonl.gz",
+                stored,  # type: ignore[arg-type]
+                client=bucket,
+            )
     assets = [_asset(str(company["symbol"])) for company in companies]
     tickers = {
         str(company["symbol"]): {"cik": company["cik"], "name": f"Example {company['symbol']}"} for company in companies
@@ -445,7 +461,7 @@ def _build(
             tickers=tickers,
             sessions=chosen,
             read_bars=bars,
-            read_facts=_counted_facts(facts, fact_reads),
+            read_facts=None if use_bucket_facts else read_facts or _counted_facts(facts, fact_reads),
             read_submissions=submissions,
             refresh=refresh or (lambda _ciks, _context: {"status": "done"}),
             read_actions=read_actions,
@@ -814,6 +830,102 @@ class UniverseReviewTest(unittest.TestCase):
         )
         self.assertEqual(result["status"], "missing_inputs")
         self.assertNotIn(("data", _MEMBERS), bucket.objects)
+
+    def test_a_company_file_is_dropped_before_the_next_one_is_read(self) -> None:
+        import gc
+        import weakref
+
+        class Rows(list[dict[str, object]]):
+            """A list that can be watched after the build releases it."""
+
+        companies = [_company("PASS", cik=1), _company("ALSO", cik=2)]
+        source = {str(company["cik"]): company["facts"] for company in companies}
+        held: list[weakref.ReferenceType[Rows]] = []
+
+        def read(cik: str) -> Rows:
+            if held:
+                self.assertIsNone(held[-1]())
+            rows = Rows(dict(row) for row in source[cik])  # type: ignore[union-attr]
+            held.append(weakref.ref(rows))
+            return rows
+
+        _build(companies, read_facts=read)
+        gc.collect()
+        self.assertEqual(len(held), 2)
+        self.assertTrue(all(ref() is None for ref in held))
+
+    def test_facts_stop_before_the_next_company_and_the_next_run_continues(self) -> None:
+        clock = {"open": True}
+        first_reads: list[str] = []
+        second_reads: list[str] = []
+        bucket = _Bucket()
+        memory = _Memory()
+
+        class Clock:
+            def get_remaining_time_in_millis(self) -> int:
+                return 900_000 if clock["open"] else 60_000
+
+        def saw(_cik: str) -> None:
+            clock["open"] = False
+
+        stopped, _bucket, _memory = _build(
+            [_company("PASS", cik=1), _company("ALSO", cik=2)],
+            bucket=bucket,
+            memory=memory,
+            fact_reads=first_reads,
+            context=Clock(),
+            on_submissions=saw,
+        )
+        progress = s3io.get_json("data", "universe/date=2024-06-03/build.json", client=bucket)
+        self.assertEqual(stopped["status"], "running")
+        self.assertEqual(first_reads, [_cik(1)])
+        self.assertEqual(progress["cursor"], 1)
+        self.assertEqual(_symbols(bucket), [])
+
+        finished, _bucket, _memory = _build(
+            [_company("PASS", cik=1), _company("ALSO", cik=2)],
+            bucket=bucket,
+            memory=memory,
+            fact_reads=second_reads,
+        )
+        self.assertEqual(finished["status"], "done")
+        self.assertEqual(second_reads, [_cik(2)])
+        self.assertEqual(_symbols(bucket), ["ALSO", "PASS"])
+        self.assertNotIn(("data", "universe/date=2024-06-03/build.json"), bucket.objects)
+        stored = list(s3io.get_jsonl_gz("data", _MEMBERS, client=bucket))
+        self.assertEqual([row["marketCap"] for row in stored], [SHARES * 10, SHARES * 10])
+
+    def test_a_missing_company_file_is_not_downloaded(self) -> None:
+        def download(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+            raise AssertionError("downloaded")
+
+        def refresh(ciks: list[str], _context: object) -> dict[str, object]:
+            self.assertEqual(ciks, [_cik(1)])
+            return {"status": "running"}
+
+        with patch("s3io.get_jsonl_gz", side_effect=download):
+            result, bucket, _memory = _build(
+                [_company("NEED", facts=None)],
+                refresh=refresh,
+                bucket=_Bucket(),
+                use_bucket_facts=True,
+            )
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(result["pending"], 1)
+        self.assertNotIn(("data", _MEMBERS), bucket.objects)
+
+    def test_a_stored_company_file_is_read_once(self) -> None:
+        calls: list[str] = []
+        real = s3io.get_jsonl_gz
+
+        def wrapped(bucket: str, key: str, *, client: object = None) -> object:
+            calls.append(key)
+            return real(bucket, key, client=client)
+
+        with patch("s3io.get_jsonl_gz", side_effect=wrapped):
+            result, _bucket, _memory = _build([_company("PASS")], use_bucket_facts=True)
+        self.assertEqual(result["members"], 1)
+        self.assertEqual(calls, [f"fundamentals/pit/cik={_cik(1)}/facts.jsonl.gz"])
 
     def test_the_price_date_is_the_last_session(self) -> None:
         _result, _bucket, memory = _build([_company("PASS")], on=date(2024, 6, 4))

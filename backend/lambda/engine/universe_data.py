@@ -38,14 +38,47 @@ def bars_reader(bucket: str, client: Any) -> Callable[[date], list[dict[str, Any
     return read
 
 
+def _facts_key(cik: str) -> str:
+    return f"fundamentals/pit/cik={cik}/facts.jsonl.gz"
+
+
 def facts_reader(bucket: str, client: Any) -> Callable[[str], list[dict[str, Any]] | None]:
     def read(cik: str) -> list[dict[str, Any]] | None:
-        key = f"fundamentals/pit/cik={cik}/facts.jsonl.gz"
+        key = _facts_key(cik)
         if not s3io.exists(bucket, key, client=client):
             return None
         return list(s3io.get_jsonl_gz(bucket, key, client=client))
 
     return read
+
+
+def facts_present(bucket: str, client: Any) -> Callable[[str], bool]:
+    """Whether a company file is stored. This does not download it."""
+
+    def probe(cik: str) -> bool:
+        return s3io.exists(bucket, _facts_key(cik), client=client)
+
+    return probe
+
+
+def build_progress_key(day: date) -> str:
+    return f"universe/date={day.isoformat()}/build.json"
+
+
+def read_build_progress(day: date, bucket: str, client: Any) -> dict[str, Any] | None:
+    key = build_progress_key(day)
+    if not s3io.exists(bucket, key, client=client):
+        return None
+    found = s3io.get_json(bucket, key, client=client)
+    return found if isinstance(found, dict) else None
+
+
+def write_build_progress(day: date, payload: dict[str, Any], bucket: str, client: Any) -> None:
+    s3io.put_json(bucket, build_progress_key(day), payload, client=client)
+
+
+def clear_build_progress(day: date, bucket: str, client: Any) -> None:
+    s3io.delete(bucket, build_progress_key(day), client=client)
 
 
 def submissions_reader(bucket: str, client: Any) -> Callable[[str], dict[str, Any]]:
