@@ -28,6 +28,23 @@ knowledge base to Cursor and Claude through the AWS MCP server.
 
 Recheck every line in T01. Services change.
 
+T01 rechecked this list on 17 November 2026 (Hong Kong). The results
+and the corrections this plan needs are in
+`docs/research/managed-kb.md`, under "Recheck of the plan's verified
+list" and "What the plan must change". The owner approves the remaining
+corrections with T02. The steps below still carry the original text,
+apart from the three decisions recorded here.
+
+Owner decisions, the same evening:
+
+- Scanned books: option 2 in the memo. The 47 files with no text layer
+  move from `theory/` to `scans/` before the first sync. That sync
+  covers the 131 text books. Three scanned books are a later trial.
+- Alarm: `RawDataSize` above 2.0 GB.
+- `AdminApiFn` and `EngineFn` bundle `boto3==1.44.3` and
+  `botocore==1.44.3`, because both are built from the engine directory.
+  The change is `docs/plans/m07-pin-boto3.md`.
+
 - Managed Knowledge Base (`type: MANAGED`) is available in
   `ap-southeast-1`. Hybrid search is always on. Embedding, reranking
   and parsing are included and managed. Storage is internal to AWS.
@@ -125,15 +142,17 @@ deps)`:
    policy lists exactly the actions from T01.
 3. **Three data sources**, each on one prefix: `theory`,
    `formula-notes`, `journal`. Chunking: fixed size, 800 tokens, 15%
-   overlap. Data deletion policy: retain. This choice is permanent for
-   a data source, which is why T05 measures it before anything depends
-   on it.
+   overlap. Data deletion policy: `DELETE`. The knowledge base uses
+   retain-except-on-create. Data sources are not retained: chunking is
+   create-only, and a retained data source would stay indexed and
+   billed. The PDFs in S3 are the source of truth.
 4. Environment for `EngineFn`: `KNOWLEDGE_BASE_ID` and
    `KB_DATA_SOURCE_IDS` (JSON map of prefix to id).
 5. IAM for `EngineFn`: `bedrock:Retrieve` on the knowledge base ARN;
    `bedrock:StartIngestionJob`, `bedrock:GetIngestionJob`,
    `bedrock:ListIngestionJobs` on the same. `AdminApiFn` gets none.
-6. Alarm: `RawDataSize` above 1.5 GB.
+6. Alarm: `RawDataSize` above 2.0 GB. The owner set this on
+   17 November 2026 (Hong Kong). The metric's unit is gigabytes.
 7. Outputs: `KnowledgeBaseId`, `KbBucketName`.
 8. Jest assertions: the role's S3 statement is limited to the three
    prefixes; `AdminApiFn` has no Bedrock statement; the tag is set.
