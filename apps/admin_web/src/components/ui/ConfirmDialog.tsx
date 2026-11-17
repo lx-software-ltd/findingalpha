@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 export type ConfirmDialogProps = {
   readonly open: boolean;
@@ -9,7 +9,9 @@ export type ConfirmDialogProps = {
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
   readonly confirmBusy?: boolean;
+  readonly confirmDisabled?: boolean;
   readonly tone?: "primary" | "danger";
+  readonly children?: ReactNode;
 };
 
 /** Modal confirm/cancel. Native `<dialog>` traps focus and closes on Escape. */
@@ -22,7 +24,9 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   confirmBusy = false,
+  confirmDisabled = false,
   tone = "primary",
+  children,
 }: ConfirmDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -48,12 +52,13 @@ export function ConfirmDialog({
         {title}
       </h2>
       <p className="mb-3">{body}</p>
+      {children}
       <div className="d-flex justify-content-start gap-2">
         <button
           type="button"
           className={`btn btn-sm ${tone === "danger" ? "btn-danger" : "btn-primary"}`}
           onClick={onConfirm}
-          disabled={confirmBusy}
+          disabled={confirmBusy || confirmDisabled}
           aria-busy={confirmBusy}
         >
           {confirmBusy ? `${confirmLabel}…` : confirmLabel}

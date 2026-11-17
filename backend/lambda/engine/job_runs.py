@@ -89,7 +89,13 @@ def apply_result(run: JobRun, result: object) -> None:
     if status in {"missing_inputs", "failed"} or result.get("ok") is False:
         run.status = "failed"
         run.error_class = status or "failed"
-        run.error_message = "missing inputs" if status == "missing_inputs" else (status or "failed")
+        detail = result.get("error")
+        if status == "missing_inputs":
+            run.error_message = "missing inputs"
+        elif isinstance(detail, str) and detail.strip():
+            run.error_message = detail.strip()
+        else:
+            run.error_message = status or "failed"
 
 
 def _partial_message(result: dict[str, Any]) -> str:

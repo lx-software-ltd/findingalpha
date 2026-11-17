@@ -38,7 +38,11 @@ def _may_resume(job: str) -> bool:
 def _tick(_event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None) -> dict[str, Any]:
     import chunked
 
-    chunked.resume_stalled(enabled=_may_resume)
+    outcome = chunked.resume_stalled(enabled=_may_resume)
+    failed = outcome["failed"]
+    if failed:
+        detail = ", ".join(f"{item['job']} {item['error']}" for item in failed)
+        return {"ok": False, "status": "failed", "error": detail}
     return {"ok": True}
 
 

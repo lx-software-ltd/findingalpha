@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -224,7 +225,8 @@ class ChunkedTest(unittest.TestCase):
         started: list[str] = []
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             result = chunked.resume_stalled(now=lambda: NOW, invoke=invoke)
-        self.assertEqual(result, ["beta"])
+        self.assertEqual(result["started"], ["beta"])
+        self.assertEqual(result["failed"], [{"job": "alpha", "error": "RuntimeError"}])
         self.assertEqual(started, ["beta"])
 
     def test_a_paused_job_waits_until_the_switch_is_on(self) -> None:
@@ -243,8 +245,8 @@ class ChunkedTest(unittest.TestCase):
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             held = chunked.resume_stalled(now=lambda: NOW, invoke=started.append, enabled=lambda _job: False)
             released = chunked.resume_stalled(now=lambda: NOW, invoke=started.append, enabled=lambda _job: True)
-        self.assertEqual(held, [])
-        self.assertEqual(released, ["prices"])
+        self.assertEqual(held, {"started": [], "failed": []})
+        self.assertEqual(released, {"started": ["prices"], "failed": []})
         self.assertEqual(started, ["prices"])
 
     def test_invoke_uses_the_function_name_and_does_nothing_without_it(self) -> None:
@@ -392,6 +394,49 @@ class ChunkedTest(unittest.TestCase):
         ):
             chunked._invoke_self("backfill_prices")
         self.assertIn(b'"start": "2016-01-01"', calls[0]["Payload"])
+
+    def test_tick_resumes_a_backtest_whose_size_is_a_whole_decimal(self) -> None:
+        memory = _Memory()
+        memory.put(
+            {
+                "pk": "JOB#backtest",
+                "sk": "STATE",
+                "status": "running",
+                "gsi1pk": "JOBSTATE",
+                "gsi1sk": "backtest",
+                "params": {
+                    "runId": "abc",
+                    "portfolioSize": Decimal("20"),
+                    "startedAt": "2026-11-17T00:00:00.000Z",
+                },
+            }
+        )
+        calls: list[dict[str, object]] = []
+
+        class _Lambda:
+            def invoke(self, **kwargs: object) -> dict[str, str]:
+                calls.append(kwargs)
+                return {"StatusCode": "202"}
+
+        with (
+            _bind(memory)[0],
+            _bind(memory)[1],
+            _bind(memory)[2],
+            _bind(memory)[3],
+            patch.dict(os.environ, {"AWS_LAMBDA_FUNCTION_NAME": "engine"}),
+            patch("boto3.client", return_value=_Lambda()),
+        ):
+            started = chunked.resume_stalled(now=lambda: NOW)
+        self.assertEqual(started["started"], ["backtest"])
+        self.assertEqual(started["failed"], [])
+        payload = json.loads(calls[0]["Payload"])  # type: ignore[arg-type]
+        self.assertEqual(payload["job"], "backtest")
+        self.assertEqual(payload["params"]["portfolioSize"], 20)
+        self.assertIsInstance(payload["params"]["portfolioSize"], int)
+
+    def test_a_fractional_decimal_is_not_encoded(self) -> None:
+        with self.assertRaises(TypeError):
+            chunked._payload("backtest", {"portfolioSize": Decimal("20.5")})
 
 
 if __name__ == "__main__":

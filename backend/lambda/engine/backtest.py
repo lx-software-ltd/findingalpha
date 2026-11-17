@@ -278,11 +278,32 @@ def continued_run(previous: dict[str, Any], size: int) -> tuple[str, str] | None
     return str(saved["runId"]), str(saved.get("startedAt") or "")
 
 
+def size_conflict(previous: dict[str, Any], size: int) -> str | None:
+    status = str(previous.get("status") or "")
+    if status not in {"running", "paused", "failed"}:
+        return None
+    try:
+        if status == "failed" and int(previous.get("failures") or 0) >= 3:
+            return None
+    except (TypeError, ValueError):
+        return "unfinished backtest"
+    raw = (previous.get("params") or {}).get("portfolioSize") if isinstance(previous.get("params"), dict) else None
+    from decimal import Decimal
+
+    if isinstance(raw, Decimal) and raw.is_finite() and raw == raw.to_integral_value():
+        raw = int(raw)
+    if type(raw) is int:
+        return None if raw == size else f"unfinished backtest is {raw} names"
+    return None if status == "failed" else "unfinished backtest"
+
+
 def portfolio_size(value: object, register: dict[str, Any]) -> int | None:
-    """The register size, or a sensitivity size from 10 to 40. Anything else is refused."""
+    """The register size, or a sensitivity size inside the register bounds."""
+    bounds = register["backtest"]
     if value is None:
-        return int(register["backtest"]["portfolioSize"])
-    if isinstance(value, bool) or not isinstance(value, int) or not 10 <= value <= 40:
+        return int(bounds["portfolioSize"])
+    low, high = int(bounds["portfolioSizeMin"]), int(bounds["portfolioSizeMax"])
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
         return None
     return value
 
@@ -302,6 +323,9 @@ def run(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     if size is None:
         return {"ok": False, "status": "failed", "error": "portfolioSize"}
     previous = store.get("JOB#backtest", "STATE") or {}
+    conflict = size_conflict(previous, size)
+    if conflict:
+        return {"ok": False, "status": "failed", "error": conflict}
     continued = continued_run(previous, size)
     if continued is not None:
         identity, started = continued

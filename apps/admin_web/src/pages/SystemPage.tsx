@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   AdminCell,
   AdminDataTable,
@@ -8,9 +8,22 @@ import {
 import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
 import { useApiKeys, useJobRuns, useRunJob, useSystemStatus, useUniverse, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
+import { getAdminApiErrorMessage } from "../lib/apiAdminClient";
 import { accessLabel } from "../lib/apiKeyDisplay";
+import { methodology } from "../lib/contracts/generated";
 
 type SwitchName = keyof Settings;
+
+const registerSize = methodology.backtest.portfolioSize;
+const minNames = methodology.backtest.portfolioSizeMin;
+const maxNames = methodology.backtest.portfolioSizeMax;
+
+function chosenSize(text: string): number | null {
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  if (value < minNames || value > maxNames) return null;
+  return value;
+}
 
 export function SystemPage() {
   const status = useSystemStatus();
@@ -21,7 +34,10 @@ export function SystemPage() {
   const put = usePutSettings();
   const [pending, setPending] = useState<{ name: SwitchName; next: boolean } | null>(null);
   const [pendingJob, setPendingJob] = useState<string | null>(null);
+  const [names, setNames] = useState(String(registerSize));
   const [accepted, setAccepted] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const sizeId = useId();
   const jobs = [...(status.data?.jobs ?? [])].sort((left, right) => Number(right.lastRun?.status === "failed") - Number(left.lastRun?.status === "failed"));
   const columns: AdminDataTableColumn[] = [
     { key: "job", header: "Job" },
@@ -98,6 +114,7 @@ export function SystemPage() {
       </p>
       <h2 className="h5">Jobs</h2>
       {accepted ? <p role="status">Accepted {accepted}.</p> : null}
+      {runError ? <p role="alert">{runError}</p> : null}
       <AdminDataTable columns={columns} bare>
         {jobs.map((job) => (
           <tr key={job.job}>
@@ -112,7 +129,14 @@ export function SystemPage() {
             <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
             <AdminCell column="run">
               {job.manualRun ? (
-                <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setPendingJob(job.job)}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-primary"
+                  onClick={() => {
+                    setNames(String(registerSize));
+                    setPendingJob(job.job);
+                  }}
+                >
                   Run now
                 </button>
               ) : null}
@@ -163,14 +187,53 @@ export function SystemPage() {
         title="Run job"
         body={pendingJob ? `Run ${pendingJob} now?` : ""}
         confirmLabel="Run"
+        confirmDisabled={pendingJob === "backtest" && chosenSize(names) === null}
         onCancel={() => setPendingJob(null)}
         onConfirm={() => {
           if (!pendingJob) return;
           const name = pendingJob;
+          const size = name === "backtest" ? chosenSize(names) : null;
+          if (name === "backtest" && size === null) return;
+          const explicit = size !== null && size !== registerSize ? size : null;
           setPendingJob(null);
-          runJob.mutate(name, { onSuccess: () => setAccepted(name) });
+          runJob.mutate(explicit === null ? { job: name } : { job: name, portfolioSize: explicit }, {
+            onSuccess: (result) => {
+              if (explicit !== null && result.portfolioSize !== explicit) {
+                setAccepted(null);
+                setRunError(`The server did not confirm ${explicit} names. The run may use the register size.`);
+                return;
+              }
+              setRunError(null);
+              setAccepted(explicit === null ? name : `${name}, ${explicit} names`);
+            },
+            onError: (error: unknown) => {
+              setAccepted(null);
+              setRunError(getAdminApiErrorMessage(error) ?? "The run was refused.");
+            },
+          });
         }}
-      />
+      >
+        {pendingJob === "backtest" ? (
+          <div className="mb-3">
+            <label htmlFor={sizeId} className="form-label">
+              Names
+            </label>
+            <input
+              id={sizeId}
+              className="form-control form-control-sm"
+              type="number"
+              min={minNames}
+              max={maxNames}
+              inputMode="numeric"
+              value={names}
+              onChange={(event) => setNames(event.target.value)}
+            />
+            <p className="form-text mb-0">
+              {minNames} to {maxNames}. Leave {registerSize} to use the register.
+            </p>
+          </div>
+        ) : null}
+      </ConfirmDialog>
       <ConfirmDialog
         open={pending !== null}
         title="Change setting"

@@ -14,7 +14,10 @@ class JobsHandlerTest(unittest.TestCase):
         self.assertFalse(result["ok"])
 
     def test_tick_records_a_run(self) -> None:
-        with patch("job_runs.record") as record, patch("chunked.resume_stalled", return_value=[]):
+        with (
+            patch("job_runs.record") as record,
+            patch("chunked.resume_stalled", return_value={"started": [], "failed": []}),
+        ):
             record.return_value.__enter__.return_value = type(
                 "Run", (), {"status": "running", "skip": lambda self: None}
             )()
@@ -52,6 +55,19 @@ class JobsHandlerTest(unittest.TestCase):
         self.assertEqual(result["status"], "running")
         self.assertEqual(saved[-1]["status"], "partial")
         self.assertEqual(saved[-1]["errorMessage"], "1 of 4, continues on the next tick")
+
+    def test_a_failed_resume_fails_the_tick(self) -> None:
+        saved: list[dict] = []
+        outcome = {"started": ["prices"], "failed": [{"job": "backtest", "error": "TypeError"}]}
+        with (
+            patch("store.put", side_effect=lambda item: saved.append(dict(item))),
+            patch("chunked.resume_stalled", return_value=outcome),
+        ):
+            result = jobs_handler.lambda_handler({"job": "tick"}, None)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "backtest TypeError")
+        self.assertEqual(saved[-1]["status"], "failed")
+        self.assertEqual(saved[-1]["errorMessage"], "backtest TypeError")
 
     def test_a_monthly_failure_does_not_fail_the_weekly_refresh(self) -> None:
         with (
