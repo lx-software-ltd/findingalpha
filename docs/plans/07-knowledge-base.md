@@ -31,8 +31,18 @@ Recheck every line in T01. Services change.
 T01 rechecked this list on 17 November 2026 (Hong Kong). The results
 and the corrections this plan needs are in
 `docs/research/managed-kb.md`, under "Recheck of the plan's verified
-list" and "What the plan must change". The owner approves those
-corrections with T02. The steps below still carry the original text.
+list" and "What the plan must change". The owner approves the remaining
+corrections with T02. The steps below still carry the original text,
+apart from the three decisions recorded here.
+
+Owner decisions, the same evening:
+
+- Scanned books: option 2 in the memo. The 47 files with no text layer
+  move from `theory/` to `scans/` before the first sync. That sync
+  covers the 131 text books. Three scanned books are a later trial.
+- Alarm: `RawDataSize` above 2.0 GB.
+- `EngineFn` bundles `boto3==1.44.3`. The change is
+  `docs/plans/m07-pin-boto3.md`.
 
 - Managed Knowledge Base (`type: MANAGED`) is available in
   `ap-southeast-1`. Hybrid search is always on. Embedding, reranking
@@ -139,7 +149,8 @@ deps)`:
 5. IAM for `EngineFn`: `bedrock:Retrieve` on the knowledge base ARN;
    `bedrock:StartIngestionJob`, `bedrock:GetIngestionJob`,
    `bedrock:ListIngestionJobs` on the same. `AdminApiFn` gets none.
-6. Alarm: `RawDataSize` above 1.5 GB.
+6. Alarm: `RawDataSize` above 2.0 GB. The owner set this on
+   17 November 2026 (Hong Kong). The metric's unit is gigabytes.
 7. Outputs: `KnowledgeBaseId`, `KbBucketName`.
 8. Jest assertions: the role's S3 statement is limited to the three
    prefixes; `AdminApiFn` has no Bedrock statement; the tag is set.
