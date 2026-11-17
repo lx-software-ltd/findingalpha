@@ -37,14 +37,14 @@ id is `findingalpha/alpaca-paper`. The value the owner stores is
 
 1. **Yes.** The free paper key returns `feed=sip` daily bars for past
    dates. AAPL on 2026-11-13 came back with SIP volume 40,187,362 and
-   IEX volume 1,220,209 (about 3% of the SIP print), so the SIP request
-   is the consolidated tape.    The documented Basic plan still withholds
+   IEX volume 1,220,209 (about 3% of the SIP print),    so the SIP request
+   is the consolidated tape. The documented Basic plan still withholds
    SIP for the latest 15 minutes
    ([Market Data FAQ](https://docs.alpaca.markets/us/docs/market-data-faq)).
-   A request for the current New York day sends `end` as a timestamp 16
-   minutes before now. A bare date is read through the present, and the
-   free plan refuses it. When the 16:00 close is still inside that
-   window, `end` stays on the previous day.
+   Alpaca reads a bare date through the end of that New York day. A day
+   whose end is inside the last 16 minutes is requested as a timestamp
+   16 minutes ago, once the 16:00 close is outside that window. Until
+   then the daily job waits and writes nothing.
    These calls were for completed sessions, which is what the daily job
    stores. T08 keeps the dollar-volume thresholds. They do not need an
    IEX rescaling.

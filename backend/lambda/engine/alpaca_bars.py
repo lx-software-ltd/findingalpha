@@ -18,26 +18,36 @@ _SIP_LAG = timedelta(minutes=16)
 _CLOSE = time(16, 0)
 
 
+def _moment(now: datetime | None) -> datetime:
+    moment = now or datetime.now(_NEW_YORK)
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=_NEW_YORK)
+    return moment.astimezone(_NEW_YORK)
+
+
+def session_available(day: str, now: datetime | None = None) -> bool:
+    """The 16:00 close is at least 16 minutes in the past."""
+    session = date.fromisoformat(str(day)[:10])
+    close = datetime.combine(session, _CLOSE, tzinfo=_NEW_YORK)
+    return _moment(now) - _SIP_LAG >= close
+
+
 def sip_end(day: str, now: datetime | None = None) -> str:
     """The ``end`` for a SIP daily request.
 
-    A past day stays a date. The current New York day is a timestamp 16
-    minutes ago: a bare date is read through the present, and the free
-    plan refuses SIP inside the last 15 minutes. The extra minute covers
-    a clock that is slightly ahead. When that timestamp is still before
-    the 16:00 close, the end stays on the previous day.
+    Alpaca reads a bare date through the end of that New York day, and the
+    free plan refuses an end inside the last 15 minutes. A day whose end is
+    outside that window stays a date. Once the 16:00 close is outside it,
+    the day is a timestamp 16 minutes ago. The extra minute covers a clock
+    that is slightly ahead. A close still inside the window is not requested.
     """
     session = date.fromisoformat(str(day)[:10])
-    moment = now or datetime.now(_NEW_YORK)
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=_NEW_YORK)
-    else:
-        moment = moment.astimezone(_NEW_YORK)
-    if session != moment.date():
-        return session.isoformat()
+    moment = _moment(now)
+    day_end = datetime.combine(session + timedelta(days=1), time.min, tzinfo=_NEW_YORK)
     safe = moment - _SIP_LAG
-    close = datetime.combine(session, _CLOSE, tzinfo=_NEW_YORK)
-    if safe < close:
+    if day_end <= safe:
+        return session.isoformat()
+    if not session_available(day, moment):
         return (session - timedelta(days=1)).isoformat()
     return safe.isoformat(timespec="seconds")
 

@@ -5,7 +5,7 @@
 
 ## Goal
 
-A daily bar request for the current New York day must not ask Alpaca for SIP data inside the last 15 minutes. The free plan answers that query with HTTP 403, so the 16 Nov 2026 session was never stored.
+A daily bar request must not ask Alpaca for SIP data inside the last 15 minutes. Alpaca reads a bare date through the end of that New York day, so the first 16 minutes after midnight are inside the window too. The free plan answers that query with HTTP 403, so the 16 Nov 2026 session was never stored. A run whose close is still inside the window waits and writes nothing.
 
 ## Non-goals
 
@@ -22,11 +22,11 @@ A daily bar request for the current New York day must not ask Alpaca for SIP dat
 
 ## Invariants this change preserves
 
-Historical dates stay `YYYY-MM-DD`. The feed stays `sip`. A request whose end is before the current New York day is unchanged. Nothing is written when the session close is still inside the withheld window.
+Historical dates stay `YYYY-MM-DD` once the end of that New York day is outside the window. The feed stays `sip`. Nothing is written when the session close is still inside the withheld window, and that run is `not_ready`.
 
 ## Done when
 
-`python3 -m unittest backend.lambda.engine.test_alpaca_data` shows the current New York day ending 16 minutes ago, and a close inside that window ending on the previous day. `python3 -m ruff check backend/lambda/engine/alpaca_bars.py backend/lambda/engine/alpaca_data.py` passes.
+`python3 -m unittest discover -s backend/lambda/engine -p 'test_*.py'` shows the current New York day ending 16 minutes ago, the first 16 minutes after midnight still using a timestamp, the 16:16 boundary, and a daily run inside the window returning `not_ready`. `python3 -m ruff check backend/lambda scripts .cursor/hooks` passes.
 
 ## Rollback
 

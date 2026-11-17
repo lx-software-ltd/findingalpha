@@ -377,7 +377,6 @@ class AlpacaData:
         adjustment: str,
         now: datetime | None = None,
     ) -> Iterator[dict[str, Any]]:
-        """SIP daily bars. One request covers at most 200 symbols."""
         if adjustment not in _ADJUSTMENTS:
             raise ValueError("adjustment must be raw, split, dividend, or all")
         clean = _symbols(symbols)
