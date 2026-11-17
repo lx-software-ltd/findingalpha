@@ -31,16 +31,22 @@ Recheck every line in T01. Services change.
 T01 rechecked this list on 17 November 2026 (Hong Kong). The results
 and the corrections this plan needs are in
 `docs/research/managed-kb.md`, under "Recheck of the plan's verified
-list" and "What the plan must change". The owner approves the remaining
-corrections with T02. The steps below still carry the original text,
-apart from the three decisions recorded here.
+list" and "What the plan must change". T02 below is the approved
+design. Later steps still carry their original text where the memo's
+table names a correction.
 
-Owner decisions, the same evening:
+Owner decisions, the same evening, with the review of 17 November 2026
+(Hong Kong) folded in:
 
 - Scanned books: option 2 in the memo. The 47 files with no text layer
   move from `theory/` to `scans/` before the first sync. That sync
   covers the 131 text books. Three scanned books are a later trial.
-- Alarm: `RawDataSize` above 2.0 GB.
+- Alarm: `RawDataSize` above 2.0. The unit on the metric is gigabytes.
+  The first sync shows whether that is decimal or binary, and the
+  threshold is revisited after that sync. A missing sample keeps the
+  previous alarm state, so a breach stays up until a later sync
+  publishes a value at or under 2.0. Nothing is notified, matching the
+  other alarms.
 - `AdminApiFn` and `EngineFn` bundle `boto3==1.44.3` and
   `botocore==1.44.3`, because both are built from the engine directory.
   The change is `docs/plans/m07-pin-boto3.md`.
@@ -72,6 +78,11 @@ Owner decisions, the same evening:
 - The MCP server `awslabs.bedrock-kb-retrieval-mcp-server` supports
   managed knowledge bases and finds them by the tag
   `mcp-multirag-kb=true`.
+
+## Merge and deploy order
+
+The pin and the research memo are on `main`. This pull request is the
+create: merging it deploys the knowledge base.
 
 ## Files
 
@@ -127,37 +138,69 @@ documentation and API reference and write
 ### M07-T02 CDK resources
 
 `lib/knowledge-base.ts`, one function `defineKnowledgeBase(scope,
-deps)`:
+deps)`. Approved on 17 November 2026 (Hong Kong), including the review
+of that plan. `CfnKnowledgeBase` is the resource. `AwsCustomResource`
+is the fallback if the first deploy fails, and that failure is handled
+by reverting the change.
 
-1. **Service role** for Bedrock: trusted by `bedrock.amazonaws.com`
-   with `aws:SourceAccount` and `aws:SourceArn` conditions; may list
-   and read `KbBucket` under `theory/`, `formula-notes/` and
-   `journal/` only.
+1. **Service role**, inline policy on the role itself so the policy
+   exists when the knowledge base is created. Trusted by
+   `bedrock.amazonaws.com` with `aws:SourceAccount` and `aws:SourceArn`
+   matching `knowledge-base/*` (the knowledge base ARN does not exist
+   yet, so a condition on one ARN cannot be written). `s3:ListBucket`
+   on the whole bucket, as the service documents it. `s3:GetObject`
+   only under `theory/`, `formula-notes/` and `journal/`.
+   `cloudwatch:PutMetricData` with `cloudwatch:namespace` equal to
+   `AWS/Bedrock/KnowledgeBases`. No `bedrock:InvokeModel`.
 2. **Knowledge base** named `findingalpha-theory`, type `MANAGED`,
-   tagged `mcp-multirag-kb=true` and `Project=Finding Alpha`. Through
-   `CfnKnowledgeBase` or, if T01 says so, an `AwsCustomResource` with
-   `onCreate` calling `CreateKnowledgeBase` and a physical id taken
-   from the response. No `onDelete`: removing the resource from the
-   stack must not delete the knowledge base. The custom resource's
-   policy lists exactly the actions from T01.
-3. **Three data sources**, each on one prefix: `theory`,
-   `formula-notes`, `journal`. Chunking: fixed size, 800 tokens, 15%
-   overlap. Data deletion policy: `DELETE`. The knowledge base uses
-   retain-except-on-create. Data sources are not retained: chunking is
-   create-only, and a retained data source would stay indexed and
-   billed. The PDFs in S3 are the source of truth.
+   managed embedding, no embedding model ARN. Tags
+   `mcp-multirag-kb=true` and `Project=Finding Alpha`. Removal policy
+   retain-except-on-create: a rolled-back create is deleted, a knowledge
+   base that exists is kept when the stack is deleted, and a replacement
+   keeps the previous one.
+3. **Three data sources**, names `theory`, `formula-notes` and
+   `journal`, type `MANAGED_KNOWLEDGE_BASE_CONNECTOR`, one inclusion
+   prefix each. `scans/` and `eval/` are outside all three. Chunking:
+   fixed size, 800 tokens, 15% overlap. Parsing: Smart Parsing. File
+   size cap 50 MB. Data deletion policy `DELETE`. Deletion protection
+   enabled at 15%. No sync schedule, so deploy creates the resources
+   and ingests nothing. The three data sources are created one after
+   another: `theory`, then `formula-notes`, then `journal`. Each create
+   is asynchronous, and the next starts when the previous one is
+   available. The data sources use the default removal policy, so
+   removing one deletes it. The PDFs in S3 are the source of truth, and
+   a re-sync rebuilds the index. Chunking is create-only; a later change
+   is a new data source under a new name, and retaining the old one
+   would leave it indexed and billed.
 4. Environment for `EngineFn`: `KNOWLEDGE_BASE_ID` and
    `KB_DATA_SOURCE_IDS` (JSON map of prefix to id).
-5. IAM for `EngineFn`: `bedrock:Retrieve` on the knowledge base ARN;
-   `bedrock:StartIngestionJob`, `bedrock:GetIngestionJob`,
-   `bedrock:ListIngestionJobs` on the same. `AdminApiFn` gets none.
-6. Alarm: `RawDataSize` above 2.0 GB. The owner set this on
-   17 November 2026 (Hong Kong). The metric's unit is gigabytes.
-7. Outputs: `KnowledgeBaseId`, `KbBucketName`.
-8. Jest assertions: the role's S3 statement is limited to the three
-   prefixes; `AdminApiFn` has no Bedrock statement; the tag is set.
+5. IAM for `EngineFn`: `bedrock:Retrieve`, `bedrock:StartIngestionJob`,
+   `bedrock:GetIngestionJob`, `bedrock:ListIngestionJobs` and
+   `bedrock:ListKnowledgeBaseDocuments` on the knowledge base ARN.
+   `AdminApiFn` gets none.
+6. Alarm: `RawDataSize` above 2.0, dimension `KnowledgeBaseId` =
+   `knowledge-base/<id>`. A missing sample keeps the previous state
+   (`treatMissingData: ignore`). No notification target, same as the
+   other alarms. The threshold is revisited after the first sync
+   reports whether a gigabyte is decimal or binary.
+7. Output: `KnowledgeBaseId`. `KbBucketName` already exists.
+8. Jest assertions: list is bucket-wide and object reads are the three
+   prefixes; `AdminApiFn` has no Bedrock statement; both tags are set;
+   the knowledge base is retain-except-on-create and the data sources
+   are not retained; the data sources are created in the order
+   `theory`, `formula-notes`, `journal`; the alarm threshold is 2 and
+   a missing sample keeps the previous state; there is no sync
+   schedule. `AWS::Bedrock::DataSource` is added to the untagged-types
+   list, because that resource has no tag property.
 
-Schedule `findingalpha-kb-sync-check` (daily 05:30 Hong Kong).
+The schedule `findingalpha-kb-sync-check` stays off until T03. The
+engine has no handler for it yet.
+
+After the first sync, `numberOfDocumentsScanned` is 131 for `theory/`
+and 0 for the other two. A larger theory count means the prefix filter
+was ignored. The `RawDataSize` value from that sync shows whether a
+gigabyte here is decimal or binary, and the alarm threshold is
+revisited from that value.
 
 ### M07-T03 Sync
 
@@ -186,7 +229,9 @@ Schedule `findingalpha-kb-sync-check` (daily 05:30 Hong Kong).
 
 Jobs: `kb_sync_check` (scheduled; runs `decide` then `poll`; `tick`
 keeps polling while a job is in progress) and the route
-`POST /kb/sync` (starts `kb_sync_check` now).
+`POST /kb/sync` (starts `kb_sync_check` now). The schedule
+`findingalpha-kb-sync-check` (daily 05:30 Hong Kong) is created in
+this step, with the handler.
 
 Tests with a stubbed Bedrock client: each status; the hash ignores
 listing order; a sidecar change counts as a change; a failed document

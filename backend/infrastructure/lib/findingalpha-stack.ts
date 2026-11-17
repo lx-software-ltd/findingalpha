@@ -4,6 +4,7 @@ import { AuthConstruct } from "./constructs/auth";
 import { defineAlarms } from "./alarms";
 import { defineBuckets, defineSharedEncryption, defineTables } from "./data";
 import { defineFunctions, grantEngineSecrets } from "./functions";
+import { defineKnowledgeBase } from "./knowledge-base";
 import { defineHttpApi } from "./http-api";
 import { defineOutputs } from "./outputs";
 import { defineParameters } from "./parameters";
@@ -52,6 +53,7 @@ export class FindingalphaStack extends cdk.Stack {
       kbBucket,
     });
     grantEngineSecrets(engineFn, secrets);
+    defineKnowledgeBase(this, { kbBucket, engineFn });
     const { httpApi, keyAuthorizerFn } = defineHttpApi(this, {
       adminFn,
       userPoolId: auth.userPool.userPoolId,
