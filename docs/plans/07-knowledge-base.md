@@ -81,15 +81,8 @@ Owner decisions, the same evening, with the review of 17 November 2026
 
 ## Merge and deploy order
 
-Three pull requests carry this work. Merge them in this order:
-
-1. The pin, into `main`. That deploy ships `boto3==1.44.3` and
-   `botocore==1.44.3` in `AdminApiFn` and `EngineFn`.
-2. The research memo, into `main`.
-3. The knowledge base resources, into `main`, after that pull request
-   retargets from the memo branch. That merge is the create. Merging
-   it while it still targets the memo branch updates the memo branch
-   and leaves production unchanged.
+The pin and the research memo are on `main`. This pull request is the
+create: merging it deploys the knowledge base.
 
 ## Files
 
