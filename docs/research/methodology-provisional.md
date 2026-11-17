@@ -1,6 +1,6 @@
 # Provisional methodology
 
-**Status**: In review
+**Status**: Accepted by the owner in chat on 17 November 2026 (Hong Kong). Every entry stays `provisional` until M07 cites it.
 **Zone**: red for the register, yellow for the factor code
 
 These formulas are textbook definitions so the screen can be built
@@ -94,10 +94,24 @@ the ratio is missing; the company still passes the debt ceiling if it
 has net cash. A missing composite stays off the list. The shortlist is
 the 60 highest composites.
 
-## Open choices
+## Owner decisions
 
-- Group weights 40/30/30.
-- The debt ceiling of 4.
-- The shortlist of 60.
+The owner accepted these three values on 17 November 2026 (Hong Kong),
+before the first backtest results existed. The register did not change.
+
+| Choice | Value | Reason |
+| --- | --- | --- |
+| Group weights | quality 0.4, value 0.3, trend 0.3 | Quality is the thesis and holds six of the ten factors. Value and trend guard against overpaying and against falling prices. Nothing measured so far supports finer tuning |
+| Debt ceiling | net debt to EBITDA of at most 4 | Median total debt to EBITDA by rating class is 2.2 for BBB, 3.5 for BB and 5.3 for B (`BKM - Investment and Portfolio Management - Edition 9.pdf`, Table 14.3, PDF page 497). A ceiling of 4 keeps balance sheets like BB and removes those like B. The two debt factors already rank companies inside the quality score |
+| Shortlist | 60 names | Three times the 20-name portfolio and twice the 30-name sensitivity run. That leaves depth under the cap of five names per sector |
+
+A change to any of these changes the register hash, and the three
+backtest runs of M06-T05 are then rerun.
+
+## Still open
+
 - Whether the books name factors that are not in this list. That is
   settled in M07, when each entry is cited or replaced.
+- A proposal added to this memo later, such as stage 2 of
+  `docs/plans/data-precision-followups.md`, needs its own answer from
+  the owner.

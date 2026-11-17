@@ -900,7 +900,7 @@ export const roadmap = {
       "title": "Methodology register and factor library",
       "plan": "docs/plans/05-methodology-and-factors.md",
       "zone": "red",
-      "status": "in_progress",
+      "status": "done",
       "dependsOn": [
         "M04"
       ],
@@ -911,7 +911,7 @@ export const roadmap = {
         {
           "id": "M05-T01",
           "title": "Owner review memo",
-          "status": "doing"
+          "status": "done"
         },
         {
           "id": "M05-T02",
