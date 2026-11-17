@@ -440,6 +440,9 @@ describe("findingalpha stack", () => {
       return parameters.filterConfiguration.inclusionPrefixes[0];
     });
     expect(prefixes.sort()).toEqual(["formula-notes/", "journal/", "theory/"]);
+    const dataSources = resources("AWS::Bedrock::DataSource");
+    expect(dependencyList(dataSources.FormulaNotesDataSource)).toContain("TheoryDataSource");
+    expect(dependencyList(dataSources.JournalDataSource)).toContain("FormulaNotesDataSource");
 
     const role = Object.values(resources("AWS::IAM::Role")).find((candidate) =>
       JSON.stringify(candidate.Properties.AssumeRolePolicyDocument).includes("knowledge-base/*"),
@@ -485,7 +488,7 @@ describe("findingalpha stack", () => {
       Namespace: "AWS/Bedrock/KnowledgeBases",
       Threshold: 2,
       ComparisonOperator: "GreaterThanThreshold",
-      TreatMissingData: "notBreaching",
+      TreatMissingData: "ignore",
     });
     const alarm = Object.values(resources("AWS::CloudWatch::Alarm")).find(
       (candidate) => candidate.Properties.MetricName === "RawDataSize",

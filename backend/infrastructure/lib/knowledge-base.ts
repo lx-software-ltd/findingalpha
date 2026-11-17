@@ -67,6 +67,11 @@ export function defineKnowledgeBase(
   const sources = PREFIXES.map((entry) =>
     connectPrefix(scope, entry.id, entry.name, entry.prefix, knowledgeBase, input.kbBucket, stack.account),
   );
+  // One create at a time. Each data source moves from CREATING to
+  // AVAILABLE on its own, and the next waits for that to finish.
+  for (let index = 1; index < sources.length; index += 1) {
+    sources[index].addDependency(sources[index - 1]);
+  }
   const sourceIds = Object.fromEntries(PREFIXES.map((entry, index) => [entry.prefix, sources[index].attrDataSourceId]));
 
   input.engineFn.addEnvironment("KNOWLEDGE_BASE_ID", knowledgeBase.attrKnowledgeBaseId);
@@ -92,7 +97,7 @@ export function defineKnowledgeBase(
     threshold: 2,
     evaluationPeriods: 1,
     comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
-    treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    treatMissingData: cloudwatch.TreatMissingData.IGNORE,
     alarmDescription: "Knowledge base raw data is above 2 GB. Published after a sync, in gigabytes.",
   });
 
