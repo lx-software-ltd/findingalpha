@@ -14,7 +14,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "ingest_daily",
@@ -32,7 +32,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "daily_check",
@@ -41,7 +41,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "brief_compile",
@@ -50,7 +50,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "brief_send",
@@ -59,7 +59,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "BriefEmailEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "execute_holds",
@@ -68,7 +68,7 @@ export const jobs = {
       "timeZone": "America/New_York",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "post_trade",
@@ -77,7 +77,7 @@ export const jobs = {
       "timeZone": "America/New_York",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "weekly_refresh",
@@ -86,7 +86,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_prices",
@@ -113,7 +113,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "CommitteeEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "monthly_review",
@@ -122,7 +122,7 @@ export const jobs = {
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "CommitteeEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "tick",
@@ -140,7 +140,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_monthly_stats",
@@ -149,7 +149,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backtest",
@@ -158,7 +158,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "kb_eval",
@@ -167,7 +167,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "committee_dry_run",
@@ -176,7 +176,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "committee_eval",
@@ -185,7 +185,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "portfolio_propose",
@@ -194,7 +194,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "broker_setup",
@@ -203,7 +203,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "broker_smoke",
@@ -212,7 +212,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "leverage_overlay",
@@ -221,7 +221,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "breaker_drill",
@@ -230,7 +230,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "record_drill",
@@ -239,7 +239,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     }
   ]
 } as const;

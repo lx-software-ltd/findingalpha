@@ -137,7 +137,7 @@ class DashboardTest(unittest.TestCase):
         self.assertTrue(never["keyRun"])
         broker = next(item for item in body["jobs"] if item["job"] == "broker_setup")
         self.assertFalse(broker["manualRun"])
-        self.assertFalse(broker["keyRun"])
+        self.assertTrue(broker["keyRun"])
         self.store.put(
             {
                 "pk": "JOB#backfill_prices",

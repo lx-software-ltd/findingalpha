@@ -7,7 +7,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "ingest_daily",
@@ -25,7 +25,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "daily_check",
@@ -34,7 +34,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "brief_compile",
@@ -43,7 +43,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "brief_send",
@@ -52,7 +52,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "BriefEmailEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "execute_holds",
@@ -61,7 +61,7 @@
       "timeZone": "America/New_York",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "post_trade",
@@ -70,7 +70,7 @@
       "timeZone": "America/New_York",
       "killSwitch": "TradingEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "weekly_refresh",
@@ -79,7 +79,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_prices",
@@ -106,7 +106,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "CommitteeEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "monthly_review",
@@ -115,7 +115,7 @@
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "CommitteeEnabled",
       "manualRun": false,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "tick",
@@ -133,7 +133,7 @@
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backfill_monthly_stats",
@@ -142,7 +142,7 @@
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "backtest",
@@ -151,7 +151,7 @@
       "timeZone": "",
       "killSwitch": "IngestEnabled",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "kb_eval",
@@ -160,7 +160,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "committee_dry_run",
@@ -169,7 +169,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "committee_eval",
@@ -178,7 +178,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "portfolio_propose",
@@ -187,7 +187,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "broker_setup",
@@ -196,7 +196,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "broker_smoke",
@@ -205,7 +205,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "leverage_overlay",
@@ -214,7 +214,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "breaker_drill",
@@ -223,7 +223,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     },
     {
       "name": "record_drill",
@@ -232,7 +232,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": false
+      "keyRun": true
     }
   ]
 }

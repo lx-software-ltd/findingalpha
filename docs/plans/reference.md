@@ -332,13 +332,11 @@ that returns `missing_inputs` is `failed`. A clean finish is
 Jobs without a schedule, started from the dashboard through
 `POST /jobs/{jobName}/run` when `contracts/jobs.json` allows it:
 An API key can start a job only when the job has `keyRun: true`.
-That flag is on for `tick`, `ingest_daily`, `backfill_prices`, and
-`backfill_fundamentals`. `weekly_refresh` stays on the dashboard:
-each run repeats the SEC and universe work. A key that asks to start
-a backfill whose saved state is already `done` is refused, because
-that starts the download again from the first month. The dashboard
-can still start it. Jobs that touch the broker or the drill never
-have `keyRun`. The system status reports `keyRun` and the saved
+Every job in `contracts/jobs.json` has that flag, including the
+broker jobs and the drills. A key that asks to start a backfill
+whose saved state is already `done` is refused, because that starts
+the download again from the first month. The dashboard can still
+start it. The system status reports `keyRun` and the saved
 `progress` for each job.
 
 | Job | Purpose | Milestone |
@@ -347,7 +345,7 @@ have `keyRun`. The system status reports `keyRun` and the saved
 | `backfill_fundamentals` | Company facts for every candidate CIK | M04 |
 | `screen` | Score the universe for one date. Checks `IngestEnabled`. Also called by `monthly_rebalance` | M06 |
 | `backfill_monthly_stats` | Month-end statistics for the backtest. Checks `IngestEnabled` | M06 |
-| `backtest` | One backtest run. Checks `IngestEnabled`. A key cannot start it | M06 |
+| `backtest` | One backtest run. Checks `IngestEnabled` | M06 |
 | `kb_eval` | Retrieval evaluation | M07 |
 | `committee_dry_run` | Three symbols, no thesis written | M08 |
 | `committee_eval` | Five invented companies with known answers | M08 |
