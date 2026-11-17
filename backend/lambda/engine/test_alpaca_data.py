@@ -218,6 +218,38 @@ class AlpacaDataTest(unittest.TestCase):
         self.assertEqual(limiter.calls, 2)
         self.assertNotIn("n", bars[0])
 
+    def test_the_current_new_york_day_ends_before_the_sip_window(self) -> None:
+        client, script, _limiter = _client(b'{"bars":{},"next_page_token":null}')
+        now = datetime(2026, 11, 16, 19, 20, tzinfo=ZoneInfo("America/New_York"))
+        self.assertEqual(list(client.daily_bars(["AAPL"], "2026-11-16", "2026-11-16", "raw", now=now)), [])
+        query = _query(script.urls[0])
+        self.assertEqual(query["feed"], ["sip"])
+        self.assertEqual(query["start"], ["2026-11-16"])
+        self.assertEqual(query["end"], ["2026-11-16T19:04:00-05:00"])
+
+    def test_a_close_inside_the_sip_window_is_not_requested(self) -> None:
+        client, script, _limiter = _client(b'{"bars":{},"next_page_token":null}', b'{"bars":{}}')
+        now = datetime(2026, 11, 16, 16, 10, tzinfo=ZoneInfo("America/New_York"))
+        list(client.daily_bars(["AAPL"], "2026-11-01", "2026-11-16", "raw", now=now))
+        query = _query(script.urls[0])
+        self.assertEqual(query["start"], ["2026-11-01"])
+        self.assertEqual(query["end"], ["2026-11-15"])
+        opened = datetime(2026, 11, 16, 16, 16, tzinfo=ZoneInfo("America/New_York"))
+        list(client.daily_bars(["AAPL"], "2026-11-16", "2026-11-16", "raw", now=opened))
+        self.assertEqual(_query(script.urls[1])["end"], ["2026-11-16T16:00:00-05:00"])
+
+    def test_the_first_minutes_after_midnight_still_use_a_timestamp(self) -> None:
+        client, script, _limiter = _client(b'{"bars":{}}', b'{"bars":{}}', b'{"bars":{}}')
+        winter = datetime(2026, 11, 17, 0, 10, tzinfo=ZoneInfo("America/New_York"))
+        summer = datetime(2026, 7, 16, 0, 10, tzinfo=ZoneInfo("America/New_York"))
+        later = datetime(2026, 11, 17, 0, 20, tzinfo=ZoneInfo("America/New_York"))
+        list(client.daily_bars(["AAPL"], "2026-11-16", "2026-11-16", "raw", now=winter))
+        list(client.daily_bars(["AAPL"], "2026-07-15", "2026-07-15", "raw", now=summer))
+        list(client.daily_bars(["AAPL"], "2026-11-16", "2026-11-16", "raw", now=later))
+        self.assertEqual(_query(script.urls[0])["end"], ["2026-11-16T23:54:00-05:00"])
+        self.assertEqual(_query(script.urls[1])["end"], ["2026-07-15T23:54:00-04:00"])
+        self.assertEqual(_query(script.urls[2])["end"], ["2026-11-16"])
+
     def test_daily_bars_batch_two_hundred_symbols(self) -> None:
         empty = b'{"bars":{},"next_page_token":null}'
         client, script, limiter = _client(empty, empty)

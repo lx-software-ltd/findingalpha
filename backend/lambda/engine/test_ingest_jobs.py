@@ -46,6 +46,24 @@ class IngestJobsTest(unittest.TestCase):
         )
         self.assertEqual(result["status"], "skipped_no_session")
 
+    def test_a_close_inside_the_sip_window_waits(self) -> None:
+        def refuse(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("called")
+
+        result = ingest_jobs.ingest_daily(
+            {},
+            None,
+            now=datetime(2026, 11, 16, 16, 10, tzinfo=ingest_jobs.NEW_YORK),
+            sessions=[date(2026, 11, 13), date(2026, 11, 16)],
+            symbols=["EXMPL"],
+            ciks=["0000000001"],
+            raw=refuse,
+            actions=refuse,
+            filings=refuse,
+            headlines=refuse,
+        )
+        self.assertEqual(result, {"ok": True, "status": "not_ready", "asOf": "2026-11-16"})
+
     def test_the_daily_job_refreshes_corporate_actions(self) -> None:
         seen: dict[str, object] = {}
 

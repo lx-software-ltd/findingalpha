@@ -375,13 +375,13 @@ class AlpacaData:
         start: date | datetime | str,
         end: date | datetime | str,
         adjustment: str,
+        now: datetime | None = None,
     ) -> Iterator[dict[str, Any]]:
-        """SIP daily bars. One request covers at most 200 symbols."""
         if adjustment not in _ADJUSTMENTS:
             raise ValueError("adjustment must be raw, split, dividend, or all")
         clean = _symbols(symbols)
         start_day = _day(start)
-        end_day = _day(end)
+        end_day = alpaca_bars.sip_end(_day(end), now)
         return self._daily_bars(clean, start_day, end_day, adjustment)
 
     def _daily_bars(self, symbols: list[str], start: str, end: str, adjustment: str) -> Iterator[dict[str, Any]]:

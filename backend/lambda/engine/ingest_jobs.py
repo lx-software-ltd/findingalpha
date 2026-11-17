@@ -4,8 +4,7 @@ The session is the New York trading day that has already closed. A run
 at 12:00 in Hong Kong is 23:00 New York in winter and midnight in
 summer, after the SEC daily index. A resumed price backfill keeps the
 ``start`` and ``end`` saved with the job. A universe build that stops
-early is saved so tick can run it
-again, and the adjusted refresh is a job tick can resume too.
+early is saved so tick can run it again, and the adjusted refresh resumes too.
 """
 
 from __future__ import annotations
@@ -13,6 +12,8 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
+
+import alpaca_bars
 
 NEW_YORK = ZoneInfo("America/New_York")
 BACKFILL_START = "2016-01-01"
@@ -107,6 +108,8 @@ def ingest_daily(
         }
     if day not in set(calendar):
         return {"ok": True, "status": "skipped_no_session", "asOf": day.isoformat()}
+    if not alpaca_bars.session_available(day.isoformat(), now):
+        return {"ok": True, "status": "not_ready", "asOf": day.isoformat()}
     listed = _assets(load_assets, False) if symbols is None or ciks is None else []
     names = list(symbols) if symbols is not None else _raw_symbols(listed, False)
     companies = list(ciks) if ciks is not None else _candidate_ciks(listed, (load_tickers or _load_tickers)())
