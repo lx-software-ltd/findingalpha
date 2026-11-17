@@ -280,7 +280,7 @@ The key list never includes the digest.
 | `GET /jobs/runs` | Recent job runs | M03 | `system` |
 | `GET /public` | The routes the calling key may use | M03A | any key |
 | `GET /api-keys` | Key list without digests | M03A | owner only |
-| `POST /jobs/{jobName}/run` | Start an allowed job. Returns 202 `{accepted: true}` | M04 | `operate`, jobs with `keyRun` only |
+| `POST /jobs/{jobName}/run` | Start an allowed job. A `backtest` body may set `portfolioSize` (an integer from 10 to 40). Any other body is refused. Returns 202 `{accepted: true}` | M04 | `operate`, jobs with `keyRun` only |
 | `GET /universe/latest` | Universe summary | M04 | `research` |
 | `GET /methodology` | The register, its hash, and provisional and cited counts | M05 | `research` |
 | `GET /screens/latest`, `GET /screens/{date}` | Shortlist and scores | M06 | `research` |
@@ -338,7 +338,9 @@ broker jobs and the drills. A key that asks to start a backfill
 whose saved state is already `done` is refused, because that starts
 the download again from the first month. The dashboard can still
 start it. The system status reports `keyRun` and the saved
-`progress` for each job.
+`progress` for each job. A `backtest` request may send
+`{"portfolioSize": N}` with `N` an integer from 10 to 40. An empty body
+uses the register size. A body on any other job is refused.
 
 | Job | Purpose | Milestone |
 | --- | --- | --- |

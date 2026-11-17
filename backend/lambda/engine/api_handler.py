@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from http_common import _claims, _json_response, _require_admin, _route, not_found
+from http_common import _claims, _json_response, _parse_json_body, _require_admin, _route, not_found
 from owner_tasks import list_tasks, put_task
 from research_api import backtest_by_id, latest_screen, list_backtests, screen_by_date
 from router import Route, route_matches
@@ -108,24 +108,51 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
         return not_found()
     if _key_caller(event) and _backfill_finished(name):
         return _json_response(409, {"message": f"{name} already finished"})
+    params = _run_params(name, event)
+    if params is None:
+        return _json_response(400, {"message": "portfolioSize must be an integer from 10 to 40"})
     actor = str(event.get("actor") or "") if _key_caller(event) else str(_claims(event).get("sub") or "")
-    _invoke_engine(name, actor)
+    if params:
+        _invoke_engine(name, actor, params)
+    else:
+        _invoke_engine(name, actor)
     import audit
 
     audit.write(actor, "job.run", name, event)
     return _json_response(202, {"accepted": True})
 
 
-def _invoke_engine(name: str, sub: str) -> None:
+def _run_params(name: str, event: dict[str, Any]) -> dict[str, int] | None:
+    """Params for the engine. None means the body is refused. Empty means no params."""
+    body = _parse_json_body(event)
+    if not body:
+        return {}
+    if name != "backtest" or set(body) != {"portfolioSize"}:
+        return None
+    raw = body["portfolioSize"]
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return None
+    import backtest
+
+    size = backtest.portfolio_size(raw, {"backtest": {"portfolioSize": raw}})
+    if size is None:
+        return None
+    return {"portfolioSize": size}
+
+
+def _invoke_engine(name: str, sub: str, params: dict[str, Any] | None = None) -> None:
     function = os.environ.get("ENGINE_FUNCTION_NAME", "")
     if not function:
         return
     import boto3
 
+    payload: dict[str, Any] = {"job": name, "trigger": "manual", "by": sub}
+    if params:
+        payload["params"] = params
     boto3.client("lambda").invoke(
         FunctionName=function,
         InvocationType="Event",
-        Payload=json.dumps({"job": name, "trigger": "manual", "by": sub}).encode(),
+        Payload=json.dumps(payload).encode(),
     )
 
 

@@ -83,8 +83,11 @@ export function useUniverse() {
 export function useRunJob() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (job: string) =>
-      adminFetchJson<{ accepted: boolean }>(`/jobs/${job}/run`, { method: "POST" }),
+    mutationFn: ({ job, portfolioSize }: { job: string; portfolioSize?: number }) =>
+      adminFetchJson<{ accepted: boolean }>(`/jobs/${job}/run`, {
+        method: "POST",
+        ...(portfolioSize === undefined ? {} : { body: JSON.stringify({ portfolioSize }) }),
+      }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.runs });
       void client.invalidateQueries({ queryKey: queryKeys.status });

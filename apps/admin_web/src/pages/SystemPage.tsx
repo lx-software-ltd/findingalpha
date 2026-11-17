@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   AdminCell,
   AdminDataTable,
@@ -9,8 +9,20 @@ import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
 import { useApiKeys, useJobRuns, useRunJob, useSystemStatus, useUniverse, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
 import { accessLabel } from "../lib/apiKeyDisplay";
+import { methodology } from "../lib/contracts/generated";
 
 type SwitchName = keyof Settings;
+
+const registerSize = methodology.backtest.portfolioSize;
+const MIN_NAMES = 10;
+const MAX_NAMES = 40;
+
+function chosenSize(text: string): number | null {
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  if (value < MIN_NAMES || value > MAX_NAMES) return null;
+  return value;
+}
 
 export function SystemPage() {
   const status = useSystemStatus();
@@ -21,7 +33,9 @@ export function SystemPage() {
   const put = usePutSettings();
   const [pending, setPending] = useState<{ name: SwitchName; next: boolean } | null>(null);
   const [pendingJob, setPendingJob] = useState<string | null>(null);
+  const [names, setNames] = useState(String(registerSize));
   const [accepted, setAccepted] = useState<string | null>(null);
+  const sizeId = useId();
   const jobs = [...(status.data?.jobs ?? [])].sort((left, right) => Number(right.lastRun?.status === "failed") - Number(left.lastRun?.status === "failed"));
   const columns: AdminDataTableColumn[] = [
     { key: "job", header: "Job" },
@@ -112,7 +126,14 @@ export function SystemPage() {
             <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
             <AdminCell column="run">
               {job.manualRun ? (
-                <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => setPendingJob(job.job)}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-primary"
+                  onClick={() => {
+                    setNames(String(registerSize));
+                    setPendingJob(job.job);
+                  }}
+                >
                   Run now
                 </button>
               ) : null}
@@ -163,14 +184,38 @@ export function SystemPage() {
         title="Run job"
         body={pendingJob ? `Run ${pendingJob} now?` : ""}
         confirmLabel="Run"
+        confirmDisabled={pendingJob === "backtest" && chosenSize(names) === null}
         onCancel={() => setPendingJob(null)}
         onConfirm={() => {
           if (!pendingJob) return;
           const name = pendingJob;
+          const size = name === "backtest" ? chosenSize(names) : null;
+          if (name === "backtest" && size === null) return;
           setPendingJob(null);
-          runJob.mutate(name, { onSuccess: () => setAccepted(name) });
+          runJob.mutate(size === null ? { job: name } : { job: name, portfolioSize: size }, {
+            onSuccess: () => setAccepted(name),
+          });
         }}
-      />
+      >
+        {pendingJob === "backtest" ? (
+          <div className="mb-3">
+            <label htmlFor={sizeId} className="form-label">
+              Names
+            </label>
+            <input
+              id={sizeId}
+              className="form-control form-control-sm"
+              type="number"
+              min={MIN_NAMES}
+              max={MAX_NAMES}
+              inputMode="numeric"
+              value={names}
+              onChange={(event) => setNames(event.target.value)}
+            />
+            <p className="form-text mb-0">10 to 40. The register uses {registerSize}.</p>
+          </div>
+        ) : null}
+      </ConfirmDialog>
       <ConfirmDialog
         open={pending !== null}
         title="Change setting"

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SystemPage } from "./SystemPage";
@@ -74,6 +74,46 @@ describe("SystemPage", () => {
     await user.click(screen.getByRole("button", { name: "Run" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Accepted ingest_daily.");
     expect(fetchJson).toHaveBeenCalledWith("/jobs/ingest_daily/run", { method: "POST" });
+  });
+
+  it("asks for a backtest size and sends an integer", async () => {
+    fetchJson.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === "/system/status") {
+        return Promise.resolve({
+          switches: [],
+          brokerMode: "paper",
+          jobs: [
+            { job: "ingest_daily", schedule: "0 6", manualRun: true, lastRun: null },
+            { job: "backtest", schedule: "", manualRun: true, lastRun: null },
+          ],
+        });
+      }
+      if (String(path).startsWith("/jobs/runs")) return Promise.resolve({ runs: [] });
+      if (path === "/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
+      if (path === "/universe/latest") {
+        return Promise.resolve({ asOf: null, members: 0, counts: {} });
+      }
+      if (init?.method === "POST") return Promise.resolve({ accepted: true });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const row = await screen.findByRole("row", { name: /backtest/ });
+    await user.click(within(row).getByRole("button", { name: "Run now" }));
+    const names = screen.getByRole("spinbutton", { name: "Names" });
+    expect(names).toHaveValue(20);
+    expect(screen.getByText(/10 to 40/)).toBeTruthy();
+    await user.clear(names);
+    await user.type(names, "9");
+    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+    await user.clear(names);
+    await user.type(names, "15");
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Accepted backtest.");
+    expect(fetchJson).toHaveBeenCalledWith("/jobs/backtest/run", {
+      method: "POST",
+      body: JSON.stringify({ portfolioSize: 15 }),
+    });
   });
 
   it("renders before a universe exists", async () => {

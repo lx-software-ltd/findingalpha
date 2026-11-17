@@ -264,6 +264,58 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(allowed["statusCode"], 202)
         self.assertEqual(sent, ["backfill_prices"])
 
+    def test_a_backtest_run_can_set_the_portfolio_size(self) -> None:
+        sent: list[tuple[str, object]] = []
+
+        def invoke(name: str, _sub: str, params: dict[str, Any] | None = None) -> None:
+            sent.append((name, params))
+
+        with patch.object(api_handler, "_invoke_engine", invoke):
+            sized = api_handler.lambda_handler(
+                _event("POST", "/public/jobs/backtest/run", {"portfolioSize": 15}, key=_key()), None
+            )
+            plain = api_handler.lambda_handler(_event("POST", "/public/jobs/backtest/run", key=_key()), None)
+            panel = api_handler.lambda_handler(
+                _event("POST", "/jobs/backtest/run", {"portfolioSize": 30}, admin=True), None
+            )
+        self.assertEqual(sized["statusCode"], 202)
+        self.assertEqual(plain["statusCode"], 202)
+        self.assertEqual(panel["statusCode"], 202)
+        self.assertEqual(sent[0], ("backtest", {"portfolioSize": 15}))
+        self.assertIsInstance(sent[0][1]["portfolioSize"], int)  # type: ignore[index]
+        self.assertEqual(sent[1], ("backtest", None))
+        self.assertEqual(sent[2], ("backtest", {"portfolioSize": 30}))
+
+    def test_a_bad_portfolio_size_is_refused_before_invoke(self) -> None:
+        sent: list[str] = []
+
+        def invoke(name: str, _sub: str, params: dict[str, Any] | None = None) -> None:
+            del params
+            sent.append(name)
+
+        refused = (
+            ("backtest", {"portfolioSize": 9}),
+            ("backtest", {"portfolioSize": 41}),
+            ("backtest", {"portfolioSize": True}),
+            ("backtest", {"portfolioSize": 15.0}),
+            ("backtest", {"portfolioSize": "15"}),
+            ("backtest", {"portfolioSize": 15, "note": "extra"}),
+            ("ingest_daily", {"portfolioSize": 15}),
+        )
+        with patch.object(api_handler, "_invoke_engine", invoke):
+            for job, body in refused:
+                response = api_handler.lambda_handler(_event("POST", f"/public/jobs/{job}/run", body, key=_key()), None)
+                self.assertEqual(response["statusCode"], 400, body)
+                self.assertEqual(
+                    json.loads(response["body"])["message"],
+                    "portfolioSize must be an integer from 10 to 40",
+                )
+            admin = api_handler.lambda_handler(
+                _event("POST", "/jobs/backtest/run", {"portfolioSize": 9}, admin=True), None
+            )
+        self.assertEqual(admin["statusCode"], 400)
+        self.assertEqual(sent, [])
+
 
 if __name__ == "__main__":
     unittest.main()
