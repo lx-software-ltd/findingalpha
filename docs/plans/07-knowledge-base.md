@@ -28,6 +28,12 @@ knowledge base to Cursor and Claude through the AWS MCP server.
 
 Recheck every line in T01. Services change.
 
+T01 rechecked this list on 17 November 2026 (Hong Kong). The results
+and the corrections this plan needs are in
+`docs/research/managed-kb.md`, under "Recheck of the plan's verified
+list" and "What the plan must change". The owner approves those
+corrections with T02. The steps below still carry the original text.
+
 - Managed Knowledge Base (`type: MANAGED`) is available in
   `ap-southeast-1`. Hybrid search is always on. Embedding, reranking
   and parsing are included and managed. Storage is internal to AWS.
