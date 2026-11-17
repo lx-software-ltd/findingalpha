@@ -8,19 +8,20 @@ import {
 import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
 import { useApiKeys, useJobRuns, useRunJob, useSystemStatus, useUniverse, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
+import { getAdminApiErrorMessage } from "../lib/apiAdminClient";
 import { accessLabel } from "../lib/apiKeyDisplay";
 import { methodology } from "../lib/contracts/generated";
 
 type SwitchName = keyof Settings;
 
 const registerSize = methodology.backtest.portfolioSize;
-const MIN_NAMES = 10;
-const MAX_NAMES = 40;
+const minNames = methodology.backtest.portfolioSizeMin;
+const maxNames = methodology.backtest.portfolioSizeMax;
 
 function chosenSize(text: string): number | null {
   if (!/^\d+$/.test(text)) return null;
   const value = Number(text);
-  if (value < MIN_NAMES || value > MAX_NAMES) return null;
+  if (value < minNames || value > maxNames) return null;
   return value;
 }
 
@@ -35,6 +36,7 @@ export function SystemPage() {
   const [pendingJob, setPendingJob] = useState<string | null>(null);
   const [names, setNames] = useState(String(registerSize));
   const [accepted, setAccepted] = useState<string | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
   const sizeId = useId();
   const jobs = [...(status.data?.jobs ?? [])].sort((left, right) => Number(right.lastRun?.status === "failed") - Number(left.lastRun?.status === "failed"));
   const columns: AdminDataTableColumn[] = [
@@ -112,6 +114,7 @@ export function SystemPage() {
       </p>
       <h2 className="h5">Jobs</h2>
       {accepted ? <p role="status">Accepted {accepted}.</p> : null}
+      {runError ? <p role="alert">{runError}</p> : null}
       <AdminDataTable columns={columns} bare>
         {jobs.map((job) => (
           <tr key={job.job}>
@@ -191,9 +194,22 @@ export function SystemPage() {
           const name = pendingJob;
           const size = name === "backtest" ? chosenSize(names) : null;
           if (name === "backtest" && size === null) return;
+          const explicit = size !== null && size !== registerSize ? size : null;
           setPendingJob(null);
-          runJob.mutate(size === null ? { job: name } : { job: name, portfolioSize: size }, {
-            onSuccess: () => setAccepted(name),
+          runJob.mutate(explicit === null ? { job: name } : { job: name, portfolioSize: explicit }, {
+            onSuccess: (result) => {
+              if (explicit !== null && result.portfolioSize !== explicit) {
+                setAccepted(null);
+                setRunError(`The server did not confirm ${explicit} names. The run may use the register size.`);
+                return;
+              }
+              setRunError(null);
+              setAccepted(explicit === null ? name : `${name}, ${explicit} names`);
+            },
+            onError: (error: unknown) => {
+              setAccepted(null);
+              setRunError(getAdminApiErrorMessage(error) ?? "The run was refused.");
+            },
           });
         }}
       >
@@ -206,13 +222,15 @@ export function SystemPage() {
               id={sizeId}
               className="form-control form-control-sm"
               type="number"
-              min={MIN_NAMES}
-              max={MAX_NAMES}
+              min={minNames}
+              max={maxNames}
               inputMode="numeric"
               value={names}
               onChange={(event) => setNames(event.target.value)}
             />
-            <p className="form-text mb-0">10 to 40. The register uses {registerSize}.</p>
+            <p className="form-text mb-0">
+              {minNames} to {maxNames}. Leave {registerSize} to use the register.
+            </p>
           </div>
         ) : null}
       </ConfirmDialog>

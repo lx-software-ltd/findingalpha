@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 from pathlib import Path
 from typing import Any
 
-from http_common import _claims, _json_response, _parse_json_body, _require_admin, _route, not_found
+from http_common import _claims, _json_response, _require_admin, _route, not_found
 from owner_tasks import list_tasks, put_task
 from research_api import backtest_by_id, latest_screen, list_backtests, screen_by_date
 from router import Route, route_matches
@@ -108,9 +110,17 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
         return not_found()
     if _key_caller(event) and _backfill_finished(name):
         return _json_response(409, {"message": f"{name} already finished"})
-    params = _run_params(name, event)
-    if params is None:
-        return _json_response(400, {"message": "portfolioSize must be an integer from 10 to 40"})
+    parsed = _run_params(name, event)
+    if isinstance(parsed, str):
+        return _json_response(400, {"message": parsed})
+    params, chosen = parsed
+    if name == "backtest" and chosen is not None:
+        import backtest
+        import store
+
+        conflict = backtest.size_conflict(store.get("JOB#backtest", "STATE") or {}, chosen)
+        if conflict:
+            return _json_response(409, {"message": conflict})
     actor = str(event.get("actor") or "") if _key_caller(event) else str(_claims(event).get("sub") or "")
     if params:
         _invoke_engine(name, actor, params)
@@ -118,26 +128,70 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
         _invoke_engine(name, actor)
     import audit
 
-    audit.write(actor, "job.run", name, event)
-    return _json_response(202, {"accepted": True})
+    target = name if chosen is None else f"{name} {chosen}"
+    audit.write(actor, "job.run", target, event)
+    accepted: dict[str, Any] = {"accepted": True}
+    if params:
+        accepted["portfolioSize"] = params["portfolioSize"]
+    return _json_response(202, accepted)
 
 
-def _run_params(name: str, event: dict[str, Any]) -> dict[str, int] | None:
-    """Params for the engine. None means the body is refused. Empty means no params."""
-    body = _parse_json_body(event)
-    if not body:
+def _request_object(event: dict[str, Any]) -> dict[str, Any] | None:
+    """The JSON object in the body. ``{}`` when the body is absent. None when it is unreadable."""
+    raw = event.get("body")
+    if event.get("isBase64Encoded") and isinstance(raw, str) and raw:
+        try:
+            raw = base64.b64decode(raw, validate=True).decode("utf-8")
+        except (ValueError, UnicodeDecodeError, binascii.Error):
+            return None
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
         return {}
-    if name != "backtest" or set(body) != {"portfolioSize"}:
+    if not isinstance(raw, str):
         return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def _run_params(name: str, event: dict[str, Any]) -> str | tuple[dict[str, int], int | None]:
+    """Params to forward and the backtest size, or the refusal message."""
+    body = _request_object(event)
+    if body is None:
+        return "body must be a JSON object"
+    if not body:
+        if name != "backtest":
+            return {}, None
+        import methodology
+
+        return {}, int(methodology.load()["backtest"]["portfolioSize"])
+    if name != "backtest":
+        return "this job does not take a body"
+    if set(body) != {"portfolioSize"}:
+        return "only portfolioSize is allowed"
     raw = body["portfolioSize"]
     if isinstance(raw, bool) or not isinstance(raw, int):
-        return None
+        return _size_message()
     import backtest
+    import methodology
 
-    size = backtest.portfolio_size(raw, {"backtest": {"portfolioSize": raw}})
+    register = methodology.load()
+    size = backtest.portfolio_size(raw, register)
     if size is None:
-        return None
-    return {"portfolioSize": size}
+        return _size_message(register)
+    return {"portfolioSize": size}, size
+
+
+def _size_message(register: dict[str, Any] | None = None) -> str:
+    if register is None:
+        import methodology
+
+        register = methodology.load()
+    bounds = register["backtest"]
+    return f"portfolioSize must be an integer from {bounds['portfolioSizeMin']} to {bounds['portfolioSizeMax']}"
 
 
 def _invoke_engine(name: str, sub: str, params: dict[str, Any] | None = None) -> None:

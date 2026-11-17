@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AdminApiError } from "../lib/apiAdminClient";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,9 +7,10 @@ import { SystemPage } from "./SystemPage";
 
 const fetchJson = vi.fn();
 
-vi.mock("../lib/apiAdminClient", () => ({
-  adminFetchJson: (...args: unknown[]) => fetchJson(...args),
-}));
+vi.mock("../lib/apiAdminClient", async () => {
+  const actual = await vi.importActual<typeof import("../lib/apiAdminClient")>("../lib/apiAdminClient");
+  return { ...actual, adminFetchJson: (...args: unknown[]) => fetchJson(...args) };
+});
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -77,7 +79,7 @@ describe("SystemPage", () => {
   });
 
   it("asks for a backtest size and sends an integer", async () => {
-    fetchJson.mockImplementation((path: string, init?: { method?: string }) => {
+    fetchJson.mockImplementation((path: string, init?: { method?: string; body?: string }) => {
       if (path === "/system/status") {
         return Promise.resolve({
           switches: [],
@@ -93,7 +95,10 @@ describe("SystemPage", () => {
       if (path === "/universe/latest") {
         return Promise.resolve({ asOf: null, members: 0, counts: {} });
       }
-      if (init?.method === "POST") return Promise.resolve({ accepted: true });
+      if (init?.method === "POST") {
+        const sent = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+        return Promise.resolve({ accepted: true, ...(sent.portfolioSize ? { portfolioSize: sent.portfolioSize } : {}) });
+      }
       return Promise.resolve({});
     });
     const user = userEvent.setup();
@@ -103,17 +108,58 @@ describe("SystemPage", () => {
     const names = screen.getByRole("spinbutton", { name: "Names" });
     expect(names).toHaveValue(20);
     expect(screen.getByText(/10 to 40/)).toBeTruthy();
-    await user.clear(names);
-    await user.type(names, "9");
-    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
-    await user.clear(names);
-    await user.type(names, "15");
+    expect(screen.getByText(/Leave 20/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Run" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Accepted backtest.");
+    expect(fetchJson).toHaveBeenCalledWith("/jobs/backtest/run", { method: "POST" });
+    await user.click(within(row).getByRole("button", { name: "Run now" }));
+    const again = screen.getByRole("spinbutton", { name: "Names" });
+    await user.clear(again);
+    await user.type(again, "9");
+    expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+    await user.clear(again);
+    await user.type(again, "15");
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Accepted backtest, 15 names.");
     expect(fetchJson).toHaveBeenCalledWith("/jobs/backtest/run", {
       method: "POST",
       body: JSON.stringify({ portfolioSize: 15 }),
     });
+  });
+
+  it("shows a refusal and an unconfirmed size", async () => {
+    fetchJson.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === "/system/status") {
+        return Promise.resolve({
+          switches: [],
+          brokerMode: "paper",
+          jobs: [{ job: "backtest", schedule: "", manualRun: true, lastRun: null }],
+        });
+      }
+      if (String(path).startsWith("/jobs/runs")) return Promise.resolve({ runs: [] });
+      if (path === "/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
+      if (path === "/universe/latest") return Promise.resolve({ asOf: null, members: 0, counts: {} });
+      if (init?.method === "POST") return Promise.resolve({ accepted: true });
+      return Promise.resolve({});
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Run now" }));
+    await user.clear(screen.getByRole("spinbutton", { name: "Names" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Names" }), "15");
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("did not confirm 15 names");
+    fetchJson.mockImplementation((path: string, init?: { method?: string }) => {
+      if (init?.method === "POST") {
+        return Promise.reject(new AdminApiError(409, JSON.stringify({ message: "unfinished backtest is 15 names" })));
+      }
+      return Promise.resolve({});
+    });
+    await user.click(screen.getByRole("button", { name: "Run now" }));
+    await user.clear(screen.getByRole("spinbutton", { name: "Names" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Names" }), "30");
+    await user.click(screen.getByRole("button", { name: "Run" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("unfinished backtest is 15 names");
   });
 
   it("renders before a universe exists", async () => {

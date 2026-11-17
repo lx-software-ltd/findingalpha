@@ -111,6 +111,19 @@ class BacktestTest(unittest.TestCase):
         self.assertIsNone(backtest.portfolio_size(9, register))
         self.assertIsNone(backtest.portfolio_size(True, register))
 
+    def test_a_new_size_does_not_replace_an_unfinished_run(self) -> None:
+        from decimal import Decimal
+
+        previous = {
+            "status": "running",
+            "params": {"runId": "abc", "portfolioSize": Decimal("15"), "startedAt": "t"},
+        }
+        with patch("store.get", return_value=previous), patch("chunked.run") as chunk:
+            result = backtest.run({"params": {"portfolioSize": 30}}, None)
+        self.assertEqual(result["error"], "unfinished backtest is 15 names")
+        chunk.assert_not_called()
+        self.assertEqual(previous["status"], "running")
+
     def test_each_month_uses_that_months_close_and_share_count(self) -> None:
         register = methodology.load()
         built = backtest.rows_for_symbol(

@@ -84,7 +84,7 @@ export function useRunJob() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: ({ job, portfolioSize }: { job: string; portfolioSize?: number }) =>
-      adminFetchJson<{ accepted: boolean }>(`/jobs/${job}/run`, {
+      adminFetchJson<{ accepted: boolean; portfolioSize?: number }>(`/jobs/${job}/run`, {
         method: "POST",
         ...(portfolioSize === undefined ? {} : { body: JSON.stringify({ portfolioSize }) }),
       }),

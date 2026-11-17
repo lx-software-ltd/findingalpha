@@ -281,10 +281,15 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(sized["statusCode"], 202)
         self.assertEqual(plain["statusCode"], 202)
         self.assertEqual(panel["statusCode"], 202)
+        self.assertEqual(json.loads(sized["body"]), {"accepted": True, "portfolioSize": 15})
+        self.assertEqual(json.loads(plain["body"]), {"accepted": True})
         self.assertEqual(sent[0], ("backtest", {"portfolioSize": 15}))
         self.assertIsInstance(sent[0][1]["portfolioSize"], int)  # type: ignore[index]
         self.assertEqual(sent[1], ("backtest", None))
         self.assertEqual(sent[2], ("backtest", {"portfolioSize": 30}))
+        self.assertEqual(
+            [call.args[2] for call in self.audit.call_args_list], ["backtest 15", "backtest 20", "backtest 30"]
+        )
 
     def test_a_bad_portfolio_size_is_refused_before_invoke(self) -> None:
         sent: list[str] = []
@@ -294,27 +299,78 @@ class PublicApiTest(unittest.TestCase):
             sent.append(name)
 
         refused = (
-            ("backtest", {"portfolioSize": 9}),
-            ("backtest", {"portfolioSize": 41}),
-            ("backtest", {"portfolioSize": True}),
-            ("backtest", {"portfolioSize": 15.0}),
-            ("backtest", {"portfolioSize": "15"}),
-            ("backtest", {"portfolioSize": 15, "note": "extra"}),
-            ("ingest_daily", {"portfolioSize": 15}),
+            ("backtest", {"portfolioSize": 9}, "portfolioSize must be an integer from 10 to 40"),
+            ("backtest", {"portfolioSize": 41}, "portfolioSize must be an integer from 10 to 40"),
+            ("backtest", {"portfolioSize": True}, "portfolioSize must be an integer from 10 to 40"),
+            ("backtest", {"portfolioSize": 15.0}, "portfolioSize must be an integer from 10 to 40"),
+            ("backtest", {"portfolioSize": "15"}, "portfolioSize must be an integer from 10 to 40"),
+            ("backtest", {"portfolioSize": 15, "note": "extra"}, "only portfolioSize is allowed"),
+            ("ingest_daily", {"day": "2026-11-16"}, "this job does not take a body"),
         )
         with patch.object(api_handler, "_invoke_engine", invoke):
-            for job, body in refused:
+            for job, body, message in refused:
                 response = api_handler.lambda_handler(_event("POST", f"/public/jobs/{job}/run", body, key=_key()), None)
                 self.assertEqual(response["statusCode"], 400, body)
-                self.assertEqual(
-                    json.loads(response["body"])["message"],
-                    "portfolioSize must be an integer from 10 to 40",
-                )
+                self.assertEqual(json.loads(response["body"])["message"], message)
             admin = api_handler.lambda_handler(
                 _event("POST", "/jobs/backtest/run", {"portfolioSize": 9}, admin=True), None
             )
         self.assertEqual(admin["statusCode"], 400)
         self.assertEqual(sent, [])
+
+    def test_an_unreadable_job_body_is_refused(self) -> None:
+        import base64
+
+        sent: list[str] = []
+
+        def invoke(name: str, _sub: str, params: dict[str, Any] | None = None) -> None:
+            del params
+            sent.append(name)
+
+        with patch.object(api_handler, "_invoke_engine", invoke):
+            for raw in ('{"portfolioSize": 15', "[15]", "15", "portfolioSize=15", "null"):
+                event = _event("POST", "/public/jobs/backtest/run", key=_key())
+                event["body"] = raw
+                response = api_handler.lambda_handler(event, None)
+                self.assertEqual(response["statusCode"], 400, raw)
+                self.assertEqual(json.loads(response["body"])["message"], "body must be a JSON object")
+            encoded = _event("POST", "/public/jobs/backtest/run", key=_key())
+            encoded["isBase64Encoded"] = True
+            encoded["body"] = base64.b64encode(b'{"portfolioSize": 15}').decode("ascii")
+            accepted = api_handler.lambda_handler(encoded, None)
+        self.assertEqual(accepted["statusCode"], 202)
+        self.assertEqual(json.loads(accepted["body"])["portfolioSize"], 15)
+        self.assertEqual(sent, ["backtest"])
+
+    def test_a_different_size_waits_until_the_backtest_finishes(self) -> None:
+        from decimal import Decimal
+
+        self.store.put(
+            {
+                "pk": "JOB#backtest",
+                "sk": "STATE",
+                "status": "running",
+                "params": {"runId": "abc", "portfolioSize": Decimal("15"), "startedAt": "t"},
+            }
+        )
+        sent: list[object] = []
+
+        def invoke(name: str, _sub: str, params: dict[str, Any] | None = None) -> None:
+            sent.append((name, params))
+
+        with patch.object(api_handler, "_invoke_engine", invoke):
+            other = api_handler.lambda_handler(
+                _event("POST", "/public/jobs/backtest/run", {"portfolioSize": 30}, key=_key()), None
+            )
+            implied = api_handler.lambda_handler(_event("POST", "/public/jobs/backtest/run", key=_key()), None)
+            same = api_handler.lambda_handler(
+                _event("POST", "/jobs/backtest/run", {"portfolioSize": 15}, admin=True), None
+            )
+        self.assertEqual(other["statusCode"], 409)
+        self.assertEqual(json.loads(other["body"])["message"], "unfinished backtest is 15 names")
+        self.assertEqual(implied["statusCode"], 409)
+        self.assertEqual(same["statusCode"], 202)
+        self.assertEqual(sent, [("backtest", {"portfolioSize": 15})])
 
 
 if __name__ == "__main__":

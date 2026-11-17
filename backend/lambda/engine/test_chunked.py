@@ -225,7 +225,8 @@ class ChunkedTest(unittest.TestCase):
         started: list[str] = []
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             result = chunked.resume_stalled(now=lambda: NOW, invoke=invoke)
-        self.assertEqual(result, ["beta"])
+        self.assertEqual(result["started"], ["beta"])
+        self.assertEqual(result["failed"], [{"job": "alpha", "error": "RuntimeError"}])
         self.assertEqual(started, ["beta"])
 
     def test_a_paused_job_waits_until_the_switch_is_on(self) -> None:
@@ -244,8 +245,8 @@ class ChunkedTest(unittest.TestCase):
         with _bind(memory)[0], _bind(memory)[1], _bind(memory)[2], _bind(memory)[3]:
             held = chunked.resume_stalled(now=lambda: NOW, invoke=started.append, enabled=lambda _job: False)
             released = chunked.resume_stalled(now=lambda: NOW, invoke=started.append, enabled=lambda _job: True)
-        self.assertEqual(held, [])
-        self.assertEqual(released, ["prices"])
+        self.assertEqual(held, {"started": [], "failed": []})
+        self.assertEqual(released, {"started": ["prices"], "failed": []})
         self.assertEqual(started, ["prices"])
 
     def test_invoke_uses_the_function_name_and_does_nothing_without_it(self) -> None:
@@ -426,7 +427,8 @@ class ChunkedTest(unittest.TestCase):
             patch("boto3.client", return_value=_Lambda()),
         ):
             started = chunked.resume_stalled(now=lambda: NOW)
-        self.assertEqual(started, ["backtest"])
+        self.assertEqual(started["started"], ["backtest"])
+        self.assertEqual(started["failed"], [])
         payload = json.loads(calls[0]["Payload"])  # type: ignore[arg-type]
         self.assertEqual(payload["job"], "backtest")
         self.assertEqual(payload["params"]["portfolioSize"], 20)

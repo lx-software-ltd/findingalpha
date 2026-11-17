@@ -1,17 +1,17 @@
 # Plan: Resume a backtest, and set its size
 
 **Status**: In review
-**Zone**: yellow
+**Zone**: yellow, with the register bounds in `contracts/` at the owner's request
 
 ## Goal
 
-Tick can resume a backtest whose saved `portfolioSize` came back from DynamoDB as a `Decimal`. A Run now for `backtest`, from the dashboard or a key, can set `portfolioSize` to an integer from 10 to 40. Other jobs stay as they are.
+Tick can resume a backtest whose saved `portfolioSize` came back from DynamoDB as a `Decimal`. A Run now for `backtest`, from the dashboard or a key, can set `portfolioSize` inside the register bounds. Another size cannot replace an unfinished run. A resume that cannot be encoded fails the tick.
 
 ## Non-goals
 
 - Do not deploy, and do not start the live size 15 or 30 runs.
 - Do not write `docs/research/backtest-2017-2026.md`.
-- Do not change `contracts/`, and do not teach `portfolio_size` to accept a `Decimal` or a float. The resumed event has to carry a JSON integer.
+- Do not teach `portfolio_size` to accept a `Decimal` or a float. The resumed event has to carry a JSON integer.
 - Do not resume a failed job that has no failure count.
 
 ## Files
@@ -20,6 +20,7 @@ Tick can resume a backtest whose saved `portfolioSize` came back from DynamoDB a
 - `backend/lambda/engine/api_handler.py` and `test_public_api.py`
 - `apps/admin_web/src/pages/SystemPage.tsx`, `SystemPage.test.tsx`, `ConfirmDialog.tsx`, `useSystemStatus.ts`
 - `apps/admin_web/src/lib/mock/fixtures.ts` so the mock System page shows the backtest row
+- `contracts/methodology.json` for `portfolioSizeMin` and `portfolioSizeMax`
 - `docs/plans/reference.md` for the request body
 
 ## Invariants this change preserves
