@@ -164,12 +164,8 @@ function connectPrefix(
         },
       },
     },
-    vectorIngestionConfiguration: {
-      chunkingConfiguration: {
-        chunkingStrategy: "FIXED_SIZE",
-        fixedSizeChunkingConfiguration: { maxTokens: 800, overlapPercentage: 15 },
-      },
-      parsingConfiguration: { parsingStrategy: "SMART_PARSING" },
-    },
+    // Managed embedding rejects chunkingConfiguration. Omitting this
+    // block applies the service defaults: 300 tokens with 20% overlap,
+    // and Smart Parsing.
   });
 }

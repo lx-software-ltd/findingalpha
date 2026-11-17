@@ -94,16 +94,21 @@ caps `KbMaxRawBytes` and `KbMaxRetrievalsPerMonth` are stack parameters
      property from required to optional. The installed 2.277.0 has
      `embeddingModelArn?: string`.
    - A probe stack built with the installed L1 classes (managed
-     knowledge base, tags, one managed S3 data source with fixed-size
-     chunking) synthesizes, and both resources pass the published
-     schemas with zero errors.
+     knowledge base, tags, one managed S3 data source) synthesizes, and
+     both resources pass the published schemas with zero errors.
 
-   **Unverified**: a real deployment. The first deploy in T02 is the
-   test. A failed create rolls back, because the stack adds only new
-   resources. The `AwsCustomResource` path in the plan stays as the
-   fallback if the service still rejects the request.
-   `AWS::Bedrock::DataSource` also supports the managed connector, so
-   the data sources need no custom resource either.
+   **The knowledge base resource is accepted.** The first deploy, on
+   17 November 2026 (Hong Kong), created `TheoryKnowledgeBase`.
+   `CreateDataSource` then rejected the data source: "A chunking
+   strategy cannot be specified with a managed embedding model. Omit
+   chunkingConfiguration to use the default." CloudFormation rolled the
+   create back and deleted the knowledge base, the data source, the
+   role and the alarm. `CfnKnowledgeBase` needs no custom resource.
+   `AWS::Bedrock::DataSource` also supports the managed connector. The
+   data source omits `vectorIngestionConfiguration`, because managed
+   embedding rejects a chunking strategy and Smart Parsing is the
+   documented default. Parsing was in that first request and the
+   service never reached it.
 2. **The four requests are in "Request shapes".** Each one passes the
    SDK's parameter validation against the botocore 1.44.3 model.
 3. **Prices are unchanged.** Storage is 5.00 US dollars per GB-month of
@@ -138,7 +143,8 @@ These follow from the answers. Each is a correction to
 
 | Plan text | Finding | Proposed change |
 | --- | --- | --- |
-| T02.3 "Data deletion policy: retain" | "For managed knowledge bases, the only supported option is DELETE, which is also the default" (CreateDataSource reference) | Use `DELETE`. Removal policy retain-except-on-create on the knowledge base only: a rolled-back create is deleted, and a knowledge base that exists is kept. Data sources are not retained. Chunking is create-only, and a retained data source would stay indexed and billed. The PDFs in S3 stay the source of truth |
+| T02.3 "Data deletion policy: retain" | "For managed knowledge bases, the only supported option is DELETE, which is also the default" (CreateDataSource reference) | Use `DELETE`. Removal policy retain-except-on-create on the knowledge base only: a rolled-back create is deleted, and a knowledge base that exists is kept. Data sources are not retained. The PDFs in S3 stay the source of truth |
+| T02.3 "fixed size, 800 tokens, 15% overlap" | The first deploy created the knowledge base, then `CreateDataSource` rejected `chunkingConfiguration` with managed embedding. Rollback deleted the new resources | **Decided** the same night: omit `vectorIngestionConfiguration`. The default is 300 tokens with 20% overlap. Smart Parsing stays the service default and is left out of the request |
 | T02.3 data source on S3 | A managed knowledge base takes `type: MANAGED_KNOWLEDGE_BASE_CONNECTOR` with `connectorParameters`. The `s3Configuration` shape is for self-managed knowledge bases | Use the request in "Request shapes". One prefix per data source through `filterConfiguration.inclusionPrefixes` |
 | T02.6 "`RawDataSize` above 1.5 GB" | The metric's unit is Gigabytes and its dimension is `KnowledgeBaseId` with the value `knowledge-base/<id>` (Observability page). The bucket holds 1.96 GB today | **Decided** on 17 November 2026 (Hong Kong): threshold 2.0 GB |
 | T02.1 service role | Runtime metrics are published with the service role's credentials and need `cloudwatch:PutMetricData` limited to the namespace `AWS/Bedrock/KnowledgeBases` | Add that statement. Without it the metrics are silently missing |
@@ -164,8 +170,8 @@ These follow from the answers. Each is a correction to
 | File limit 50 MB | Unclear. See "File size" | Three pages disagree |
 | Types: PDF, Markdown, text, HTML, Word, Excel, CSV | Confirmed. The overview also names PPTX, and images, audio and video when media extraction is on | Document formats page |
 | Sidecar `<file>.metadata.json`, at most 10 KB | Confirmed. The managed format is typed, see "Request shapes" | S3 connector page |
-| Chunking fixed at creation | Confirmed. "You can't change the chunking strategy after connecting to the data source". CloudFormation replaces the data source on a change | Customize ingestion page; schema `createOnlyProperties` |
-| Default 300 tokens, 20% overlap; none; fixed size; no semantic | Confirmed | Customize ingestion page |
+| Chunking fixed at creation | Partly. The guide says the strategy cannot be changed after connect, and CloudFormation replaces the data source on a change. With managed embedding the service rejects `chunkingConfiguration` itself. The first deploy returned that error and rolled back | Customize ingestion page; schema `createOnlyProperties`; deploy on 17 November 2026 (Hong Kong) |
+| Default 300 tokens, 20% overlap; none; fixed size; no semantic | Partly. The guide lists those choices. Managed embedding accepts the default only, by omitting `chunkingConfiguration`. The service rejected the presence of a chunking strategy before `NONE` or `FIXED_SIZE` could be tried on their own | Customize ingestion page; first deploy |
 | Deleting more than 15% is blocked by default | Partly. See the table above | Connect a data source page |
 | 200 data sources, 600 `Retrieve` a minute | Confirmed. Also 100 `Retrieve` a second per account, 50 concurrent ingestion jobs per knowledge base, 10,000 characters per query, 10 TB per knowledge base, 30 MB of extracted text per file | Quotas pages |
 | Metric `RawDataSize` in `AWS/Bedrock/KnowledgeBases` | Confirmed. Unit Gigabytes, published after an ingestion job completes | Observability page |
@@ -266,14 +272,13 @@ syntax for the managed connector:
     }
   },
   "vectorIngestionConfiguration": {
-    "parsingConfiguration": { "parsingStrategy": "SMART_PARSING" },
-    "chunkingConfiguration": {
-      "chunkingStrategy": "FIXED_SIZE | NONE",
-      "fixedSizeChunkingConfiguration": { "maxTokens": 800, "overlapPercentage": 15 }
-    }
+    "parsingConfiguration": { "parsingStrategy": "SMART_PARSING" }
   }
 }
 ```
+
+The published shape can include `vectorIngestionConfiguration`. This
+project leaves that property out. The notes below say why.
 
 `connectorParameters` for S3, from the connector page:
 
@@ -319,13 +324,6 @@ The request for the `theory` data source. The other two differ in
         "deletionProtectionThreshold": 15
       }
     }
-  },
-  "vectorIngestionConfiguration": {
-    "parsingConfiguration": { "parsingStrategy": "SMART_PARSING" },
-    "chunkingConfiguration": {
-      "chunkingStrategy": "FIXED_SIZE",
-      "fixedSizeChunkingConfiguration": { "maxTokens": 800, "overlapPercentage": 15 }
-    }
   }
 }
 ```
@@ -334,12 +332,16 @@ Notes:
 
 - Creation is asynchronous. The status moves from `CREATING` to
   `AVAILABLE`.
-- `maxTokens` accepts 1 to 8192 and `overlapPercentage` 1 to 99.
-- Omit `chunkingConfiguration` for the default (300 tokens, 20%). The
-  user guide shows `"chunkingStrategy": "DEFAULT"`, and the API
-  reference, the SDK and the CloudFormation schema list only
-  `FIXED_SIZE`, `NONE`, `HIERARCHICAL` and `SEMANTIC`. The plan uses
-  `FIXED_SIZE`, so this does not matter here.
+- `maxTokens` accepts 1 to 8192 and `overlapPercentage` 1 to 99 on a
+  knowledge base that can set them. Managed embedding cannot. The user
+  guide shows `"chunkingStrategy": "DEFAULT"` for 300 tokens and 20%
+  overlap. The API reference, the SDK and the CloudFormation schema
+  list `FIXED_SIZE`, `NONE`, `HIERARCHICAL` and `SEMANTIC`. The first
+  deploy rejected a chunking strategy with managed embedding, so this
+  project omits `chunkingConfiguration`.
+- This project also omits `parsingConfiguration`. Smart Parsing is the
+  documented default. The first deploy failed on chunking before the
+  service read the parsing setting.
 - `BEDROCK_FOUNDATION_MODEL` and `BEDROCK_DATA_AUTOMATION` parsing are
   unsupported for managed knowledge bases.
 - With no `syncSchedule` the data source syncs only on
