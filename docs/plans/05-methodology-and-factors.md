@@ -1,6 +1,6 @@
 # Plan: M05 methodology register and factor library
 
-**Status**: In review
+**Status**: Done. The owner accepted the memo from T01 in chat on 17 November 2026 (Hong Kong).
 **Zone**: red (`contracts/methodology.json`). The factor code is yellow.
 
 ## Goal
@@ -170,8 +170,10 @@ Write `docs/research/methodology-provisional.md`: the two tables
 above, one sentence per factor on what it measures, and the open
 choices (group weights, the debt ceiling of 4, the shortlist size).
 The owner asked to develop this milestone on those proposed values.
-The memo is written. This step stays open until the owner accepts the
-group weights, the debt ceiling, and the shortlist size.
+The memo is written. On 17 November 2026 (Hong Kong) the owner accepted
+group weights of 40/30/30, the debt ceiling of 4, and the shortlist of
+60 in chat. The register already held those values, so it did not
+change and its hash is the same.
 `volatility252` and `freeCashFlow_ttm` use group `reported`, so they
 stay in the register and out of the composite.
 
