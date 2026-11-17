@@ -1,7 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { FindingalphaStack } from "../lib/findingalpha-stack";
-import { tagReport } from "./resource-tags";
+import { readTag, tagReport } from "./resource-tags";
 
 const ENV = { region: "ap-southeast-1" };
 
@@ -16,6 +16,7 @@ const KILL_SWITCHES = [
 
 type CfnResource = {
   DeletionPolicy?: string;
+  UpdateReplacePolicy?: string;
   Condition?: string;
   DependsOn?: string | string[];
   Properties: Record<string, unknown>;
@@ -88,6 +89,7 @@ describe("findingalpha stack", () => {
       "AWS::ApiGatewayV2::Authorizer",
       "AWS::ApiGatewayV2::Integration",
       "AWS::ApiGatewayV2::Route",
+      "AWS::Bedrock::DataSource",
       "AWS::Cognito::UserPoolClient",
       "AWS::Cognito::UserPoolDomain",
       "AWS::Cognito::UserPoolGroup",
@@ -385,5 +387,114 @@ describe("findingalpha stack", () => {
         ThrottlingBurstLimit: 100,
       }),
     });
+  });
+
+  test("the managed knowledge base keeps its index and reads three prefixes", () => {
+    const bases = resources("AWS::Bedrock::KnowledgeBase");
+    expect(Object.keys(bases)).toHaveLength(1);
+    const base = Object.values(bases)[0];
+    expect(base.DeletionPolicy).toBe("RetainExceptOnCreate");
+    // A replacement keeps the previous knowledge base. The create rollback
+    // is what RetainExceptOnCreate covers.
+    expect(base.UpdateReplacePolicy).toBe("Retain");
+    expect(base.Properties.Name).toBe("findingalpha-theory");
+    expect(base.Properties.KnowledgeBaseConfiguration).toEqual({
+      Type: "MANAGED",
+      ManagedKnowledgeBaseConfiguration: { EmbeddingModelType: "MANAGED" },
+    });
+    expect(JSON.stringify(base.Properties)).not.toContain("EmbeddingModelArn");
+    expect(readTag(base.Properties.Tags, "mcp-multirag-kb")).toBe("true");
+    expect(readTag(base.Properties.Tags, "Project")).toBe("Finding Alpha");
+
+    const sources = Object.values(resources("AWS::Bedrock::DataSource"));
+    expect(sources).toHaveLength(3);
+    const prefixes = sources.map((source) => {
+      expect(source.DeletionPolicy).toBeUndefined();
+      expect(source.UpdateReplacePolicy).toBeUndefined();
+      expect(source.Properties.DataDeletionPolicy).toBe("DELETE");
+      const config = source.Properties.DataSourceConfiguration as {
+        Type: string;
+        ManagedKnowledgeBaseConnectorConfiguration: Record<string, unknown>;
+      };
+      expect(config.Type).toBe("MANAGED_KNOWLEDGE_BASE_CONNECTOR");
+      expect(config.ManagedKnowledgeBaseConnectorConfiguration.SyncSchedule).toBeUndefined();
+      expect(config.ManagedKnowledgeBaseConnectorConfiguration.DeletionProtectionConfiguration).toEqual({
+        DeletionProtectionStatus: "ENABLED",
+        DeletionProtectionThreshold: 15,
+      });
+      const ingestion = source.Properties.VectorIngestionConfiguration as {
+        ChunkingConfiguration: { ChunkingStrategy: string; FixedSizeChunkingConfiguration: { MaxTokens: number; OverlapPercentage: number } };
+        ParsingConfiguration: { ParsingStrategy: string };
+      };
+      expect(ingestion.ChunkingConfiguration.ChunkingStrategy).toBe("FIXED_SIZE");
+      expect(ingestion.ChunkingConfiguration.FixedSizeChunkingConfiguration).toEqual({
+        MaxTokens: 800,
+        OverlapPercentage: 15,
+      });
+      expect(ingestion.ParsingConfiguration.ParsingStrategy).toBe("SMART_PARSING");
+      const parameters = config.ManagedKnowledgeBaseConnectorConfiguration.ConnectorParameters as {
+        filterConfiguration: { inclusionPrefixes: string[]; maxFileSizeInMegaBytes: string };
+      };
+      expect(parameters.filterConfiguration.maxFileSizeInMegaBytes).toBe("50");
+      expect(parameters.filterConfiguration.inclusionPrefixes).toHaveLength(1);
+      return parameters.filterConfiguration.inclusionPrefixes[0];
+    });
+    expect(prefixes.sort()).toEqual(["formula-notes/", "journal/", "theory/"]);
+
+    const role = Object.values(resources("AWS::IAM::Role")).find((candidate) =>
+      JSON.stringify(candidate.Properties.AssumeRolePolicyDocument).includes("knowledge-base/*"),
+    );
+    if (!role) {
+      throw new Error("knowledge base role is missing");
+    }
+    const policy = JSON.stringify(role.Properties.Policies);
+    expect(policy).toContain("s3:ListBucket");
+    expect(policy).toContain("s3:GetObject");
+    expect(policy).toContain("theory/*");
+    expect(policy).toContain("formula-notes/*");
+    expect(policy).toContain("journal/*");
+    expect(policy).not.toContain("s3:prefix");
+    expect(policy).not.toContain("scans/");
+    expect(policy).not.toContain("bedrock:InvokeModel");
+    expect(policy).toContain("cloudwatch:PutMetricData");
+    expect(policy).toContain("AWS/Bedrock/KnowledgeBases");
+
+    const admin = policyTextForRole(roleIdForHandler("api_handler.lambda_handler"));
+    const engine = policyTextForRole(roleIdForHandler("jobs_handler.lambda_handler"));
+    expect(admin).not.toContain("bedrock:");
+    for (const action of [
+      "bedrock:Retrieve",
+      "bedrock:StartIngestionJob",
+      "bedrock:GetIngestionJob",
+      "bedrock:ListIngestionJobs",
+      "bedrock:ListKnowledgeBaseDocuments",
+    ]) {
+      expect(engine).toContain(action);
+    }
+    const engineFn = Object.values(resources("AWS::Lambda::Function")).find(
+      (fn) => fn.Properties.Handler === "jobs_handler.lambda_handler",
+    );
+    const variables = (engineFn?.Properties.Environment as { Variables: Record<string, unknown> }).Variables;
+    expect(variables.KNOWLEDGE_BASE_ID).toBeDefined();
+    expect(JSON.stringify(variables.KB_DATA_SOURCE_IDS)).toContain("theory/");
+    expect(JSON.stringify(variables.KB_DATA_SOURCE_IDS)).toContain("formula-notes/");
+    expect(JSON.stringify(variables.KB_DATA_SOURCE_IDS)).toContain("journal/");
+
+    synthesized.hasResourceProperties("AWS::CloudWatch::Alarm", {
+      MetricName: "RawDataSize",
+      Namespace: "AWS/Bedrock/KnowledgeBases",
+      Threshold: 2,
+      ComparisonOperator: "GreaterThanThreshold",
+      TreatMissingData: "notBreaching",
+    });
+    const alarm = Object.values(resources("AWS::CloudWatch::Alarm")).find(
+      (candidate) => candidate.Properties.MetricName === "RawDataSize",
+    );
+    expect(JSON.stringify(alarm?.Properties.Dimensions)).toContain("knowledge-base/");
+    expect(alarm?.Properties.AlarmActions).toBeUndefined();
+
+    const outputs = synthesized.toJSON().Outputs as Record<string, { Value: unknown }>;
+    expect(outputs.KnowledgeBaseId.Value).toBeDefined();
+    expect(outputs.KbBucketName.Value).toBeDefined();
   });
 });

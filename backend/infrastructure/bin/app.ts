@@ -33,7 +33,7 @@ const env = {
 };
 
 const backend = new FindingalphaStack(app, "findingalpha", {
-  description: "findingalpha backend: Cognito, DynamoDB, S3, and the HTTP API.",
+  description: "findingalpha backend: Cognito, DynamoDB, S3, the HTTP API, and the knowledge base.",
   env,
   synthesizer,
 });
