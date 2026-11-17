@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Callable
 
 import store
@@ -201,12 +202,19 @@ def _invoke_self(job: str) -> None:
     )
 
 
+def _whole_number(value: Any) -> int:
+    """DynamoDB returns a whole number as Decimal. The resumed job expects an int."""
+    if isinstance(value, Decimal) and value == value.to_integral_value():
+        return int(value)
+    raise TypeError(type(value).__name__)
+
+
 def _payload(job: str, params: object) -> bytes:
     """The resume event. A parameter block over 200 KB stays in the state row."""
     body: dict[str, object] = {"job": job}
     if not params:
         return json.dumps(body).encode("utf-8")
-    encoded = json.dumps({"job": job, "params": params}).encode("utf-8")
+    encoded = json.dumps({"job": job, "params": params}, default=_whole_number).encode("utf-8")
     if len(encoded) <= _PAYLOAD_MAX:
         return encoded
     body["paramsInState"] = True
