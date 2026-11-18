@@ -422,16 +422,7 @@ describe("findingalpha stack", () => {
         DeletionProtectionStatus: "ENABLED",
         DeletionProtectionThreshold: 15,
       });
-      const ingestion = source.Properties.VectorIngestionConfiguration as {
-        ChunkingConfiguration: { ChunkingStrategy: string; FixedSizeChunkingConfiguration: { MaxTokens: number; OverlapPercentage: number } };
-        ParsingConfiguration: { ParsingStrategy: string };
-      };
-      expect(ingestion.ChunkingConfiguration.ChunkingStrategy).toBe("FIXED_SIZE");
-      expect(ingestion.ChunkingConfiguration.FixedSizeChunkingConfiguration).toEqual({
-        MaxTokens: 800,
-        OverlapPercentage: 15,
-      });
-      expect(ingestion.ParsingConfiguration.ParsingStrategy).toBe("SMART_PARSING");
+      expect(source.Properties.VectorIngestionConfiguration).toBeUndefined();
       const parameters = config.ManagedKnowledgeBaseConnectorConfiguration.ConnectorParameters as {
         filterConfiguration: { inclusionPrefixes: string[]; maxFileSizeInMegaBytes: string };
       };

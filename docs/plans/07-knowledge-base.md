@@ -62,9 +62,10 @@ Owner decisions, the same evening, with the review of 17 November 2026
 - S3 data source. File limit 50 MB. Types: PDF, Markdown, text, HTML,
   Word, Excel, CSV. Optional `<file>.metadata.json` sidecar, at most
   10 KB.
-- Chunking is chosen when the data source is created and cannot be
-  changed later: default (300 tokens, 20% overlap), none, or fixed
-  size. No semantic chunking.
+- With managed embedding the data source omits chunking. The service
+  default is 300 tokens with 20% overlap, and Smart Parsing. The first
+  deploy on 17 November 2026 (Hong Kong) rejected a chunking strategy.
+  The memo records the error.
 - Deleting more than 15% of documents in one sync is blocked by
   default.
 - Quotas: 200 data sources per knowledge base, 600 `Retrieve` calls a
@@ -81,8 +82,10 @@ Owner decisions, the same evening, with the review of 17 November 2026
 
 ## Merge and deploy order
 
-The pin and the research memo are on `main`. This pull request is the
-create: merging it deploys the knowledge base.
+The pin, the research memo and the first knowledge base create are on
+`main`. That deploy created the knowledge base, then failed on the
+data source, and CloudFormation rolled the new resources back. The
+follow-up omits ingestion settings so the create can succeed.
 
 ## Files
 
@@ -139,9 +142,10 @@ documentation and API reference and write
 
 `lib/knowledge-base.ts`, one function `defineKnowledgeBase(scope,
 deps)`. Approved on 17 November 2026 (Hong Kong), including the review
-of that plan. `CfnKnowledgeBase` is the resource. `AwsCustomResource`
-is the fallback if the first deploy fails, and that failure is handled
-by reverting the change.
+of that plan. `CfnKnowledgeBase` is the resource. The first deploy
+created it, then the data source rejected a chunking strategy and the
+stack rolled back. The follow-up omits `vectorIngestionConfiguration`.
+`AwsCustomResource` stays unused.
 
 1. **Service role**, inline policy on the role itself so the policy
    exists when the knowledge base is created. Trusted by
@@ -160,18 +164,22 @@ by reverting the change.
    keeps the previous one.
 3. **Three data sources**, names `theory`, `formula-notes` and
    `journal`, type `MANAGED_KNOWLEDGE_BASE_CONNECTOR`, one inclusion
-   prefix each. `scans/` and `eval/` are outside all three. Chunking:
-   fixed size, 800 tokens, 15% overlap. Parsing: Smart Parsing. File
-   size cap 50 MB. Data deletion policy `DELETE`. Deletion protection
-   enabled at 15%. No sync schedule, so deploy creates the resources
-   and ingests nothing. The three data sources are created one after
-   another: `theory`, then `formula-notes`, then `journal`. Each create
-   is asynchronous, and the next starts when the previous one is
-   available. The data sources use the default removal policy, so
-   removing one deletes it. The PDFs in S3 are the source of truth, and
-   a re-sync rebuilds the index. Chunking is create-only; a later change
-   is a new data source under a new name, and retaining the old one
-   would leave it indexed and billed.
+   prefix each. `scans/` and `eval/` are outside all three. The data
+   source omits `vectorIngestionConfiguration`. Managed embedding
+   rejects a chunking strategy, and Smart Parsing is the service
+   default, so both settings stay out of the request. The index uses
+   300 tokens with 20% overlap. File size cap 50 MB. Data deletion
+   policy `DELETE`. Deletion protection enabled at 15%. No sync
+   schedule, so deploy creates the resources and ingests nothing. The
+   three data sources are created one after another: `theory`, then
+   `formula-notes`, then `journal`. Each create is asynchronous, and
+   the next starts when the previous one is available. The data sources
+   use the default removal policy, so removing one deletes it. The PDFs
+   in S3 are the source of truth, and a re-sync rebuilds the index.
+   Whether a different chunk size can be set is untested. The user
+   guide still lists fixed size and none for a managed knowledge base,
+   and the first deploy only shows that managed embedding rejected the
+   `FIXED_SIZE` request it was sent.
 4. Environment for `EngineFn`: `KNOWLEDGE_BASE_ID` and
    `KB_DATA_SOURCE_IDS` (JSON map of prefix to id).
 5. IAM for `EngineFn`: `bedrock:Retrieve`, `bedrock:StartIngestionJob`,
@@ -190,7 +198,8 @@ by reverting the change.
    are not retained; the data sources are created in the order
    `theory`, `formula-notes`, `journal`; the alarm threshold is 2 and
    a missing sample keeps the previous state; there is no sync
-   schedule. `AWS::Bedrock::DataSource` is added to the untagged-types
+   schedule; no data source sets `VectorIngestionConfiguration`.
+   `AWS::Bedrock::DataSource` is added to the untagged-types
    list, because that resource has no tag property.
 
 The schedule `findingalpha-kb-sync-check` stays off until T03. The
@@ -291,14 +300,10 @@ Then read the returned passages for the formula questions by hand
 formulas are readable. PDF parsers often scramble mathematics.
 
 If a target is missed, or formulas are unreadable, **stop and ask**.
-The options to put to the owner:
-
-1. Formula notes: for each formula that matters, a short Markdown file
-   under `formula-notes/` with the formula in plain text, what each
-   symbol means, and the book and page. The owner writes or approves
-   each note. This is the expected fallback.
-2. A new data source with different chunking (the old one cannot be
-   changed), then re-evaluate.
+The fallback to put to the owner is formula notes: for each formula
+that matters, a short Markdown file under `formula-notes/` with the
+formula in plain text, what each symbol means, and the book and page.
+The owner writes or approves each note.
 
 ### M07-T06 Cite the register
 
@@ -400,4 +405,7 @@ knowledge base in the console; the PDFs stay in S3.
 - An AWS budget alert on the Bedrock service at 15 US dollars would
   catch use that bypasses the system's counter. It needs the owner's
   decision because budgets are account-wide.
-- Whether 800-token chunks suit the owner's books. T05 answers it.
+- Whether the default 300-token chunks suit the owner's books. T05
+  answers it. A different chunk size is untested. The user guide still
+  lists fixed size and none, and the first deploy only rejected the
+  `FIXED_SIZE` request it was sent.
