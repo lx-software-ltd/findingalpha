@@ -1017,7 +1017,8 @@ export const roadmap = {
         "https://github.com/lx-software-ltd/findingalpha/pull/39",
         "https://github.com/lx-software-ltd/findingalpha/pull/40",
         "https://github.com/lx-software-ltd/findingalpha/pull/42",
-        "https://github.com/lx-software-ltd/findingalpha/pull/44"
+        "https://github.com/lx-software-ltd/findingalpha/pull/44",
+        "https://github.com/lx-software-ltd/findingalpha/pull/50"
       ],
       "steps": [
         {
