@@ -1001,7 +1001,12 @@ export const roadmap = {
       "dependsOn": [
         "M02"
       ],
-      "pullRequests": [],
+      "pullRequests": [
+        "https://github.com/lx-software-ltd/findingalpha/pull/39",
+        "https://github.com/lx-software-ltd/findingalpha/pull/40",
+        "https://github.com/lx-software-ltd/findingalpha/pull/42",
+        "https://github.com/lx-software-ltd/findingalpha/pull/44"
+      ],
       "steps": [
         {
           "id": "M07-T01",
@@ -1011,7 +1016,7 @@ export const roadmap = {
         {
           "id": "M07-T02",
           "title": "CDK resources",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M07-T03",

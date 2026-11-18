@@ -112,6 +112,13 @@ caps `KbMaxRawBytes` and `KbMaxRetrievalsPerMonth` are stack parameters
    embedding rejects a chunking strategy and Smart Parsing is the
    documented default. Parsing was in that first request and the
    service never reached it.
+
+   **The second deploy succeeded** on 18 November 2026 (Hong Kong).
+   CloudFormation created the role, `TheoryKnowledgeBase`, the data
+   sources `theory`, `formula-notes` and `journal` in that order, and
+   the alarm. The deploy log is the evidence. The chunking and parsing
+   the service applied are not in that log; `GetDataSource` returns
+   them.
 2. **The four requests are in "Request shapes".** Each one passes the
    SDK's parameter validation against the botocore 1.44.3 model. The
    request the first deploy sent passes that check too, so validation
@@ -355,10 +362,11 @@ Notes:
 - This project also omits `parsingConfiguration`. Smart Parsing is the
   documented default. The first deploy failed on chunking before the
   service read the parsing setting.
-- The template sets `maxFileSizeInMegaBytes` to `"50"`. The first
-  deploy sent that value and failed on chunking before the service
-  reported on the cap, so whether the service accepts `"50"` is still
-  untested.
+- The template sets `maxFileSizeInMegaBytes` to `"50"`. The second
+  deploy sent that value with the prefix filter and deletion
+  protection at 15%, and the service created all three data sources.
+  The create accepts those settings. The first sync shows whether the
+  prefix filter and the cap are applied.
 - `BEDROCK_FOUNDATION_MODEL` and `BEDROCK_DATA_AUTOMATION` parsing are
   unsupported for managed knowledge bases.
 - With no `syncSchedule` the data source syncs only on
@@ -611,14 +619,15 @@ tests with a stubbed Bedrock client.
 - 17 November 2026: this memo. The owner had uploaded the PDFs (O12) and
   the questions file (O13). The same evening the owner chose scanned-book
   option 2, a `RawDataSize` alarm at 2.0 GB, and a boto3 pin of 1.44.3.
+  The first deploy that night rolled back on the chunking strategy.
+- 18 November 2026: the second deploy, with no ingestion settings,
+  created the knowledge base and its three data sources.
 
 ## Open questions
 
-- Does the first deploy of `CfnKnowledgeBase` with managed embedding
-  succeed in `ap-southeast-1`? The knowledge base was created on
-  17 November 2026 (Hong Kong). The data source was rejected for the
-  `FIXED_SIZE` strategy it was sent, and the stack rolled back. The
-  follow-up omits ingestion settings.
+- Which chunking and parsing did the service apply? The documented
+  defaults are 300 tokens with 20% overlap and Smart Parsing.
+  `GetDataSource` on each data source answers it.
 - Does `Retrieve` return a page number, and does the `_data_source_id`
   filter work? The first `Retrieve` in T05 answers both.
 - Is the default deletion protection status enabled? T02 sets it
