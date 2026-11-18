@@ -1,4 +1,14 @@
-import { AdminKpi } from "../components/ui";
+import { useMemo } from "react";
+import {
+  AdminCell,
+  AdminDataTable,
+  AdminDataTableCellMeta,
+  AdminEditorSection,
+  AdminKpi,
+  AdminPageHeader,
+  AdminRecordTable,
+  type AdminDataTableColumn,
+} from "../components/ui";
 import { useMethodology, type MethodologyFactor } from "../hooks/useMethodology";
 
 function parameters(factor: MethodologyFactor): string {
@@ -7,80 +17,76 @@ function parameters(factor: MethodologyFactor): string {
   return entries.map(([name, value]) => `${name} ${value}`).join(", ");
 }
 
+const COLUMNS: readonly AdminDataTableColumn[] = [
+  { key: "name", header: "Name" },
+  { key: "group", header: "Group", priority: "secondary" },
+  { key: "direction", header: "Direction", priority: "tertiary" },
+  { key: "formula", header: "Formula", priority: "secondary" },
+  { key: "parameters", header: "Parameters", priority: "tertiary" },
+  { key: "status", header: "Status", priority: "secondary" },
+  { key: "citation", header: "Citation", priority: "tertiary" },
+];
+
 export function MethodologyPage() {
   const methodology = useMethodology();
   const data = methodology.data;
   const factors = data?.register.factors ?? [];
   const composite = data?.register.composite;
   const screen = data?.register.screen;
+  const columns = useMemo(() => COLUMNS, []);
 
   return (
     <div>
-      <h2 className="h5">Methodology</h2>
+      <AdminPageHeader eyebrow="Finding Alpha" title="Methodology" />
       {methodology.isError ? <p>Methodology is unavailable.</p> : null}
-      <div className="row g-3 mb-4">
-        <div className="col-6 col-lg-3"><AdminKpi label="Entries" value={data?.counts.entries ?? "—"} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Provisional" value={data?.counts.provisional ?? "—"} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Cited" value={data?.counts.cited ?? "—"} /></div>
-        <div className="col-6 col-lg-3">
-          <AdminKpi label="Register hash" value={<span className="text-break">{data?.hash ?? "—"}</span>} />
-        </div>
+      <div className="admin-kpi-row">
+        <AdminKpi label="Entries" value={data?.counts.entries ?? "—"} />
+        <AdminKpi label="Provisional" value={data?.counts.provisional ?? "—"} />
+        <AdminKpi label="Cited" value={data?.counts.cited ?? "—"} />
+        <AdminKpi label="Register hash" value={<span className="text-break">{data?.hash ?? "—"}</span>} />
       </div>
-      <div className="table-responsive">
-        <table className="table align-middle">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Group</th>
-              <th>Direction</th>
-              <th>Formula</th>
-              <th>Parameters</th>
-              <th>Status</th>
-              <th>Citation</th>
+      <h2 className="admin-card-title">Factors</h2>
+      <AdminRecordTable label="Factors">
+        <AdminDataTable bare columns={columns}>
+          {factors.map((factor) => (
+            <tr key={factor.id}>
+              <AdminCell column="name">
+                {factor.name}
+                <AdminDataTableCellMeta>
+                  {factor.group} · <span className="badge text-bg-secondary">{factor.status}</span>
+                </AdminDataTableCellMeta>
+              </AdminCell>
+              <AdminCell column="group">{factor.group}</AdminCell>
+              <AdminCell column="direction">{factor.direction}</AdminCell>
+              <AdminCell column="formula">{factor.formula}</AdminCell>
+              <AdminCell column="parameters">{parameters(factor)}</AdminCell>
+              <AdminCell column="status"><span className="badge text-bg-secondary">{factor.status}</span></AdminCell>
+              <AdminCell column="citation">{factor.citation?.quote ?? "—"}</AdminCell>
             </tr>
-          </thead>
-          <tbody>
-            {factors.map((factor) => (
-              <tr key={factor.id}>
-                <td>{factor.name}</td>
-                <td>{factor.group}</td>
-                <td>{factor.direction}</td>
-                <td>{factor.formula}</td>
-                <td>{parameters(factor)}</td>
-                <td><span className="badge text-bg-secondary">{factor.status}</span></td>
-                <td>{factor.citation?.quote ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </AdminDataTable>
+      </AdminRecordTable>
       {composite ? (
-        <div className="card mb-3">
-          <div className="card-body">
-            <h3 className="h6">Composite</h3>
-            <p className="mb-1">Status {composite.status}. Standardise {composite.standardise}.</p>
-            <p className="mb-1">
-              Weights {Object.entries(composite.groupWeights).map(([name, weight]) => `${name} ${weight}`).join(", ")}.
-            </p>
-            <p className="mb-0">
-              Winsorise {composite.winsorisePercentiles.join(" to ")}. Sector minimum {composite.minSectorSize}.
-              A group needs {composite.minFactorsPerGroupShare} of its factors.
-            </p>
-          </div>
-        </div>
+        <AdminEditorSection title="Composite">
+          <p className="mb-1">Status {composite.status}. Standardise {composite.standardise}.</p>
+          <p className="mb-1">
+            Weights {Object.entries(composite.groupWeights).map(([name, weight]) => `${name} ${weight}`).join(", ")}.
+          </p>
+          <p className="mb-0">
+            Winsorise {composite.winsorisePercentiles.join(" to ")}. Sector minimum {composite.minSectorSize}.
+            A group needs {composite.minFactorsPerGroupShare} of its factors.
+          </p>
+        </AdminEditorSection>
       ) : null}
       {screen ? (
-        <div className="card">
-          <div className="card-body">
-            <h3 className="h6">Screen</h3>
-            <p className="mb-1">Status {screen.status}. Shortlist {screen.shortlistSize}.</p>
-            <ul className="mb-0">
-              {screen.hardFilters.map((filter) => (
-                <li key={filter.id}>{filter.field} {filter.op} {filter.value}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <AdminEditorSection title="Screen">
+          <p className="mb-1">Status {screen.status}. Shortlist {screen.shortlistSize}.</p>
+          <ul className="mb-0">
+            {screen.hardFilters.map((filter) => (
+              <li key={filter.id}>{filter.field} {filter.op} {filter.value}</li>
+            ))}
+          </ul>
+        </AdminEditorSection>
       ) : null}
     </div>
   );

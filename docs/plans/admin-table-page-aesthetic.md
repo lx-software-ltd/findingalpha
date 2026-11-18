@@ -1,6 +1,6 @@
 # Plan: admin table and page aesthetic
 
-**Status**: Draft
+**Status**: Done
 **Zone**: yellow (`apps/admin_web/src/**`, `docs/plans/**`)
 
 ## Goal

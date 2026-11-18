@@ -33,10 +33,11 @@ describe("ScreenPage", () => {
   it("lists the shortlist and opens the equity curves", async () => {
     renderPage();
     expect(await screen.findByRole("button", { name: "AAA" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Rank" })).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByRole("heading", { name: "Screen" })).toHaveClass("admin-page-title");
+    expect(screen.getByRole("columnheader", { name: /Rank/ })).toHaveAttribute("aria-sort", "ascending");
     expect(screen.getByRole("columnheader", { name: "roic" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Composite" }));
-    expect(screen.getByRole("columnheader", { name: "Composite" })).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(screen.getByRole("button", { name: "Sort by Composite" }));
+    expect(screen.getByRole("columnheader", { name: /Composite/ })).toHaveAttribute("aria-sort", "descending");
     fireEvent.click(screen.getByRole("button", { name: "AAA" }));
     expect(screen.getByText(/roic: 0.20/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Backtest" }));

@@ -3,9 +3,13 @@ import {
   AdminCell,
   AdminDataTable,
   AdminDataTableCellMeta,
+  AdminDataTableEmptyRow,
+  AdminPageHeader,
+  AdminRecordTable,
+  ConfirmDialog,
+  DateTimeDisplay,
   type AdminDataTableColumn,
-} from "../components/ui/AdminDataTable";
-import { ConfirmDialog, DateTimeDisplay } from "../components/ui";
+} from "../components/ui";
 import { useApiKeys, useJobRuns, useRunJob, useSystemStatus, useUniverse, type JobRun } from "../hooks/useSystemStatus";
 import { usePutSettings, type Settings } from "../hooks/useSettings";
 import { getAdminApiErrorMessage } from "../lib/apiAdminClient";
@@ -42,12 +46,12 @@ export function SystemPage() {
   const jobs = [...(status.data?.jobs ?? [])].sort((left, right) => Number(right.lastRun?.status === "failed") - Number(left.lastRun?.status === "failed"));
   const columns: AdminDataTableColumn[] = [
     { key: "job", header: "Job" },
-    { key: "schedule", header: "Schedule" },
-    { key: "status", header: "Last status" },
-    { key: "started", header: "Started" },
-    { key: "duration", header: "Duration" },
-    { key: "message", header: "Message" },
-    { key: "run", header: "Run" },
+    { key: "schedule", header: "Schedule", priority: "secondary" },
+    { key: "status", header: "Last status", priority: "secondary" },
+    { key: "started", header: "Started", priority: "tertiary" },
+    { key: "duration", header: "Duration", className: "text-end", priority: "tertiary" },
+    { key: "message", header: "Message", priority: "tertiary" },
+    { key: "ops", header: "Run" },
   ];
   const data = universe.data;
   const coverage = {
@@ -58,20 +62,32 @@ export function SystemPage() {
 
   return (
     <div>
-      <h2 className="h5">Switches</h2>
-      <table className="table">
-        <thead>
-          <tr><th>Name</th><th>Parameter</th><th>Setting</th><th>Effective</th></tr>
-        </thead>
-        <tbody>
+      <AdminPageHeader eyebrow="Finding Alpha" title="System" />
+      <h2 className="admin-card-title">Switches</h2>
+      <AdminRecordTable label="Switches">
+        <AdminDataTable
+          bare
+          columns={[
+            { key: "name", header: "Name" },
+            { key: "parameter", header: "Parameter", priority: "secondary" },
+            { key: "effective", header: "Effective", priority: "tertiary" },
+            { key: "ops", header: "Setting" },
+          ]}
+        >
           {(status.data?.switches ?? []).map((item) => (
             <tr key={item.name}>
-              <td>{item.name}</td>
-              <td>
+              <AdminCell column="name">
+                {item.name}
+                <AdminDataTableCellMeta>
+                  Parameter {String(item.parameter)}. Effective {String(item.effective)}.
+                </AdminDataTableCellMeta>
+              </AdminCell>
+              <AdminCell column="parameter">
                 {String(item.parameter)}
                 <div className="small text-body-secondary">Change in the parameter file and redeploy</div>
-              </td>
-              <td>
+              </AdminCell>
+              <AdminCell column="effective">{String(item.effective)}</AdminCell>
+              <AdminCell column="ops">
                 <button
                   type="button"
                   className="btn btn-sm btn-outline-secondary"
@@ -81,41 +97,57 @@ export function SystemPage() {
                   {item.setting ? "On" : "Off"}
                 </button>
                 {!item.parameter ? <div className="small">The setting has no effect until the parameter is on.</div> : null}
-              </td>
-              <td>{String(item.effective)}</td>
+              </AdminCell>
             </tr>
           ))}
-        </tbody>
-      </table>
+        </AdminDataTable>
+      </AdminRecordTable>
       <p>Broker mode <span className="badge text-bg-secondary">{status.data?.brokerMode ?? "paper"}</span></p>
-      <h2 className="h5">Data</h2>
+      <h2 className="admin-card-title">Data</h2>
       <p>
         Universe {data?.asOf ?? "—"}, {data?.members ?? 0} names. Last raw price {data?.lastPriceDate ?? "—"}.
       </p>
-      <table className="table">
-        <caption>Count after each rule</caption>
-        <thead><tr><th>Rule</th><th>Count</th></tr></thead>
-        <tbody>
+      <AdminRecordTable label="Count after each rule">
+        <AdminDataTable
+          bare
+          tableClassName="admin-table-keep-cols"
+          columns={[
+            { key: "rule", header: "Rule" },
+            { key: "count", header: "Count", className: "text-end" },
+          ]}
+        >
           {Object.entries(data?.counts ?? {}).map(([rule, count]) => (
-            <tr key={rule}><td>{rule}</td><td>{count}</td></tr>
+            <tr key={rule}>
+              <AdminCell column="rule">{rule}</AdminCell>
+              <AdminCell column="count" className="text-end">{count}</AdminCell>
+            </tr>
           ))}
-        </tbody>
-      </table>
-      <table className="table">
-        <caption>Fundamentals coverage</caption>
-        <thead><tr><th>Field</th><th>Share</th></tr></thead>
-        <tbody>
+        </AdminDataTable>
+      </AdminRecordTable>
+      <AdminRecordTable label="Fundamentals coverage">
+        <AdminDataTable
+          bare
+          tableClassName="admin-table-keep-cols"
+          columns={[
+            { key: "field", header: "Field" },
+            { key: "share", header: "Share", className: "text-end" },
+          ]}
+        >
           {Object.entries(coverage).map(([field, share]) => (
-            <tr key={field}><td>{field}</td><td>{percent(share)}</td></tr>
+            <tr key={field}>
+              <AdminCell column="field">{field}</AdminCell>
+              <AdminCell column="share" className="text-end">{percent(share)}</AdminCell>
+            </tr>
           ))}
-        </tbody>
-      </table>
+        </AdminDataTable>
+      </AdminRecordTable>
       <p>
         Price backfill {progress(data?.backfill?.prices)}. Fundamentals backfill {progress(data?.backfill?.fundamentals)}.
       </p>
-      <h2 className="h5">Jobs</h2>
+      <h2 className="admin-card-title">Jobs</h2>
       {accepted ? <p role="status">Accepted {accepted}.</p> : null}
       {runError ? <p role="alert">{runError}</p> : null}
+      <AdminRecordTable label="Jobs">
       <AdminDataTable columns={columns} bare>
         {jobs.map((job) => (
           <tr key={job.job}>
@@ -126,9 +158,9 @@ export function SystemPage() {
             <AdminCell column="schedule">{job.schedule}</AdminCell>
             <AdminCell column="status">{statusLabel(job.lastRun?.status, job.progress)}</AdminCell>
             <AdminCell column="started">{job.lastRun ? <DateTimeDisplay iso={job.lastRun.startedAt} /> : "—"}</AdminCell>
-            <AdminCell column="duration">{job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}</AdminCell>
+            <AdminCell column="duration" className="text-end">{job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}</AdminCell>
             <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
-            <AdminCell column="run">
+            <AdminCell column="ops">
               {job.manualRun ? (
                 <button
                   type="button"
@@ -163,43 +195,73 @@ export function SystemPage() {
           </tr>
         ))}
       </AdminDataTable>
-      <h2 className="h5">Recent runs</h2>
-      <table className="table">
-        <thead><tr><th>Job</th><th>Status</th><th>Started</th><th>Duration</th><th>Message</th></tr></thead>
-        <tbody>
-          {(runs.data?.runs ?? []).map((run: JobRun, index) => (
-            <tr key={`${run.job}-${run.startedAt}-${index}`}>
-              <td>{run.job}</td>
-              <td>{run.status}</td>
-              <td><DateTimeDisplay iso={run.startedAt} /></td>
-              <td>{run.durationMs} ms</td>
-              <td>{run.message}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h2 className="h5">API keys</h2>
-      <table className="table">
-        <thead>
-          <tr>
-            <th>Label</th><th>Tier</th><th>Scopes</th><th>Access</th><th>Created</th><th>Expires</th><th>Last used</th><th>State</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(keys.data?.keys ?? []).map((row) => (
-            <tr key={row.keyId} className={row.soon ? "table-warning" : undefined}>
-              <td>{row.label}</td>
-              <td>{row.tier}</td>
-              <td>{row.scopes.join(", ")}</td>
-              <td>{accessLabel(row.allowWrite, keys.data?.writesEnabled === true)}</td>
-              <td><DateTimeDisplay iso={row.createdAt} /></td>
-              <td>{row.expiresAt ? <DateTimeDisplay iso={row.expiresAt} /> : "never"}</td>
-              <td>{row.lastUsedAt ? <DateTimeDisplay iso={row.lastUsedAt} /> : "never"}</td>
-              <td>{row.state}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      </AdminRecordTable>
+      <h2 className="admin-card-title">Recent runs</h2>
+      <AdminRecordTable label="Recent runs">
+        <AdminDataTable
+          bare
+          columns={[
+            { key: "job", header: "Job" },
+            { key: "status", header: "Status", priority: "secondary" },
+            { key: "started", header: "Started", priority: "secondary" },
+            { key: "duration", header: "Duration", className: "text-end", priority: "tertiary" },
+            { key: "message", header: "Message", priority: "tertiary" },
+          ]}
+        >
+          {(runs.data?.runs ?? []).length === 0 ? (
+            <AdminDataTableEmptyRow colSpan={5} message="No runs yet." />
+          ) : (
+            (runs.data?.runs ?? []).map((run: JobRun, index) => (
+              <tr key={`${run.job}-${run.startedAt}-${index}`}>
+                <AdminCell column="job">
+                  {run.job}
+                  <AdminDataTableCellMeta>{run.status}</AdminDataTableCellMeta>
+                </AdminCell>
+                <AdminCell column="status">{run.status}</AdminCell>
+                <AdminCell column="started"><DateTimeDisplay iso={run.startedAt} /></AdminCell>
+                <AdminCell column="duration" className="text-end">{run.durationMs} ms</AdminCell>
+                <AdminCell column="message">{run.message}</AdminCell>
+              </tr>
+            ))
+          )}
+        </AdminDataTable>
+      </AdminRecordTable>
+      <h2 className="admin-card-title">API keys</h2>
+      <AdminRecordTable label="API keys">
+        <AdminDataTable
+          bare
+          columns={[
+            { key: "label", header: "Label" },
+            { key: "tier", header: "Tier", priority: "secondary" },
+            { key: "scopes", header: "Scopes", priority: "tertiary" },
+            { key: "access", header: "Access", priority: "secondary" },
+            { key: "created", header: "Created", priority: "tertiary" },
+            { key: "expires", header: "Expires", priority: "secondary" },
+            { key: "used", header: "Last used", priority: "tertiary" },
+            { key: "state", header: "State", priority: "secondary" },
+          ]}
+        >
+          {(keys.data?.keys ?? []).length === 0 ? (
+            <AdminDataTableEmptyRow colSpan={8} message="No keys yet." />
+          ) : (
+            (keys.data?.keys ?? []).map((row) => (
+              <tr key={row.keyId} className={row.soon ? "table-warning" : undefined}>
+                <AdminCell column="label">
+                  {row.label}
+                  <AdminDataTableCellMeta>{row.state}</AdminDataTableCellMeta>
+                </AdminCell>
+                <AdminCell column="tier">{row.tier}</AdminCell>
+                <AdminCell column="scopes">{row.scopes.join(", ")}</AdminCell>
+                <AdminCell column="access">{accessLabel(row.allowWrite, keys.data?.writesEnabled === true)}</AdminCell>
+                <AdminCell column="created"><DateTimeDisplay iso={row.createdAt} /></AdminCell>
+                <AdminCell column="expires">{row.expiresAt ? <DateTimeDisplay iso={row.expiresAt} /> : "never"}</AdminCell>
+                <AdminCell column="used">{row.lastUsedAt ? <DateTimeDisplay iso={row.lastUsedAt} /> : "never"}</AdminCell>
+                <AdminCell column="state">{row.state}</AdminCell>
+              </tr>
+            ))
+          )}
+        </AdminDataTable>
+      </AdminRecordTable>
       <p className="small text-body-secondary">Keys are created and revoked with the Manage Public API Keys workflow.</p>
       <ConfirmDialog
         open={pendingJob !== null}
