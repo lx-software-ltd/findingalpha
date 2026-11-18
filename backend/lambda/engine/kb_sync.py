@@ -125,6 +125,7 @@ def decide(
         prefix
         for prefix in PREFIXES
         if _digest(_rows(built, prefix)) != ((state.get("sources") or {}).get(prefix) or {}).get("hash")
+        and (_has_files(built, prefix) or _saved_keys(state, prefix))
     ]
     if not changed:
         return {"status": "unchanged"}
@@ -143,6 +144,15 @@ def run(
     import kb_sync_jobs
 
     return kb_sync_jobs.run(event, _context, loader=loader, agent=agent, clock=clock)
+
+
+def _has_files(built: dict[str, Any], prefix: str) -> bool:
+    groups = (built["documents"], built["sidecars"])
+    return any(item["prefix"] == prefix for group in groups for item in group.values())
+
+
+def _saved_keys(state: dict[str, Any], prefix: str) -> list[Any]:
+    return list(((state.get("sources") or {}).get(prefix) or {}).get("keys") or [])
 
 
 def _deletions(built: dict[str, Any], state: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:

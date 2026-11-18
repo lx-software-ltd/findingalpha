@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "kb": {
+    "maxRetrievalsPerMonth": 5000,
+    "warnShare": 0.8,
+    "defaultTopK": 8,
+    "maxTopK": 12
+  }
+}

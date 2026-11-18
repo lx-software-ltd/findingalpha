@@ -238,6 +238,9 @@ revisited from that value.
      files changed, and store the job ids.
    - A listed problem (step 2) is stored and logged, and that file is
      left out of the sync. It does not block the other files.
+   - A prefix with no files, and no files in the last sync, is not
+     started. A prefix that used to have files still follows the
+     deletion rule.
 4. `poll(state)`: for stored job ids, read the job status and the
    statistics (scanned, indexed, failed). When all are complete, store
    the manifest hash, document count, bytes and time in `KB#state`.
@@ -286,9 +289,10 @@ is reported.
 - Before the call: read `USAGE#<yyyy-mm>` / `KB`. At or above the cap
   raise `KbBudgetExceeded`. After the call: add one with an atomic
   `ADD` update, on both the month row and the `USAGE#<date>` row.
-- `source_types` becomes an `in` filter on the metadata attribute
-  `source_type` when sidecars carry it; otherwise filter the results
-  by key prefix after the call.
+- `source_types` becomes an `in` filter on `_data_source_id`, using
+  the ids in `KB_DATA_SOURCE_IDS`. When that map is missing, the
+  results are filtered by key prefix after the call. No sidecar is
+  required for the folder filter.
 - Query text is cut to 1,000 characters. `top_k` is clamped to
   `maxTopK`.
 - A per-invocation cache keyed by the query and arguments.

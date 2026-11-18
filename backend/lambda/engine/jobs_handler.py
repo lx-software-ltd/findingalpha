@@ -134,6 +134,12 @@ def _kb_sync(event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None)
     return kb_sync.run(event)
 
 
+def _kb_eval(event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None) -> dict[str, Any]:
+    import kb_eval
+
+    return kb_eval.run(event)
+
+
 JOBS = {
     "noop": _noop,
     "tick": _tick,
@@ -148,6 +154,7 @@ JOBS = {
     "backfill_monthly_stats": _monthly,
     "backtest": _backtest,
     "kb_sync_check": _kb_sync,
+    "kb_eval": _kb_eval,
 }
 
 

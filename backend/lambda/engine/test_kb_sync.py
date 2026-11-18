@@ -143,10 +143,7 @@ class KbSyncTest(unittest.TestCase):
     def test_run_now_starts_one_job_per_changed_prefix(self) -> None:
         result = self._run({"job": "kb_sync_check", "trigger": "manual"}, _docs("theory/", 2))
         self.assertEqual(result["status"], "running")
-        self.assertEqual(
-            [item["dataSourceId"] for item in self.agent.started],
-            ["ds-theory", "ds-notes", "ds-journal"],
-        )
+        self.assertEqual([item["dataSourceId"] for item in self.agent.started], ["ds-theory"])
         job = self.store.get("JOB#kb_sync_check", "STATE") or {}
         self.assertEqual(job["status"], "running")
         self.assertEqual(job["gsi1pk"], "JOBSTATE")
@@ -181,7 +178,7 @@ class KbSyncTest(unittest.TestCase):
             kb_sync.manifest([_obj("theory/a.pdf", 50_000_000), _obj("theory/a.pdf.metadata.json", 10 * 1024)])
         )
         self.assertEqual(exact, [])
-        self.assertEqual([item["dataSourceId"] for item in self.agent.started], ["ds-theory", "ds-notes", "ds-journal"])
+        self.assertEqual([item["dataSourceId"] for item in self.agent.started], ["ds-theory"])
 
     def test_deletion_is_checked_per_prefix_and_confirmation_allows_it(self) -> None:
         previous = _docs("theory/", 100) + _docs("journal/", 10)
@@ -264,7 +261,7 @@ class KbSyncTest(unittest.TestCase):
         self.assertNotIn("failures", row)
         again = self._run({"trigger": "manual"}, _docs("theory/", 3))
         self.assertEqual(again["status"], "running")
-        self.assertNotEqual(self.agent.started[-3]["clientToken"], first)
+        self.assertNotEqual(self.agent.started[-1]["clientToken"], first)
 
     def test_a_start_that_raises_keeps_the_job_it_already_started(self) -> None:
         from botocore.exceptions import ClientError
@@ -278,7 +275,7 @@ class KbSyncTest(unittest.TestCase):
         self.assertNotIn(("KB#state", "META"), self.store.items)
         self.assertNotIn(("JOB#kb_sync_check", "STATE"), self.store.items)
 
-        self.agent.fail_on = "ds-notes"
+        self.agent.fail_on = "ds-journal"
         self.agent.started.clear()
         self.agent.jobs.clear()
         objects = _docs("theory/", 1) + [_obj("journal/a.md")]
@@ -323,6 +320,14 @@ class KbSyncTest(unittest.TestCase):
         self.assertEqual(blocked["status"], "blocked_deletion")
         self.assertIn("theory/ 90 of 100", blocked["error"])
         self.assertEqual((self.store.get("KB#state", "META") or {})["blocked"]["deletions"][0]["gone"], 90)
+
+    def test_an_empty_prefix_is_not_started_and_a_removed_one_still_blocks(self) -> None:
+        choice = kb_sync.decide(kb_sync.manifest(_docs("theory/", 1)), {}, cap=1000)
+        self.assertEqual(choice["prefixes"], ["theory/"])
+        state = kb_sync.snapshot(kb_sync.manifest(_docs("journal/", 2)))
+        blocked = kb_sync.decide(kb_sync.manifest([]), state, cap=1000)
+        self.assertEqual(blocked["status"], "blocked_deletion")
+        self.assertEqual(blocked["deletions"][0]["prefix"], "journal/")
 
     def test_the_schedule_starts_a_later_sync(self) -> None:
         objects = _docs("theory/", 2)

@@ -349,7 +349,8 @@ The daily schedule does not start the first sync; Run now does. A
 deletion above 15% is checked per data source, and the sync waits
 until the owner confirms it from the dashboard. An API key cannot
 confirm a deletion, stop a sync, or start the first sync. A key can
-start a later sync. A problem file is recorded and skipped. A size
+start a later sync. A problem file is recorded and skipped. A prefix
+with no files, and none in the last sync, is not started. A size
 that would replace an unfinished run is 409, and the saved run stays.
 The 202 body echoes `portfolioSize` when one was sent. A tick that
 cannot resume a job is `failed` and names that job.

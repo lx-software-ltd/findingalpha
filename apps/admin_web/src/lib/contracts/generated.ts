@@ -5,6 +5,16 @@ export const adminDomains = {
   "cognitoDomainPrefix": "findingalpha-admin-auth"
 } as const;
 
+export const budgets = {
+  "version": 1,
+  "kb": {
+    "maxRetrievalsPerMonth": 5000,
+    "warnShare": 0.8,
+    "defaultTopK": 8,
+    "maxTopK": 12
+  }
+} as const;
+
 export const jobs = {
   "jobs": [
     {
@@ -1026,7 +1036,7 @@ export const roadmap = {
         {
           "id": "M07-T04",
           "title": "Retrieval client",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M07-T05",
