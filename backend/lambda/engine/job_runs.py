@@ -90,7 +90,7 @@ def apply_result(run: JobRun, result: object) -> None:
             run.error_message = _partial_message(result)
         return
     if (
-        getattr(run, "job", "") == "kb_sync_check"
+        getattr(run, "job", "") in {"kb_sync_check", "kb_eval"}
         and result.get("ok") is not False
         and status not in {"missing_inputs", "failed"}
     ):

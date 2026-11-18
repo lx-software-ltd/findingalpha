@@ -37,6 +37,7 @@ Implement and verify. Summarise intent in the pull request.
 
 - `docs/**`
 - `contracts/roadmap.json`
+- `.cursor/mcp.json` (local MCP config; it does not deploy)
 - Test-only edits that do not sit on a red path
 
 Hooks still format edits and block destructive commands in every zone.

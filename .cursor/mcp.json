@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "findingalpha-kb": {
+      "command": "uvx",
+      "args": ["awslabs.bedrock-kb-retrieval-mcp-server==1.1.2"],
+      "env": {
+        "AWS_PROFILE": "findingalpha-kb-read",
+        "AWS_REGION": "ap-southeast-1",
+        "KB_INCLUSION_TAG_KEY": "mcp-multirag-kb",
+        "BEDROCK_KB_RERANKING_ENABLED": "false"
+      }
+    }
+  }
+}

@@ -212,7 +212,20 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))
         self.assertTrue(names)
         for job in payload["jobs"]:
-            self.assertIs(job["keyRun"], True)
+            self.assertIs(job["keyRun"], job["name"] != "kb_eval")
+
+    def test_a_key_cannot_start_the_evaluation_and_the_owner_waits_for_a_sync(self) -> None:
+        sent: list[str] = []
+        with patch.object(api_handler, "_invoke_engine", lambda name, _sub, params=None: sent.append(name)):
+            refused = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_eval/run", key=_key()), None)
+            early = api_handler.lambda_handler(_event("POST", "/jobs/kb_eval/run", admin=True), None)
+            self.store.put({"pk": "KB#state", "sk": "META", "manifestHash": "done"})
+            allowed = api_handler.lambda_handler(_event("POST", "/jobs/kb_eval/run", admin=True), None)
+        self.assertEqual(refused["statusCode"], 404)
+        self.assertEqual(early["statusCode"], 409)
+        self.assertEqual(json.loads(early["body"])["message"], "the knowledge base has not been synced")
+        self.assertEqual(allowed["statusCode"], 202)
+        self.assertEqual(sent, ["kb_eval"])
 
     def test_a_key_can_start_every_marked_job(self) -> None:
         sent: list[str] = []

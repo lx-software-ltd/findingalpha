@@ -137,6 +137,8 @@ class JobsHandlerTest(unittest.TestCase):
         for name in ("screen", "backfill_monthly_stats", "backtest"):
             self.assertEqual(jobs_handler.switch_for(name), "ingestEnabled")
             self.assertIsNotNone(jobs_handler.handler_for(name))
+        self.assertEqual(jobs_handler.switch_for("kb_eval"), "")
+        self.assertIsNotNone(jobs_handler.handler_for("kb_eval"))
 
 
 if __name__ == "__main__":
