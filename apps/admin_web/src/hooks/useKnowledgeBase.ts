@@ -17,6 +17,7 @@ export type KnowledgeBaseStatus = {
   readonly status: string;
   readonly running: boolean;
   readonly stopping: boolean;
+  readonly progress: { readonly scanned: number; readonly indexed: number; readonly failed: number } | null;
   readonly evaluation: {
     readonly ranAt: string | null;
     readonly questions: number;
@@ -27,7 +28,7 @@ export type KnowledgeBaseStatus = {
   readonly failedDocuments: readonly string[];
   readonly blocked: { readonly status: string } | null;
   readonly blockedReason: string | null;
-  readonly cost: { readonly storageUsd: number; readonly retrievalUsd: number; readonly totalUsd: number };
+  readonly cost: { readonly storageUsd: number; readonly retrievalUsd: number };
 };
 
 export type KnowledgeBaseEvaluation = {

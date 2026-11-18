@@ -165,12 +165,13 @@ export function handleSystem(ctx: MockCtx): Json | null {
       status: "done",
       running: false,
       stopping: false,
+      progress: null,
       evaluation: { ranAt: "2026-11-18T02:00:00.000Z", questions: 20, hitAt8: 16, hitAt3: 12 },
       problems: [],
       failedDocuments: [],
       blocked: null,
       blockedReason: null,
-      cost: { storageUsd: 2.5, retrievalUsd: 0.01, totalUsd: 2.51 },
+      cost: { storageUsd: 2.5, retrievalUsd: 0.01 },
     });
   }
   if (ctx.method === "GET" && ctx.path === "/kb/eval/latest") {

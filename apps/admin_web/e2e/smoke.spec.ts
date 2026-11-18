@@ -42,7 +42,7 @@ test("knowledge base shows the sync and a question", async ({ page }) => {
   await page.getByRole("button", { name: "Sync now" }).click();
   await expect(page.getByText("Start a knowledge base sync?")).toBeVisible();
   await page.getByRole("button", { name: "Sync", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Sync started.");
+  await expect(page.getByRole("status")).toHaveText("Sync requested.");
   expect(await overflows(page)).toBe(false);
 });
 

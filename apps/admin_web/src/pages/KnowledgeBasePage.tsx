@@ -31,6 +31,8 @@ export function KnowledgeBasePage() {
   const [error, setError] = useState<string | null>(null);
   const data = status.data;
   const blockedDeletion = data?.blocked?.status === "blocked_deletion";
+  const blockedSize = data?.blocked?.status === "blocked_size";
+  const canSync = data != null && !data.running && !data.stopping && !blockedDeletion && !blockedSize;
 
   function finish(message: string) {
     setNotice(message);
@@ -51,13 +53,17 @@ export function KnowledgeBasePage() {
       {error ? <p role="alert">{error}</p> : null}
       <div className="row g-3 mb-4">
         <div className="col-6 col-lg-4">
-          <AdminKpi label="Documents" value={data?.documents ?? "—"} />
+          <AdminKpi
+            label="Documents"
+            value={data?.documents ?? "—"}
+            hint={data?.running ? "from the last finished sync" : undefined}
+          />
         </div>
         <div className="col-6 col-lg-4">
           <AdminKpi
             label="Size"
             value={data ? gigabytes(data.bytes) : "—"}
-            hint={data?.capBytes ? `of ${gigabytes(data.capBytes)}` : undefined}
+            hint={sizeHint(data)}
           />
           {data ? <Meter label="Size against the cap" used={data.bytes} cap={data.capBytes} /> : null}
         </div>
@@ -85,18 +91,23 @@ export function KnowledgeBasePage() {
         </div>
         <div className="col-6 col-lg-4">
           <AdminKpi
-            label="Estimated monthly cost"
-            value={data ? dollars(data.cost.totalUsd) : "—"}
-            hint={
-              data
-                ? `${dollars(data.cost.storageUsd)} stored, ${dollars(data.cost.retrievalUsd)} retrieved`
-                : undefined
-            }
+            label="Storage for a month"
+            value={data ? dollars(data.cost.storageUsd) : "—"}
+            hint={data ? "at the current size" : undefined}
+          />
+        </div>
+        <div className="col-6 col-lg-4">
+          <AdminKpi
+            label="Retrievals so far"
+            value={data ? dollars(data.cost.retrievalUsd) : "—"}
+            hint={data ? "this month" : undefined}
           />
         </div>
       </div>
       <div className="d-flex flex-wrap gap-2 mb-4">
-        <button type="button" className="btn btn-primary" onClick={() => setAction("sync")}>Sync now</button>
+        {canSync ? (
+          <button type="button" className="btn btn-primary" onClick={() => setAction("sync")}>Sync now</button>
+        ) : null}
         <button type="button" className="btn btn-outline-primary" onClick={() => setAction("eval")}>Run evaluation</button>
         {blockedDeletion ? (
           <button type="button" className="btn btn-outline-danger" onClick={() => setAction("confirm")}>
@@ -107,7 +118,8 @@ export function KnowledgeBasePage() {
           <button type="button" className="btn btn-outline-secondary" onClick={() => setAction("stop")}>Stop</button>
         ) : null}
       </div>
-      {data?.status === "never" && !data.running ? <p>The first sync has not finished.</p> : null}
+      {data && !data.syncedAt ? <p>The first sync has not finished.</p> : null}
+      {data?.running ? <p>{progressSentence(data.progress)}</p> : null}
       {data?.blockedReason ? <p>{data.blockedReason}</p> : null}
       {data?.stopping ? <p>Stopping the sync.</p> : null}
       <h3 className="h6">Problems</h3>
@@ -205,10 +217,40 @@ function hits(found: number | null | undefined, questions: number | undefined): 
   return `${found} of ${questions} in the top 8`;
 }
 
+function sizeHint(data: { capBytes: number | null; running: boolean } | undefined): string | undefined {
+  if (!data) return undefined;
+  const parts = [
+    data.capBytes ? `of ${gigabytes(data.capBytes)}` : "",
+    data.running ? "from the last finished sync" : "",
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : undefined;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  never: "not synced",
+  done: "finished",
+  failed: "failed",
+  unchanged: "unchanged",
+  blocked_deletion: "waiting for confirmation",
+  blocked_size: "over the size cap",
+  running: "running",
+  stopping: "stopping",
+};
+
 function syncLabel(status: string, running: boolean, stopping: boolean): string {
   if (stopping) return "stopping";
   if (running) return "running";
-  return status;
+  return STATUS_LABEL[status] ?? status.replaceAll("_", " ");
+}
+
+function progressSentence(
+  progress: { readonly scanned: number; readonly indexed: number; readonly failed: number } | null,
+): string {
+  if (!progress) return "Progress appears after the next check.";
+  const failed = progress.failed > 0 ? `, ${progress.failed.toLocaleString("en-US")} failed` : "";
+  const scanned = progress.scanned.toLocaleString("en-US");
+  const indexed = progress.indexed.toLocaleString("en-US");
+  return `Scanned ${scanned}, indexed ${indexed}${failed}.`;
 }
 
 function dialogTitle(action: Action | null): string {
@@ -233,7 +275,7 @@ function dialogConfirm(action: Action | null): string {
 }
 
 function syncNotice(action: Action | null): string {
-  if (action === "confirm") return "Deletion confirmed. The sync was started.";
+  if (action === "confirm") return "Deletion confirmed. The sync was requested.";
   if (action === "stop") return "Stop requested.";
-  return "Sync started.";
+  return "Sync requested.";
 }

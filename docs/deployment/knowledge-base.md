@@ -34,19 +34,24 @@ The folder filter does not need a sidecar. It uses the data source id.
 The first sync is **Sync now** on the Knowledge base page, signed in
 as the owner. The System page can still start `kb_sync_check` with
 Run now. The daily schedule does not start the first sync. While
-Bedrock is working the page shows the sync as running. The engine
-stops an ingestion that runs past its limit, and the owner can stop
-one sooner with **Stop** on the Knowledge base page.
+Bedrock is working, **Sync now** is hidden and the page shows the
+sync as running. Document count and size stay at the last finished
+sync until this one completes. Scanned, indexed, and failed counts
+appear after the sync job's next check. The page reads those saved
+counts and does not ask Bedrock. The engine stops an ingestion that
+runs past its limit, and the owner can stop one sooner with **Stop**.
 
 A prefix with no files, and none in the last sync, is not started. A
 problem file is recorded and left out. More than 15% of a folder gone
-waits for **Confirm deletion** on the Knowledge base page.
+waits for **Confirm deletion**. **Sync now** stays hidden until that
+confirmation, and it stays hidden when the files are over the size cap.
 
 The page shows the document count, size against the cap, retrievals
-this month, the last sync, evaluation hits, problem files, and an
-estimated monthly cost. Storage is estimated at 5 US dollars per
-decimal gigabyte a month. Retrieval is estimated at 1 US dollar per
-thousand retrievals. Both rates are in `contracts/budgets.json`.
+this month, the last sync in plain language, evaluation hits, and
+problem files. Storage for a month at the current size is estimated
+at 5 US dollars per decimal gigabyte. Retrievals so far this month
+are estimated at 1 US dollar per thousand. The page shows those
+figures separately. Both rates are in `contracts/budgets.json`.
 
 ## Retrieval cap
 

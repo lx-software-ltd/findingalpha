@@ -402,12 +402,21 @@ Routes: `GET /kb/status`, `POST /kb/sync`, `GET /kb/eval/latest`.
 `kb_eval` is on the manual-run list. `POST /kb/sync` accepts an empty
 body, `{"confirmDeletion": true}`, or `{"stop": true}`. A key cannot
 confirm a deletion, stop a sync, or start the first sync. The status
-read does not call Bedrock. The evaluation response is question id
-and hit rank, with no passage text.
+read does not call Bedrock. While a sync is running, the poll saves
+how many documents were scanned, indexed, and failed. The page shows
+those counts, and it keeps the document count and size from the last
+finished sync until this one completes. **Sync now** is hidden while
+a sync is running, while a deletion needs confirmation, and while the
+files are over the size cap.
 
-`contracts/budgets.json` also holds the cost rates the page uses and
-M08 can reuse: `storageUsdPerGb` 5 and `retrievalUsdPerThousand` 1.
-Storage is decimal gigabytes (`bytes / 1_000_000_000`).
+`contracts/budgets.json` holds the rates the page uses and M08 can
+reuse: `storageUsdPerGb` 5 and `retrievalUsdPerThousand` 1. Storage
+is a full month at the current size, in decimal gigabytes
+(`bytes / 1_000_000_000`). Retrievals are the spend so far this month.
+The page shows the two figures separately. Hit counts and the
+retrieval counter are whole numbers, including when DynamoDB returns
+them as decimals. The evaluation response is the question id and hit
+rank. Passage text stays out.
 
 `KnowledgeBasePage.tsx`:
 
@@ -417,9 +426,9 @@ Storage is decimal gigabytes (`bytes / 1_000_000_000`).
 - Problems list: oversized files, unsupported types, failed documents,
   a blocked sync with its reason and, for a blocked deletion, a
   Confirm button behind a dialog.
-- Buttons: Sync now, Run evaluation.
+- Buttons: Sync now (hidden while a sync is running or blocked), Run evaluation.
 - Evaluation table: question id, hit rank.
-- Estimated monthly cost from size and retrievals.
+- Storage for a month at the current size, and retrievals so far this month, shown separately.
 
 Nav entry "Knowledge base" (`bi-book`), mock fixtures, unit tests,
 smoke test line. Add the knowledge base line to the Costs data used

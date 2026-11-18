@@ -25,35 +25,36 @@ def status_payload() -> dict[str, Any]:
     evaluation = store.get(kb_eval.STATE_PK, kb_eval.STATE_SK) or {}
     rates = _rates()
     retrievals = _retrievals()
-    stored = int(state.get("bytes") or 0)
+    stored = _whole(state.get("bytes"))
     cap = kb_sync._cap()
     storage = stored / _GIGABYTE * float(rates["storageUsdPerGb"])
     retrieval = retrievals / 1000 * float(rates["retrievalUsdPerThousand"])
     blocked = state.get("blocked") if isinstance(state.get("blocked"), dict) else None
+    running = bool(state.get("jobs"))
     return {
-        "documents": int(state.get("documents") or 0),
+        "documents": _whole(state.get("documents")),
         "bytes": stored,
         "capBytes": cap,
         "retrievals": retrievals,
         "retrievalCap": int(rates["maxRetrievalsPerMonth"]),
         "syncedAt": state.get("syncedAt"),
         "status": state.get("status") or "never",
-        "running": bool(state.get("jobs")),
+        "running": running,
         "stopping": bool(state.get("stopRequested")),
+        "progress": _progress(state.get("progress"), running),
         "evaluation": {
             "ranAt": evaluation.get("ranAt"),
-            "questions": int(evaluation.get("questions") or 0),
-            "hitAt8": evaluation.get("hitAt8"),
-            "hitAt3": evaluation.get("hitAt3"),
+            "questions": _whole(evaluation.get("questions")),
+            "hitAt8": _whole_or_none(evaluation.get("hitAt8")),
+            "hitAt3": _whole_or_none(evaluation.get("hitAt3")),
         },
         "problems": _problems(state.get("problems")),
         "failedDocuments": _names(state.get("failedKeys")),
-        "blocked": blocked,
+        "blocked": {"status": str(blocked.get("status") or "")} if blocked else None,
         "blockedReason": _blocked_reason(blocked),
         "cost": {
             "storageUsd": round(storage, 2),
             "retrievalUsd": round(retrieval, 2),
-            "totalUsd": round(storage + retrieval, 2),
         },
     }
 
@@ -62,15 +63,15 @@ def eval_payload() -> dict[str, Any]:
     """The latest evaluation: question id and hit rank. Passage text stays out."""
     row = store.get(kb_eval.STATE_PK, kb_eval.STATE_SK) or {}
     results = [
-        {"id": str(item.get("id") or ""), "rank": item.get("rank")}
+        {"id": str(item.get("id") or ""), "rank": _whole_or_none(item.get("rank"))}
         for item in row.get("results") or []
         if isinstance(item, dict)
     ]
     return {
         "ranAt": row.get("ranAt"),
-        "questions": int(row.get("questions") or 0),
-        "hitAt8": row.get("hitAt8"),
-        "hitAt3": row.get("hitAt3"),
+        "questions": _whole(row.get("questions")),
+        "hitAt8": _whole_or_none(row.get("hitAt8")),
+        "hitAt3": _whole_or_none(row.get("hitAt3")),
         "results": results,
     }
 
@@ -84,10 +85,43 @@ def _rates() -> dict[str, Any]:
 
 
 def _retrievals() -> int:
+    """The month counter is a DynamoDB number, so it comes back as ``Decimal``."""
     month = f"USAGE#{timeutil.utc_now():%Y-%m}"
     row = store.get(month, "KB") or {}
-    count = row.get("count") or 0
-    return int(count) if isinstance(count, int) and not isinstance(count, bool) else 0
+    return _whole(row.get("count"))
+
+
+def _whole(value: Any) -> int:
+    from decimal import Decimal
+
+    if type(value) is int:
+        return value
+    if isinstance(value, Decimal) and value == int(value):
+        return int(value)
+    return 0
+
+
+def _whole_or_none(value: Any) -> int | None:
+    if value is None:
+        return None
+    from decimal import Decimal
+
+    if type(value) is int:
+        return value
+    if isinstance(value, Decimal) and value == int(value):
+        return int(value)
+    return None
+
+
+def _progress(raw: Any, running: bool) -> dict[str, int] | None:
+    """Counts saved by the sync poll. Missing until that poll has run."""
+    if not running or not isinstance(raw, dict):
+        return None
+    return {
+        "scanned": _whole(raw.get("scanned")),
+        "indexed": _whole(raw.get("indexed")),
+        "failed": _whole(raw.get("failed")),
+    }
 
 
 def _problems(raw: Any) -> list[dict[str, str]]:
@@ -116,7 +150,7 @@ def _blocked_reason(blocked: dict[str, Any] | None) -> str | None:
     status = str(blocked.get("status") or "")
     if status == "blocked_deletion":
         parts = [
-            f"{item.get('prefix')} lost {item.get('gone')} of {item.get('previous')}"
+            f"{item.get('prefix')} lost {_whole(item.get('gone'))} of {_whole(item.get('previous'))}"
             for item in blocked.get("deletions") or []
             if isinstance(item, dict)
         ]

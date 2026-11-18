@@ -32,6 +32,7 @@ _KEPT = (
     "failure",
     "failedKeys",
     "deletionShortfall",
+    "progress",
 )
 _OPEN = ("jobs", "pending", "expectedDeletions", "jobStartedAt", "stopRequested")
 _STOP_IGNORED = frozenset({"ConflictException", "ResourceNotFoundException", "ValidationException"})
@@ -121,6 +122,9 @@ def _poll(state: dict[str, Any], agent: Any, moment: datetime) -> dict[str, Any]
             _request_stop(state, agent)
             message = "stopping"
         _job_row("running", _EXPIRED_LEASE)
+        store.put(
+            _row(state, progress=_progress_counts(seen), updatedAt=timeutil.format_iso_millis(moment))
+        )
         return _pack(True, "running", message=message)
     if any(item.get("status") != "COMPLETE" for item in seen.values()):
         _close_failed(state, seen, agent, moment)
@@ -171,6 +175,7 @@ def _save_running(
             expectedDeletions={prefix: choice["expectedDeletions"].get(prefix, 0) for prefix in jobs},
             jobStartedAt=state.get("jobStartedAt") or timeutil.format_iso_millis(moment),
             problems=choice.get("problems") or None,
+            progress={"scanned": 0, "indexed": 0, "failed": 0},
             blocked=None,
             failure=None,
             updatedAt=timeutil.format_iso_millis(moment),
@@ -202,6 +207,7 @@ def _close_failed(state: dict[str, Any], seen: dict[str, dict[str, Any]], agent:
         "expectedDeletions": None,
         "jobStartedAt": None,
         "stopRequested": None,
+        "progress": None,
         "updatedAt": timeutil.format_iso_millis(moment),
     }
     if sources:
@@ -231,6 +237,7 @@ def _close_done(state: dict[str, Any], seen: dict[str, dict[str, Any]], agent: A
         "expectedDeletions": None,
         "jobStartedAt": None,
         "stopRequested": None,
+        "progress": None,
         "failure": None,
         "blocked": None,
         "failedKeys": failed or None,
@@ -375,6 +382,28 @@ def _problem_text(found: list[dict[str, str]]) -> str:
     extra = len(found) - 8
     suffix = f" (+{extra} more)" if extra > 0 else ""
     return f"problems: {shown}{suffix}"
+
+
+def _progress_counts(seen: dict[str, dict[str, Any]]) -> dict[str, int]:
+    """Scanned, indexed, and failed documents across the running ingestion jobs."""
+    scanned = indexed = failed = 0
+    for item in seen.values():
+        stats = item.get("statistics") if isinstance(item.get("statistics"), dict) else {}
+        scanned += _stat(stats.get("numberOfDocumentsScanned"))
+        indexed += _stat(stats.get("numberOfNewDocumentsIndexed"))
+        indexed += _stat(stats.get("numberOfModifiedDocumentsIndexed"))
+        failed += _stat(stats.get("numberOfDocumentsFailed"))
+    return {"scanned": scanned, "indexed": indexed, "failed": failed}
+
+
+def _stat(value: Any) -> int:
+    from decimal import Decimal
+
+    if type(value) is int:
+        return value
+    if isinstance(value, Decimal) and value == int(value):
+        return int(value)
+    return 0
 
 
 def _knowledge_base() -> str:
