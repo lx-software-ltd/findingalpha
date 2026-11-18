@@ -20,6 +20,7 @@ so a long ingestion is not marked failed while Bedrock is still working.
 - `backend/lambda/engine/kb_sync_jobs.py`
 - `backend/lambda/engine/test_kb_sync.py`
 - `docs/plans/07-knowledge-base.md`
+- `docs/plans/07c-kb-sync-fixes.md`
 
 ## Invariants this change preserves
 
@@ -29,9 +30,9 @@ so a long ingestion is not marked failed while Bedrock is still working.
 
 ## Done when
 
-`python3 -m unittest backend.lambda.engine.test_kb_sync` passes, including
-a job younger than 24 hours staying in progress and an older one being
-stopped.
+`python3 -m unittest discover -s backend/lambda/engine -p 'test_kb_sync.py'`
+passes, including a job younger than 24 hours staying in progress and an
+older one being stopped.
 
 ## Rollback
 

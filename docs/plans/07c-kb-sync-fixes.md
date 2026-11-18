@@ -53,5 +53,5 @@ written by the previous build is still readable, and a missing
 
 ## Open questions
 
-None. The ingestion limit is 6 hours, then the handler calls
+None. The ingestion limit is 24 hours, then the handler calls
 `StopIngestionJob` and the next run may start a new job.
