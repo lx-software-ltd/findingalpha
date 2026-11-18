@@ -11,7 +11,9 @@ export const budgets = {
     "maxRetrievalsPerMonth": 5000,
     "warnShare": 0.8,
     "defaultTopK": 8,
-    "maxTopK": 12
+    "maxTopK": 12,
+    "storageUsdPerGb": 5,
+    "retrievalUsdPerThousand": 1
   }
 } as const;
 
@@ -1056,7 +1058,7 @@ export const roadmap = {
         {
           "id": "M07-T08",
           "title": "API and dashboard",
-          "status": "todo"
+          "status": "done"
         }
       ]
     },

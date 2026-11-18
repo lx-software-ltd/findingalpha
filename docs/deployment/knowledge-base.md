@@ -31,17 +31,22 @@ The folder filter does not need a sidecar. It uses the data source id.
 
 ## Sync
 
-The first sync is **Run now** on `kb_sync_check` on the System page,
-signed in as the owner. The daily schedule does not start it. While
-Bedrock is working the row stays `partial`. The engine stops an
-ingestion that runs past its limit, and the owner can stop one sooner.
+The first sync is **Sync now** on the Knowledge base page, signed in
+as the owner. The System page can still start `kb_sync_check` with
+Run now. The daily schedule does not start the first sync. While
+Bedrock is working the page shows the sync as running. The engine
+stops an ingestion that runs past its limit, and the owner can stop
+one sooner with **Stop** on the Knowledge base page.
 
 A prefix with no files, and none in the last sync, is not started. A
 problem file is recorded and left out. More than 15% of a folder gone
-waits for **Confirm deletion** on the System page.
+waits for **Confirm deletion** on the Knowledge base page.
 
-The Knowledge base page arrives in M07-T08. Until then the System page
-is where a sync is started, confirmed, and stopped.
+The page shows the document count, size against the cap, retrievals
+this month, the last sync, evaluation hits, problem files, and an
+estimated monthly cost. Storage is estimated at 5 US dollars per
+decimal gigabyte a month. Retrieval is estimated at 1 US dollar per
+thousand retrievals. Both rates are in `contracts/budgets.json`.
 
 ## Retrieval cap
 

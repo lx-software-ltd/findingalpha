@@ -10,4 +10,6 @@ export const queryKeys = {
   screen: (date: string) => ["screen", date] as const,
   backtests: ["backtests"] as const,
   backtest: (runId: string) => ["backtest", runId] as const,
+  knowledgeBase: ["kb", "status"] as const,
+  knowledgeBaseEval: ["kb", "eval"] as const,
 };

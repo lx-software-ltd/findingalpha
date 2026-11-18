@@ -69,6 +69,23 @@ class ApiHandlerTest(unittest.TestCase):
         self.assertEqual(plain["statusCode"], 404)
         self.assertEqual(sent, [("ingest_daily", "user-1")])
 
+    def test_the_knowledge_base_sync_route_starts_the_same_job(self) -> None:
+        from unittest.mock import patch
+
+        sent: list[tuple[str, object]] = []
+
+        def invoke(name: str, _sub: str, params: dict | None = None) -> None:
+            sent.append((name, params))
+
+        with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write"):
+            started = api_handler.lambda_handler(_event("POST", "/kb/sync", "[admin]"), None)
+            confirmed = _event("POST", "/kb/sync", "[admin]")
+            confirmed["body"] = json.dumps({"confirmDeletion": True})
+            allowed = api_handler.lambda_handler(confirmed, None)
+        self.assertEqual(started["statusCode"], 202)
+        self.assertEqual(allowed["statusCode"], 202)
+        self.assertEqual(sent, [("kb_sync_check", None), ("kb_sync_check", {"confirmDeletion": True})])
+
     def test_a_sync_accepts_only_an_empty_body_or_a_deletion_confirmation(self) -> None:
         from unittest.mock import patch
 

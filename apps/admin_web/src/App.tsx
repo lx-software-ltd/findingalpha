@@ -5,6 +5,7 @@ import { AuthenticatedShell } from "./components/AuthenticatedShell";
 import { RequireAuth } from "./components/RequireAuth";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { MethodologyPage } from "./pages/MethodologyPage";
+import { KnowledgeBasePage } from "./pages/KnowledgeBasePage";
 import { RoadmapPage } from "./pages/RoadmapPage";
 import { ScreenPage } from "./pages/ScreenPage";
 import { SystemPage } from "./pages/SystemPage";
@@ -25,6 +26,7 @@ export function App() {
                 <Route index element={<RoadmapPage />} />
                 <Route path="system" element={<SystemPage />} />
                 <Route path="methodology" element={<MethodologyPage />} />
+                <Route path="knowledge-base" element={<KnowledgeBasePage />} />
                 <Route path="screen" element={<ScreenPage />} />
               </Route>
             </Route>

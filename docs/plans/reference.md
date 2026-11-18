@@ -286,7 +286,7 @@ The key list never includes the digest.
 | `GET /screens/latest`, `GET /screens/{date}` | Shortlist and scores | M06 | `research` |
 | `GET /backtests`, `GET /backtests/{runId}` | Backtest results | M06 | `research` |
 | `GET /kb/status`, `GET /kb/eval/latest` | Knowledge base | M07 | `research` |
-| `POST /kb/sync` | Start a knowledge base sync | M07 | `operate` |
+| `POST /kb/sync` | Start a knowledge base sync. The body matches `kb_sync_check`: empty, `{"confirmDeletion": true}`, or `{"stop": true}`. A key cannot confirm a deletion, stop a sync, or start the first sync | M07 | `operate` |
 | `GET /costs` | Month-to-date spend against budget | M08 | `system` |
 | `GET /committee/runs`, `GET /committee/runs/{runId}` | Committee output | M08 | `research` |
 | `GET /theses`, `GET /theses/{symbol}` | Thesis journal | M08 | `research` |
