@@ -3,7 +3,7 @@ import * as scheduler from "aws-cdk-lib/aws-scheduler";
 import * as targets from "aws-cdk-lib/aws-scheduler-targets";
 import type * as lambda from "aws-cdk-lib/aws-lambda";
 
-/** Tick plus the two ingest schedules. A failed invoke is not retried. */
+/** Tick, the two ingest schedules, and the knowledge base check. A failed invoke is not retried. */
 export function defineSchedules(scope: cdk.Stack, engineFn: lambda.IFunction) {
   const hongKong = cdk.TimeZone.of("Asia/Hong_Kong");
   new scheduler.Schedule(scope, "TickSchedule", {
@@ -37,6 +37,19 @@ export function defineSchedules(scope: cdk.Stack, engineFn: lambda.IFunction) {
     }),
     target: new targets.LambdaInvoke(engineFn, {
       input: scheduler.ScheduleTargetInput.fromObject({ job: "weekly_refresh" }),
+      retryAttempts: 0,
+    }),
+  });
+  // The handler starts nothing until someone runs the job by hand once.
+  new scheduler.Schedule(scope, "KbSyncCheckSchedule", {
+    scheduleName: "findingalpha-kb-sync-check",
+    schedule: scheduler.ScheduleExpression.cron({
+      minute: "30",
+      hour: "5",
+      timeZone: hongKong,
+    }),
+    target: new targets.LambdaInvoke(engineFn, {
+      input: scheduler.ScheduleTargetInput.fromObject({ job: "kb_sync_check" }),
       retryAttempts: 0,
     }),
   });
