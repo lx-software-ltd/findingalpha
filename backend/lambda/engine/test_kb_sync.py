@@ -210,6 +210,7 @@ class KbSyncTest(unittest.TestCase):
                 "jobs": {"theory/": "job-1"},
                 "pending": kb_sync.snapshot(built),
                 "expectedDeletions": {"theory/": 2},
+                "progress": {"scanned": 1, "indexed": 1, "failed": 0},
             }
         )
         self.agent.jobs["job-1"] = {
@@ -235,6 +236,7 @@ class KbSyncTest(unittest.TestCase):
         saved = self.store.get("KB#state", "META") or {}
         self.assertEqual(saved["manifestHash"], kb_sync.fingerprint(built))
         self.assertNotIn("jobs", saved)
+        self.assertNotIn("progress", saved)
         self.assertEqual((self.store.get("JOB#kb_sync_check", "STATE") or {})["status"], "done")
 
     def test_an_ingestion_still_in_progress_stays_running(self) -> None:
@@ -243,6 +245,28 @@ class KbSyncTest(unittest.TestCase):
         result = self._run({})
         self.assertEqual(result["status"], "running")
         self.assertIn("jobs", self.store.get("KB#state", "META") or {})
+
+    def test_a_running_ingestion_stores_scanned_and_indexed_counts(self) -> None:
+        self.store.put(
+            {"pk": "KB#state", "sk": "META", "jobs": {"theory/": "job-1", "journal/": "job-2"}}
+        )
+        self.agent.jobs["job-1"] = {
+            "status": "IN_PROGRESS",
+            "statistics": {
+                "numberOfDocumentsScanned": 10,
+                "numberOfNewDocumentsIndexed": 4,
+                "numberOfModifiedDocumentsIndexed": 1,
+                "numberOfDocumentsFailed": 2,
+            },
+        }
+        self.agent.jobs["job-2"] = {
+            "status": "STARTING",
+            "statistics": {"numberOfDocumentsScanned": 3, "numberOfNewDocumentsIndexed": 0},
+        }
+        result = self._run({})
+        self.assertEqual(result["status"], "running")
+        saved = self.store.get("KB#state", "META") or {}
+        self.assertEqual(saved["progress"], {"scanned": 13, "indexed": 5, "failed": 2})
 
     def test_a_failed_ingestion_can_be_retried_and_the_token_changes(self) -> None:
         objects = _docs("theory/", 2)

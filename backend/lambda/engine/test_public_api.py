@@ -80,6 +80,9 @@ DECISIONS = {
     ("GET", "/screens/"): "research",
     ("GET", "/backtests"): "research",
     ("GET", "/backtests/"): "research",
+    ("GET", "/kb/status"): "research",
+    ("GET", "/kb/eval/latest"): "research",
+    ("POST", "/kb/sync"): "operate",
 }
 
 
@@ -393,21 +396,34 @@ class PublicApiTest(unittest.TestCase):
 
         with patch.object(api_handler, "_invoke_engine", invoke):
             first = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_sync_check/run", key=_key()), None)
+            first_page = api_handler.lambda_handler(_event("POST", "/public/kb/sync", key=_key()), None)
             confirm = api_handler.lambda_handler(
                 _event("POST", "/public/jobs/kb_sync_check/run", {"confirmDeletion": True}, key=_key()), None
+            )
+            confirm_page = api_handler.lambda_handler(
+                _event("POST", "/public/kb/sync", {"confirmDeletion": True}, key=_key()), None
             )
             stop = api_handler.lambda_handler(
                 _event("POST", "/public/jobs/kb_sync_check/run", {"stop": True}, key=_key()), None
             )
+            stop_page = api_handler.lambda_handler(
+                _event("POST", "/public/kb/sync", {"stop": True}, key=_key()), None
+            )
         self.assertEqual(first["statusCode"], 403)
+        self.assertEqual(first_page["statusCode"], 403)
         self.assertEqual(json.loads(first["body"])["message"], "the owner starts the first sync")
+        self.assertEqual(json.loads(first_page["body"])["message"], "the owner starts the first sync")
         self.assertEqual(json.loads(confirm["body"])["message"], "only the owner can confirm a deletion")
+        self.assertEqual(json.loads(confirm_page["body"])["message"], "only the owner can confirm a deletion")
         self.assertEqual(json.loads(stop["body"])["message"], "only the owner can stop a sync")
+        self.assertEqual(json.loads(stop_page["body"])["message"], "only the owner can stop a sync")
         self.store.put({"pk": "KB#state", "sk": "META", "manifestHash": "abc"})
         with patch.object(api_handler, "_invoke_engine", invoke):
             later = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_sync_check/run", key=_key()), None)
+            mirrored = api_handler.lambda_handler(_event("POST", "/public/kb/sync", key=_key()), None)
         self.assertEqual(later["statusCode"], 202)
-        self.assertEqual(sent, [("kb_sync_check", None)])
+        self.assertEqual(mirrored["statusCode"], 202)
+        self.assertEqual(sent, [("kb_sync_check", None), ("kb_sync_check", None)])
 
 
 if __name__ == "__main__":

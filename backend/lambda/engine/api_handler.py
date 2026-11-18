@@ -254,6 +254,33 @@ def _invoke_engine(name: str, sub: str, params: dict[str, Any] | None = None) ->
     )
 
 
+def knowledge_base_status(_event: dict[str, Any]) -> dict[str, Any]:
+    import kb_status
+
+    return _json_response(200, kb_status.status_payload())
+
+
+def knowledge_base_eval(_event: dict[str, Any]) -> dict[str, Any]:
+    import kb_status
+
+    return _json_response(200, kb_status.eval_payload())
+
+
+def start_knowledge_base_sync(event: dict[str, Any]) -> dict[str, Any]:
+    """POST /kb/sync starts the same job as Run now, with the same body rules."""
+    copied = dict(event)
+    context = dict(event.get("requestContext") or {})
+    http = dict(context.get("http") or {})
+    http["method"] = "POST"
+    http["path"] = "/jobs/kb_sync_check/run"
+    context["http"] = http
+    copied["requestContext"] = context
+    params = dict(event.get("pathParameters") or {})
+    params["jobName"] = "kb_sync_check"
+    copied["pathParameters"] = params
+    return run_job(copied)
+
+
 def latest_universe(_event: dict[str, Any]) -> dict[str, Any]:
     """The newest finished universe: date, size, and the count after each rule."""
     import store
@@ -328,6 +355,9 @@ ROUTES = (
     Route("GET", "/screens/", screen_by_date, "jwt", match=_is_screen_date, key_scope="research"),
     Route("GET", "/backtests", list_backtests, "jwt", key_scope="research"),
     Route("GET", "/backtests/", backtest_by_id, "jwt", match=_is_backtest_id, key_scope="research"),
+    Route("GET", "/kb/status", knowledge_base_status, "jwt", key_scope="research"),
+    Route("GET", "/kb/eval/latest", knowledge_base_eval, "jwt", key_scope="research"),
+    Route("POST", "/kb/sync", start_knowledge_base_sync, "jwt", key_scope="operate", key_write=True),
 )
 
 

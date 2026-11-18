@@ -254,8 +254,8 @@ polling while a job is in progress, through the job state it already
 resumes. The schedule `findingalpha-kb-sync-check` (daily 05:30 Hong
 Kong) is created in this step. Until the first Run now, the schedule
 returns `awaiting_first_sync` and starts nothing. Run now is
-`POST /jobs/kb_sync_check/run`. `POST /kb/sync` waits for the
-dashboard step.
+`POST /jobs/kb_sync_check/run`. The Knowledge base page uses
+`POST /kb/sync`, which starts the same job and accepts the same body.
 
 A failed or stopped ingestion clears the saved job ids and keeps the
 last good manifest, so the next run can start again. The idempotency
@@ -264,7 +264,7 @@ Starting a sync does not replace that manifest. An ingestion still
 running after 24 hours is stopped (`bedrock:StopIngestionJob`), and the
 owner can stop one from the dashboard with `{"stop": true}`. A blocked
 deletion or a problem list is written on `KB#state` and on the run
-row. Confirm and Stop are on the System page until M07-T08. An API
+row. Confirm and Stop are on the Knowledge base page. An API
 key cannot confirm a deletion, stop a sync, or start the first sync.
 The roadmap row stays `todo` until the first real sync.
 
@@ -396,8 +396,27 @@ system's own monthly cap.
 
 ### M07-T08 API and dashboard
 
-Routes (red: ask first): `GET /kb/status`, `POST /kb/sync`,
-`GET /kb/eval/latest`. `kb_eval` joins the manual-run list.
+Implemented. The page is `/knowledge-base`.
+
+Routes: `GET /kb/status`, `POST /kb/sync`, `GET /kb/eval/latest`.
+`kb_eval` is on the manual-run list. `POST /kb/sync` accepts an empty
+body, `{"confirmDeletion": true}`, or `{"stop": true}`. A key cannot
+confirm a deletion, stop a sync, or start the first sync. The status
+read does not call Bedrock. While a sync is running, the poll saves
+how many documents were scanned, indexed, and failed. The page shows
+those counts, and it keeps the document count and size from the last
+finished sync until this one completes. **Sync now** is hidden while
+a sync is running, while a deletion needs confirmation, and while the
+files are over the size cap.
+
+`contracts/budgets.json` holds the rates the page uses and M08 can
+reuse: `storageUsdPerGb` 5 and `retrievalUsdPerThousand` 1. Storage
+is a full month at the current size, in decimal gigabytes
+(`bytes / 1_000_000_000`). Retrievals are the spend so far this month.
+The page shows the two figures separately. Hit counts and the
+retrieval counter are whole numbers, including when DynamoDB returns
+them as decimals. The evaluation response is the question id and hit
+rank. Passage text stays out.
 
 `KnowledgeBasePage.tsx`:
 
@@ -407,9 +426,9 @@ Routes (red: ask first): `GET /kb/status`, `POST /kb/sync`,
 - Problems list: oversized files, unsupported types, failed documents,
   a blocked sync with its reason and, for a blocked deletion, a
   Confirm button behind a dialog.
-- Buttons: Sync now, Run evaluation.
+- Buttons: Sync now (hidden while a sync is running or blocked), Run evaluation.
 - Evaluation table: question id, hit rank.
-- Estimated monthly cost from size and retrievals.
+- Storage for a month at the current size, and retrievals so far this month, shown separately.
 
 Nav entry "Knowledge base" (`bi-book`), mock fixtures, unit tests,
 smoke test line. Add the knowledge base line to the Costs data used
