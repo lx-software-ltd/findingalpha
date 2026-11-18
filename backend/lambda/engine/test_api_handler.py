@@ -69,6 +69,44 @@ class ApiHandlerTest(unittest.TestCase):
         self.assertEqual(plain["statusCode"], 404)
         self.assertEqual(sent, [("ingest_daily", "user-1")])
 
+    def test_a_sync_accepts_only_an_empty_body_or_a_deletion_confirmation(self) -> None:
+        from unittest.mock import patch
+
+        sent: list[tuple[str, object]] = []
+        audited: list[str] = []
+
+        def invoke(name: str, sub: str, params: dict | None = None) -> None:
+            sent.append((name, params))
+
+        def write(_actor: str, _action: str, target: str, _event: dict) -> None:
+            audited.append(target)
+
+        with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write", write):
+            empty = api_handler.lambda_handler(_event("POST", "/jobs/kb_sync_check/run", "[admin]"), None)
+            confirmed = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
+            confirmed["body"] = json.dumps({"confirmDeletion": True})
+            allowed = api_handler.lambda_handler(confirmed, None)
+            rejected = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
+            rejected["body"] = json.dumps({"confirmDeletion": False})
+            refused = api_handler.lambda_handler(rejected, None)
+            stopped = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
+            stopped["body"] = json.dumps({"stop": True})
+            halt = api_handler.lambda_handler(stopped, None)
+        self.assertEqual(empty["statusCode"], 202)
+        self.assertEqual(allowed["statusCode"], 202)
+        self.assertEqual(halt["statusCode"], 202)
+        self.assertEqual(
+            sent,
+            [
+                ("kb_sync_check", None),
+                ("kb_sync_check", {"confirmDeletion": True}),
+                ("kb_sync_check", {"stop": True}),
+            ],
+        )
+        self.assertEqual(audited[-2], "kb_sync_check confirmDeletion")
+        self.assertEqual(audited[-1], "kb_sync_check stop")
+        self.assertEqual(refused["statusCode"], 400)
+
     def test_the_latest_universe_is_the_newest_finished_row(self) -> None:
         from unittest.mock import patch
 

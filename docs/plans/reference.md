@@ -342,7 +342,14 @@ start it. The system status reports `keyRun` and the saved
 `{"portfolioSize": N}`. `N` has to be an integer from
 `portfolioSizeMin` to `portfolioSizeMax` in the register. An empty body
 uses the register size and the audit row records that size. A body that
-is not a JSON object is refused, as is a body on any other job. A size
+is not a JSON object is refused, as is a body on any job other than
+`backtest` and `kb_sync_check`. `kb_sync_check` accepts an empty body,
+`{"confirmDeletion": true}`, or `{"stop": true}`, and nothing else.
+The daily schedule does not start the first sync; Run now does. A
+deletion above 15% is checked per data source, and the sync waits
+until the owner confirms it from the dashboard. An API key cannot
+confirm a deletion, stop a sync, or start the first sync. A key can
+start a later sync. A problem file is recorded and skipped. A size
 that would replace an unfinished run is 409, and the saved run stays.
 The 202 body echoes `portfolioSize` when one was sent. A tick that
 cannot resume a job is `failed` and names that job.
@@ -354,6 +361,7 @@ cannot resume a job is `failed` and names that job.
 | `screen` | Score the universe for one date. Checks `IngestEnabled`. Also called by `monthly_rebalance` | M06 |
 | `backfill_monthly_stats` | Month-end statistics for the backtest. Checks `IngestEnabled` | M06 |
 | `backtest` | One backtest run. Checks `IngestEnabled` | M06 |
+| `kb_sync_check` | Sync the knowledge base. The schedule waits until the first Run now | M07 |
 | `kb_eval` | Retrieval evaluation | M07 |
 | `committee_dry_run` | Three symbols, no thesis written | M08 |
 | `committee_eval` | Five invented companies with known answers | M08 |

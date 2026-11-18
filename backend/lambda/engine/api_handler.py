@@ -114,6 +114,10 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
     if isinstance(parsed, str):
         return _json_response(400, {"message": parsed})
     params, chosen = parsed
+    if name == "kb_sync_check" and _key_caller(event):
+        refusal = _sync_key_refusal(params)
+        if refusal:
+            return _json_response(403, {"message": refusal})
     if name == "backtest" and chosen is not None:
         import backtest
         import store
@@ -129,9 +133,13 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
     import audit
 
     target = name if chosen is None else f"{name} {chosen}"
+    if params.get("confirmDeletion") is True:
+        target = f"{name} confirmDeletion"
+    elif params.get("stop") is True:
+        target = f"{name} stop"
     audit.write(actor, "job.run", target, event)
     accepted: dict[str, Any] = {"accepted": True}
-    if params:
+    if "portfolioSize" in params:
         accepted["portfolioSize"] = params["portfolioSize"]
     return _json_response(202, accepted)
 
@@ -157,11 +165,33 @@ def _request_object(event: dict[str, Any]) -> dict[str, Any] | None:
     return parsed
 
 
-def _run_params(name: str, event: dict[str, Any]) -> str | tuple[dict[str, int], int | None]:
+def _sync_key_refusal(params: dict[str, Any]) -> str:
+    """A key may start a later sync. The first sync, a deletion, and a stop stay with the owner."""
+    if params.get("confirmDeletion") is True:
+        return "only the owner can confirm a deletion"
+    if params.get("stop") is True:
+        return "only the owner can stop a sync"
+    import kb_sync
+    import store
+
+    if not kb_sync.started_once(store.get(kb_sync.STATE_PK, kb_sync.STATE_SK) or {}):
+        return "the owner starts the first sync"
+    return ""
+
+
+def _run_params(name: str, event: dict[str, Any]) -> str | tuple[dict[str, Any], int | None]:
     """Params to forward and the backtest size, or the refusal message."""
     body = _request_object(event)
     if body is None:
         return "body must be a JSON object"
+    if name == "kb_sync_check":
+        if not body:
+            return {}, None
+        if set(body) == {"confirmDeletion"} and body.get("confirmDeletion") is True:
+            return {"confirmDeletion": True}, None
+        if set(body) == {"stop"} and body.get("stop") is True:
+            return {"stop": True}, None
+        return "only confirmDeletion true or stop true is allowed"
     if not body:
         if name != "backtest":
             return {}, None

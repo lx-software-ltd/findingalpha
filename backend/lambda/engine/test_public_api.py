@@ -372,6 +372,30 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(same["statusCode"], 202)
         self.assertEqual(sent, [("backtest", {"portfolioSize": 15})])
 
+    def test_a_key_cannot_confirm_stop_or_start_the_first_sync(self) -> None:
+        sent: list[object] = []
+
+        def invoke(name: str, _sub: str, params: dict[str, Any] | None = None) -> None:
+            sent.append((name, params))
+
+        with patch.object(api_handler, "_invoke_engine", invoke):
+            first = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_sync_check/run", key=_key()), None)
+            confirm = api_handler.lambda_handler(
+                _event("POST", "/public/jobs/kb_sync_check/run", {"confirmDeletion": True}, key=_key()), None
+            )
+            stop = api_handler.lambda_handler(
+                _event("POST", "/public/jobs/kb_sync_check/run", {"stop": True}, key=_key()), None
+            )
+        self.assertEqual(first["statusCode"], 403)
+        self.assertEqual(json.loads(first["body"])["message"], "the owner starts the first sync")
+        self.assertEqual(json.loads(confirm["body"])["message"], "only the owner can confirm a deletion")
+        self.assertEqual(json.loads(stop["body"])["message"], "only the owner can stop a sync")
+        self.store.put({"pk": "KB#state", "sk": "META", "manifestHash": "abc"})
+        with patch.object(api_handler, "_invoke_engine", invoke):
+            later = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_sync_check/run", key=_key()), None)
+        self.assertEqual(later["statusCode"], 202)
+        self.assertEqual(sent, [("kb_sync_check", None)])
+
 
 if __name__ == "__main__":
     unittest.main()

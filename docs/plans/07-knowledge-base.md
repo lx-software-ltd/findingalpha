@@ -205,8 +205,8 @@ and its deploy on 18 November 2026 (Hong Kong) succeeded.
    `AWS::Bedrock::DataSource` is added to the untagged-types
    list, because that resource has no tag property.
 
-The schedule `findingalpha-kb-sync-check` stays off until T03. The
-engine has no handler for it yet.
+The schedule `findingalpha-kb-sync-check` is created in T03. It does
+not start the first sync. Run now does.
 
 After the first sync, `numberOfDocumentsScanned` is 131 for `theory/`
 and 0 for the other two. A larger theory count means the prefix filter
@@ -223,27 +223,44 @@ revisited from that value.
    `.metadata.json` sidecars.
 2. `problems(manifest)`: files over 50 MB; unsupported extensions;
    sidecars over 10 KB; sidecars without a document.
-3. `decide(manifest, state)`:
+3. `decide(manifest, state)`. Approved on 18 November 2026 (Hong Kong),
+   with the three choices from the review of this step:
    - Total bytes above `KB_MAX_RAW_BYTES`: status `blocked_size`. Do
      not sync.
-   - More than 15% of the previously known documents are gone: status
-     `blocked_deletion`. Do not sync. The owner must confirm on the
-     dashboard, which calls `POST /kb/sync` with `{"confirmDeletion":
-     true}`.
+   - More than 15% of the previously known documents are gone, checked
+     per data source: status `blocked_deletion`. Do not sync any
+     source. Run now again with `{"confirmDeletion": true}` allows it.
+     The service can still skip its own delete phase; the result then
+     names the shortfall.
    - The manifest hash equals the stored one and no job is running:
      status `unchanged`.
    - Otherwise start one ingestion job for each data source whose
      files changed, and store the job ids.
+   - A listed problem (step 2) is stored and logged, and that file is
+     left out of the sync. It does not block the other files.
 4. `poll(state)`: for stored job ids, read the job status and the
    statistics (scanned, indexed, failed). When all are complete, store
    the manifest hash, document count, bytes and time in `KB#state`.
    Failed documents are listed by key.
 
-Jobs: `kb_sync_check` (scheduled; runs `decide` then `poll`; `tick`
-keeps polling while a job is in progress) and the route
-`POST /kb/sync` (starts `kb_sync_check` now). The schedule
-`findingalpha-kb-sync-check` (daily 05:30 Hong Kong) is created in
-this step, with the handler.
+The job is `kb_sync_check`. It runs `decide` then `poll`. `tick` keeps
+polling while a job is in progress, through the job state it already
+resumes. The schedule `findingalpha-kb-sync-check` (daily 05:30 Hong
+Kong) is created in this step. Until the first Run now, the schedule
+returns `awaiting_first_sync` and starts nothing. Run now is
+`POST /jobs/kb_sync_check/run`. `POST /kb/sync` waits for the
+dashboard step.
+
+A failed or stopped ingestion clears the saved job ids and keeps the
+last good manifest, so the next run can start again. The idempotency
+token includes the previous job id, so a retry does not reuse it.
+Starting a sync does not replace that manifest. An ingestion still
+running after 6 hours is stopped (`bedrock:StopIngestionJob`), and the
+owner can stop one from the dashboard with `{"stop": true}`. A blocked
+deletion or a problem list is written on `KB#state` and on the run
+row. Confirm and Stop are on the System page until M07-T08. An API
+key cannot confirm a deletion, stop a sync, or start the first sync.
+The roadmap row stays `todo` until the first real sync.
 
 Tests with a stubbed Bedrock client: each status; the hash ignores
 listing order; a sidecar change counts as a change; a failed document

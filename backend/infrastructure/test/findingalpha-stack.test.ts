@@ -351,7 +351,7 @@ describe("findingalpha stack", () => {
 
   test("the only schedule is EventBridge Scheduler and a failed engine invoke does not retry", () => {
     synthesized.resourceCountIs("AWS::Events::Rule", 0);
-    synthesized.resourceCountIs("AWS::Scheduler::Schedule", 3);
+    synthesized.resourceCountIs("AWS::Scheduler::Schedule", 4);
     synthesized.hasResourceProperties("AWS::Scheduler::Schedule", {
       Name: "findingalpha-tick",
       ScheduleExpression: "rate(15 minutes)",
@@ -363,6 +363,15 @@ describe("findingalpha stack", () => {
       Name: "findingalpha-ingest-daily",
       ScheduleExpression: "cron(0 12 ? * TUE-SAT *)",
       ScheduleExpressionTimezone: "Asia/Hong_Kong",
+    });
+    synthesized.hasResourceProperties("AWS::Scheduler::Schedule", {
+      Name: "findingalpha-kb-sync-check",
+      ScheduleExpression: "cron(30 5 * * ? *)",
+      ScheduleExpressionTimezone: "Asia/Hong_Kong",
+      Target: Match.objectLike({
+        Input: Match.stringLikeRegexp("kb_sync_check"),
+        RetryPolicy: Match.objectLike({ MaximumRetryAttempts: 0 }),
+      }),
     });
     const schedule = Object.values(resources("AWS::Scheduler::Schedule"))[0];
     expect(JSON.stringify(schedule.Properties.Target)).toContain("tick");
@@ -462,6 +471,7 @@ describe("findingalpha stack", () => {
       "bedrock:GetIngestionJob",
       "bedrock:ListIngestionJobs",
       "bedrock:ListKnowledgeBaseDocuments",
+      "bedrock:StopIngestionJob",
     ]) {
       expect(engine).toContain(action);
     }

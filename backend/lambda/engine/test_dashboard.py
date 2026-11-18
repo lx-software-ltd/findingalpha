@@ -137,6 +137,9 @@ class DashboardTest(unittest.TestCase):
         self.assertTrue(never["keyRun"])
         broker = next(item for item in body["jobs"] if item["job"] == "broker_setup")
         self.assertFalse(broker["manualRun"])
+        sync = next(item for item in body["jobs"] if item["job"] == "kb_sync_check")
+        self.assertTrue(sync["manualRun"])
+        self.assertEqual(sync["schedule"], "30 5 * * ? * Asia/Hong_Kong")
         self.assertTrue(broker["keyRun"])
         self.store.put(
             {
