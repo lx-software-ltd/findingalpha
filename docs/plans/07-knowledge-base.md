@@ -82,10 +82,12 @@ Owner decisions, the same evening, with the review of 17 November 2026
 
 ## Merge and deploy order
 
-The pin, the research memo and the first knowledge base create are on
-`main`. That deploy created the knowledge base, then failed on the
-data source, and CloudFormation rolled the new resources back. The
-follow-up omits ingestion settings so the create can succeed.
+The pin, the research memo and the knowledge base are on `main`. The
+first deploy created the knowledge base, then failed on the data
+source, and CloudFormation rolled the new resources back. The
+follow-up omitted ingestion settings. Its deploy on 18 November 2026
+(Hong Kong) created the role, the knowledge base, the three data
+sources in order, and the alarm. Nothing is ingested yet.
 
 ## Files
 
@@ -144,8 +146,9 @@ documentation and API reference and write
 deps)`. Approved on 17 November 2026 (Hong Kong), including the review
 of that plan. `CfnKnowledgeBase` is the resource. The first deploy
 created it, then the data source rejected a chunking strategy and the
-stack rolled back. The follow-up omits `vectorIngestionConfiguration`.
-`AwsCustomResource` stays unused.
+stack rolled back. The follow-up omits `vectorIngestionConfiguration`,
+and its deploy on 18 November 2026 (Hong Kong) succeeded.
+`AwsCustomResource` stays unused. **Done.**
 
 1. **Service role**, inline policy on the role itself so the policy
    exists when the knowledge base is created. Trusted by
