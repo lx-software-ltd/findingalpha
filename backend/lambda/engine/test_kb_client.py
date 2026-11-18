@@ -39,16 +39,38 @@ class _Store:
         del expression, names
         self.updates.append(pk)
         item = self.items.setdefault((pk, sk), {"count": 0})
-        item["count"] = int(item.get("count") or 0) + int(values[":one"])
+        delta = int(values.get(":one") or 0) + int(values.get(":minus") or 0)
+        item["count"] = int(item.get("count") or 0) + delta
+
+    def update_conditional(
+        self,
+        pk: str,
+        sk: str,
+        expression: str,
+        values: dict[str, Any],
+        condition: str,
+        names: dict[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        del expression, condition, names
+        current = self.items.get((pk, sk))
+        count = int((current or {}).get("count") or 0)
+        if current is not None and "count" in current and count >= int(values[":cap"]):
+            raise kb_client.store.ConditionNotMet(pk)
+        previous = dict(current) if current else None
+        self.update(pk, sk, "", {":one": values[":one"]})
+        return previous
 
 
 class _Agent:
     def __init__(self, results: list[dict[str, Any]] | None = None) -> None:
         self.calls: list[dict[str, Any]] = []
         self.results = results if results is not None else [_result("theory/example.pdf")]
+        self.fail = False
 
     def retrieve(self, **kwargs: Any) -> dict[str, Any]:
         self.calls.append(kwargs)
+        if self.fail:
+            raise RuntimeError("bedrock down")
         return {"retrievalResults": self.results}
 
 
@@ -68,6 +90,7 @@ class KbClientTest(unittest.TestCase):
         self.patches = [
             patch("kb_client.store.get", self.store.get),
             patch("kb_client.store.update", self.store.update),
+            patch("kb_client.store.update_conditional", self.store.update_conditional),
             patch("kb_client._log_event", lambda level, **fields: self.logs.append({"level": level, **fields})),
         ]
         for item in self.patches:
@@ -130,6 +153,13 @@ class KbClientTest(unittest.TestCase):
         self.assertNotIn("filter", self.agent.calls[0]["retrievalConfiguration"]["managedSearchConfiguration"])
         self.assertEqual([item["document"] for item in found], ["note.md"])
         self.assertEqual(found[0]["locator"], "")
+
+    def test_a_failed_call_releases_the_reservation(self) -> None:
+        self.agent.fail = True
+        with self.assertRaises(RuntimeError):
+            self._retrieve("how is it defined")
+        self.assertEqual(self.store.items[("USAGE#2026-11", "KB")]["count"], 0)
+        self.assertEqual(self.store.updates, ["USAGE#2026-11", "USAGE#2026-11"])
 
     def test_an_unknown_folder_does_not_call(self) -> None:
         self.assertEqual(self._retrieve("where is it", source_types=["scans"]), [])

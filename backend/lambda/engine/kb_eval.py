@@ -12,6 +12,7 @@ import os
 from typing import Any, Callable
 
 import kb_client
+import kb_sync
 import s3io
 import store
 import timeutil
@@ -19,6 +20,8 @@ import timeutil
 QUESTIONS_KEY = "eval/questions.json"
 STATE_PK = "KB#eval"
 STATE_SK = "LATEST"
+HIT_AT_8 = 16
+HIT_AT_3 = 12
 
 Loader = Callable[[], Any]
 Ask = Callable[..., list[dict[str, Any]]]
@@ -33,6 +36,8 @@ def run(
     clock: kb_client.Clock | None = None,
 ) -> dict[str, Any]:
     """Retrieve once per question and store the hit counts."""
+    if not _synced():
+        return {"ok": False, "status": "failed", "error": "the knowledge base has not been synced"}
     questions = (loader or _load)()
     if not isinstance(questions, list) or not questions or any(not isinstance(item, dict) for item in questions):
         return {"ok": False, "status": "failed", "error": "questions file is missing"}
@@ -62,14 +67,29 @@ def run(
             "results": results,
         }
     )
+    summary = f"{hit_at_8} of {len(results)} at 8, {hit_at_3} of {len(results)} at 3"
+    met = hit_at_8 >= HIT_AT_8 and hit_at_3 >= HIT_AT_3
+    if not met:
+        return {
+            "ok": False,
+            "status": "below_target",
+            "questions": len(results),
+            "hitAt8": hit_at_8,
+            "hitAt3": hit_at_3,
+            "error": f"below target: {summary}",
+        }
     return {
         "ok": True,
         "status": "done",
         "questions": len(results),
         "hitAt8": hit_at_8,
         "hitAt3": hit_at_3,
-        "message": f"{hit_at_8} of {len(results)} at 8, {hit_at_3} of {len(results)} at 3",
+        "message": summary,
     }
+
+
+def _synced() -> bool:
+    return bool((store.get(kb_sync.STATE_PK, kb_sync.STATE_SK) or {}).get("manifestHash"))
 
 
 def _load() -> Any:

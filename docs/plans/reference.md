@@ -333,8 +333,9 @@ that returns `missing_inputs` is `failed`. A clean finish is
 Jobs without a schedule, started from the dashboard through
 `POST /jobs/{jobName}/run` when `contracts/jobs.json` allows it:
 An API key can start a job only when the job has `keyRun: true`.
-Every job in `contracts/jobs.json` has that flag, including the
-broker jobs and the drills. A key that asks to start a backfill
+Every job except `kb_eval` has that flag, including the broker jobs
+and the drills. A key cannot start the evaluation. The owner runs it,
+and only after a sync has stored a manifest. A key that asks to start a backfill
 whose saved state is already `done` is refused, because that starts
 the download again from the first month. The dashboard can still
 start it. The system status reports `keyRun` and the saved

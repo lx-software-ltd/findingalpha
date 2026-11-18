@@ -38,11 +38,17 @@ class _Store:
 class KbEvalTest(unittest.TestCase):
     def setUp(self) -> None:
         self.store = _Store()
-        self.patch = patch("kb_eval.store.put", self.store.put)
-        self.patch.start()
+        self.state: dict[str, Any] = {"manifestHash": "done"}
+        self.patches = [
+            patch("kb_eval.store.put", self.store.put),
+            patch("kb_eval.store.get", lambda _pk, _sk: dict(self.state) if self.state else None),
+        ]
+        for item in self.patches:
+            item.start()
 
     def tearDown(self) -> None:
-        self.patch.stop()
+        for item in self.patches:
+            item.stop()
 
     def test_hits_are_counted_at_eight_and_at_three(self) -> None:
         caches: list[dict] = []
@@ -63,15 +69,43 @@ class KbEvalTest(unittest.TestCase):
             retrieve=retrieve,
             clock=lambda: NOW,
         )
-        self.assertEqual(result["status"], "done")
+        self.assertEqual(result["status"], "below_target")
         self.assertEqual(result["hitAt8"], 2)
         self.assertEqual(result["hitAt3"], 1)
-        self.assertEqual(result["message"], "2 of 3 at 8, 1 of 3 at 3")
+        self.assertEqual(result["error"], "below target: 2 of 3 at 8, 1 of 3 at 3")
         saved = self.store.item or {}
         self.assertEqual([row["rank"] for row in saved["results"]], [2, 5, None])
         self.assertEqual(caches[0], caches[1])
         self.assertNotIn("return on invested capital", str(saved))
         self.assertNotIn("formula", str(saved))
+
+    def test_the_targets_are_a_plain_success(self) -> None:
+        plan = [1] * 12 + [5] * 4 + [None] * 4
+        seen: list[int] = []
+
+        def retrieve(_query: str, cache: dict | None = None, **_kwargs: Any) -> list[dict[str, Any]]:
+            del cache
+            rank = plan[len(seen)]
+            seen.append(rank or 0)
+            if rank is None:
+                return [_passage("other.pdf", "no")]
+            misses = [_passage("other.pdf", "no")] * (rank - 1)
+            return [*misses, _passage("example.pdf", "return on invested capital")]
+
+        questions = [_question(f"q{index:02d}") for index in range(20)]
+        result = kb_eval.run(loader=lambda: questions, retrieve=retrieve, clock=lambda: NOW)
+        self.assertEqual(result["status"], "done")
+        self.assertEqual(result["message"], "16 of 20 at 8, 12 of 20 at 3")
+
+    def test_a_sync_that_has_not_finished_does_not_retrieve(self) -> None:
+        self.state.clear()
+
+        def retrieve(*_args: Any, **_kwargs: Any) -> list[dict[str, Any]]:
+            raise AssertionError("retrieved")
+
+        result = kb_eval.run(loader=lambda: [_question("one")], retrieve=retrieve, clock=lambda: NOW)
+        self.assertEqual(result["error"], "the knowledge base has not been synced")
+        self.assertIsNone(self.store.item)
 
     def test_a_missing_file_does_not_retrieve(self) -> None:
         def retrieve(*_args: Any, **_kwargs: Any) -> list[dict[str, Any]]:

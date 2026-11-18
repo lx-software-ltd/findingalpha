@@ -123,10 +123,15 @@ def _poll(state: dict[str, Any], agent: Any, moment: datetime) -> dict[str, Any]
         _job_row("running", _EXPIRED_LEASE)
         return _pack(True, "running", message=message)
     if any(item.get("status") != "COMPLETE" for item in seen.values()):
-        _close_failed(state, seen, moment)
+        _close_failed(state, seen, agent, moment)
         _job_row("failed", None)
+        named = ", ".join(
+            f"{prefix} {item.get('status') or 'UNKNOWN'}"
+            for prefix, item in seen.items()
+            if item.get("status") != "COMPLETE"
+        )
         _log_event("warning", tag="kb_sync", status="failed")
-        return _pack(False, "failed", error="ingestion failed")
+        return _pack(False, "failed", error=f"ingestion failed: {named}")
     return _close_done(state, seen, agent, moment)
 
 
@@ -174,23 +179,40 @@ def _save_running(
     _job_row("running", _EXPIRED_LEASE)
 
 
-def _close_failed(state: dict[str, Any], seen: dict[str, dict[str, Any]], moment: datetime) -> None:
+def _close_failed(state: dict[str, Any], seen: dict[str, dict[str, Any]], agent: Any, moment: datetime) -> None:
+    """Keep every folder whose job completed, and clear the rest so a retry starts only those."""
+    complete = {prefix: item for prefix, item in seen.items() if item.get("status") == "COMPLETE"}
+    pending = (state.get("pending") or {}).get("sources") or {}
+    sources = dict(state.get("sources") or {})
+    for prefix in complete:
+        if isinstance(pending.get(prefix), dict):
+            sources[prefix] = pending[prefix]
+    failed_keys: list[str] = []
+    shortfall: dict[str, int] = {}
+    if complete:
+        failed_keys, shortfall = _outcomes(state, complete, agent)
     last = dict(state.get("lastJobs") or {})
     last.update({prefix: job_id for prefix, job_id in (state.get("jobs") or {}).items()})
-    store.put(
-        _row(
-            state,
-            status="failed",
-            lastJobs=last,
-            failure={"jobs": {prefix: str(item.get("status") or "") for prefix, item in seen.items()}},
-            jobs=None,
-            pending=None,
-            expectedDeletions=None,
-            jobStartedAt=None,
-            stopRequested=None,
-            updatedAt=timeutil.format_iso_millis(moment),
-        )
-    )
+    updates: dict[str, Any] = {
+        "status": "failed",
+        "lastJobs": last,
+        "failure": {"jobs": {prefix: str(item.get("status") or "") for prefix, item in seen.items()}},
+        "jobs": None,
+        "pending": None,
+        "expectedDeletions": None,
+        "jobStartedAt": None,
+        "stopRequested": None,
+        "updatedAt": timeutil.format_iso_millis(moment),
+    }
+    if sources:
+        updates["sources"] = sources
+    if complete:
+        updates["syncedAt"] = timeutil.format_iso_millis(moment)
+    if failed_keys:
+        updates["failedKeys"] = failed_keys
+    if shortfall:
+        updates["deletionShortfall"] = shortfall
+    store.put(_row(state, **updates))
 
 
 def _close_done(state: dict[str, Any], seen: dict[str, dict[str, Any]], agent: Any, moment: datetime) -> dict[str, Any]:

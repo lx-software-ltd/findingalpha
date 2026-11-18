@@ -177,7 +177,7 @@ export const jobs = {
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": true
+      "keyRun": false
     },
     {
       "name": "committee_dry_run",
@@ -1036,7 +1036,7 @@ export const roadmap = {
         {
           "id": "M07-T04",
           "title": "Retrieval client",
-          "status": "done"
+          "status": "todo"
         },
         {
           "id": "M07-T05",

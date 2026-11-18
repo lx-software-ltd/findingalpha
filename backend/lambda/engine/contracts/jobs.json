@@ -160,7 +160,7 @@
       "timeZone": "",
       "killSwitch": "",
       "manualRun": true,
-      "keyRun": true
+      "keyRun": false
     },
     {
       "name": "committee_dry_run",

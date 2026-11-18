@@ -263,6 +263,30 @@ class KbSyncTest(unittest.TestCase):
         self.assertEqual(again["status"], "running")
         self.assertNotEqual(self.agent.started[-1]["clientToken"], first)
 
+    def test_a_completed_folder_is_kept_when_another_fails(self) -> None:
+        objects = _docs("theory/", 1) + [_obj("journal/a.md")]
+        built = kb_sync.manifest(objects)
+        self.store.put(
+            {
+                "pk": "KB#state",
+                "sk": "META",
+                "jobs": {"theory/": "job-1", "journal/": "job-2"},
+                "pending": kb_sync.snapshot(built),
+            }
+        )
+        self.agent.jobs["job-1"] = {"status": "COMPLETE", "statistics": {"numberOfDocumentsDeleted": 0}}
+        self.agent.jobs["job-2"] = {"status": "FAILED", "statistics": {}}
+        failed = self._run({})
+        self.assertEqual(failed["status"], "failed")
+        self.assertIn("journal/ FAILED", failed["error"])
+        saved = self.store.get("KB#state", "META") or {}
+        self.assertEqual(saved["sources"]["theory/"]["keys"], ["theory/book-0.pdf"])
+        self.assertNotIn("journal/", saved["sources"])
+        self.assertNotIn("manifestHash", saved)
+        self.agent.started.clear()
+        self._run({"trigger": "manual"}, objects)
+        self.assertEqual([item["dataSourceId"] for item in self.agent.started], ["ds-journal"])
+
     def test_a_start_that_raises_keeps_the_job_it_already_started(self) -> None:
         from botocore.exceptions import ClientError
 

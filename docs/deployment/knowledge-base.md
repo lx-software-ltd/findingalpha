@@ -9,8 +9,10 @@ id stays out of git. Read it from the stack output `KnowledgeBaseId`.
 
 Put files in `theory/`, `formula-notes/`, or `journal/`. `scans/` and
 `eval/` are not data sources. A file may be PDF, Markdown (`.md` or
-`.markdown`), text, HTML (`.html` or `.htm`), Word, Excel, CSV, or
-PowerPoint (`.pptx`). The limit is 50 MB a file. The sync refuses to
+`.markdown`), text, HTML (`.html` or `.htm`), Word, Excel, or CSV.
+The sync also accepts `.pptx`, but a managed knowledge base has not
+confirmed that type, so a PowerPoint file can come back as a failed
+document. The limit is 50 MB a file. The sync refuses to
 start when the three prefixes together exceed `KB_MAX_RAW_BYTES`
 (2 GB unless the stack sets another value).
 
@@ -59,8 +61,10 @@ Create a local AWS profile named `findingalpha-kb-read`. It needs:
 `GetKnowledgeBase` is there because server 1.1.2 reads the knowledge
 base before it queries. Do not add `bedrock:AgenticRetrieveStream`.
 
-Cursor reads `.cursor/mcp.json`. The same block, with the same profile,
-is what Claude Desktop uses. Reranking in the server is off because the
+Cursor reads `.cursor/mcp.json`. The server runs through `uvx`, so
+`uv` has to be installed. Without the `findingalpha-kb-read` profile
+the server does not start. The same block, with the same profile, is
+what Claude Desktop uses. Reranking in the server is off because the
 managed knowledge base already reranks.
 
 Queries made through the MCP server are billed by AWS. They are not

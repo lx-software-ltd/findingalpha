@@ -244,7 +244,10 @@ revisited from that value.
 4. `poll(state)`: for stored job ids, read the job status and the
    statistics (scanned, indexed, failed). When all are complete, store
    the manifest hash, document count, bytes and time in `KB#state`.
-   Failed documents are listed by key.
+   Failed documents are listed by key. When some jobs complete and
+   others fail, the completed folders are saved and the next run starts
+   only the rest. The manifest hash stays unset until every folder
+   matches.
 
 The job is `kb_sync_check`. It runs `decide` then `poll`. `tick` keeps
 polling while a job is in progress, through the job state it already
@@ -299,9 +302,11 @@ is reported.
 - Never logs passage text. Logs the query hash, the count and the
   latency.
 
-Tests: the cap refuses at the limit; the counter increments once per
-call and not on a cache hit; results are mapped; prefix filtering
-works without sidecars.
+Tests: the cap refuses at the limit; the reservation is taken before
+the call and released when the call raises; the counter increments
+once per call and not on a cache hit; results are mapped; prefix
+filtering works without sidecars. The roadmap row stays `todo` until
+a live retrieval confirms the folder filter and the page number.
 
 ### M07-T05 Evaluation
 
@@ -317,7 +322,10 @@ passage text). Each question also carries `page` and `formula`. They
 are for the hand check below. The job accepts them and does not score
 them.
 
-Targets: at least 16 of 20 at 8, and at least 12 of 20 at 3.
+Targets: at least 16 of 20 at 8, and at least 12 of 20 at 3. The job
+refuses until `KB#state` has a manifest hash. Below either target the
+run is failed and the message starts with `below target`. The results
+are stored either way. A key cannot start this job.
 
 Then read the returned passages for the formula questions by hand
 (through the MCP server, T07) and note in the memo whether the
@@ -375,8 +383,10 @@ Pin the version (1.1.2 was current when this was written). Reranking
 is off in the server because the managed knowledge base already
 reranks. The AWS profile is a local profile of the person using it,
 with read-only access to `bedrock:Retrieve`,
-`bedrock:ListKnowledgeBases`, `bedrock:ListDataSources`,
-`bedrock:ListTagsForResource`. No credentials in git.
+`bedrock:GetKnowledgeBase`, `bedrock:ListKnowledgeBases`,
+`bedrock:ListDataSources`, `bedrock:ListTagsForResource`.
+`GetKnowledgeBase` is required because server 1.1.2 reads the
+knowledge base before it queries. No credentials in git.
 
 `docs/deployment/knowledge-base.md`: how the owner uploads PDFs, the
 sidecar format, the caps, how to read the Knowledge base page, the

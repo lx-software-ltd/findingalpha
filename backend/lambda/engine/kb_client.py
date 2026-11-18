@@ -58,15 +58,16 @@ def retrieve(
         return [dict(item) for item in cache[key]]
     moment = (clock or timeutil.utc_now)()
     month = f"USAGE#{moment:%Y-%m}"
-    used = _count(month)
     cap = int(limits["maxRetrievalsPerMonth"])
-    if used >= cap:
-        raise KbBudgetExceeded("monthly retrieval cap reached")
-    if used >= int(cap * float(limits["warnShare"])):
-        _log_event("warning", tag="kb_retrieve", status="near_cap", used=used, cap=cap)
+    used = _reserve(month, cap)
+    if used + 1 >= int(cap * float(limits["warnShare"])):
+        _log_event("warning", tag="kb_retrieve", status="near_cap", used=used + 1, cap=cap)
     started = time.perf_counter()
-    passages = _map(_call(text, chosen, folders, client), folders if _filter_ids(folders) is None else None)
-    _add(month)
+    try:
+        passages = _map(_call(text, chosen, folders, client), folders if _filter_ids(folders) is None else None)
+    except Exception:
+        _release(month)
+        raise
     _add(f"USAGE#{moment:%Y-%m-%d}")
     _log_event(
         "info",
@@ -150,9 +151,24 @@ def _map(results: list[dict[str, Any]], folders: list[str] | None) -> list[dict[
     return passages
 
 
-def _count(pk: str) -> int:
-    item = store.get(pk, "KB") or {}
-    return int(item.get("count") or 0)
+def _reserve(pk: str, cap: int) -> int:
+    """Take one retrieval before the call. The condition stops two runs crossing the cap."""
+    try:
+        previous = store.update_conditional(
+            pk,
+            "KB",
+            "ADD #n :one",
+            {":one": 1, ":cap": cap},
+            "attribute_not_exists(#n) OR #n < :cap",
+            {"#n": "count"},
+        )
+    except store.ConditionNotMet:
+        raise KbBudgetExceeded("monthly retrieval cap reached") from None
+    return int((previous or {}).get("count") or 0)
+
+
+def _release(pk: str) -> None:
+    store.update(pk, "KB", "ADD #n :minus", {":minus": -1}, {"#n": "count"})
 
 
 def _add(pk: str) -> None:

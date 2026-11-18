@@ -118,6 +118,10 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
         refusal = _sync_key_refusal(params)
         if refusal:
             return _json_response(403, {"message": refusal})
+    if name == "kb_eval":
+        refusal = _eval_refusal()
+        if refusal:
+            return _json_response(409, {"message": refusal})
     if name == "backtest" and chosen is not None:
         import backtest
         import store
@@ -176,6 +180,16 @@ def _sync_key_refusal(params: dict[str, Any]) -> str:
 
     if not kb_sync.started_once(store.get(kb_sync.STATE_PK, kb_sync.STATE_SK) or {}):
         return "the owner starts the first sync"
+    return ""
+
+
+def _eval_refusal() -> str:
+    """The evaluation waits until a sync has stored a manifest."""
+    import kb_sync
+    import store
+
+    if not (store.get(kb_sync.STATE_PK, kb_sync.STATE_SK) or {}).get("manifestHash"):
+        return "the knowledge base has not been synced"
     return ""
 
 
