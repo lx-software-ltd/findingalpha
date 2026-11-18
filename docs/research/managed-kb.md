@@ -94,8 +94,11 @@ caps `KbMaxRawBytes` and `KbMaxRetrievalsPerMonth` are stack parameters
      property from required to optional. The installed 2.277.0 has
      `embeddingModelArn?: string`.
    - A probe stack built with the installed L1 classes (managed
-     knowledge base, tags, one managed S3 data source) synthesizes, and
-     both resources pass the published schemas with zero errors.
+     knowledge base, tags, one managed S3 data source with fixed-size
+     chunking) synthesizes, and both resources pass the published
+     schemas with zero errors. That request also passes botocore 1.44.3
+     parameter validation. Neither check sees the service rule that
+     rejected it on deploy.
 
    **The knowledge base resource is accepted.** The first deploy, on
    17 November 2026 (Hong Kong), created `TheoryKnowledgeBase`.
@@ -110,7 +113,9 @@ caps `KbMaxRawBytes` and `KbMaxRetrievalsPerMonth` are stack parameters
    documented default. Parsing was in that first request and the
    service never reached it.
 2. **The four requests are in "Request shapes".** Each one passes the
-   SDK's parameter validation against the botocore 1.44.3 model.
+   SDK's parameter validation against the botocore 1.44.3 model. The
+   request the first deploy sent passes that check too, so validation
+   does not catch the chunking rejection.
 3. **Prices are unchanged.** Storage is 5.00 US dollars per GB-month of
    raw data and `Retrieve` is 1.00 per 1,000 calls, on the pricing page
    and in the `ap-southeast-1` price list (effective 1 October 2026).
@@ -171,7 +176,7 @@ These follow from the answers. Each is a correction to
 | Types: PDF, Markdown, text, HTML, Word, Excel, CSV | Confirmed. The overview also names PPTX, and images, audio and video when media extraction is on | Document formats page |
 | Sidecar `<file>.metadata.json`, at most 10 KB | Confirmed. The managed format is typed, see "Request shapes" | S3 connector page |
 | Chunking fixed at creation | Partly. The guide says the strategy cannot be changed after connect, and CloudFormation replaces the data source on a change. With managed embedding the service rejects `chunkingConfiguration` itself. The first deploy returned that error and rolled back | Customize ingestion page; schema `createOnlyProperties`; deploy on 17 November 2026 (Hong Kong) |
-| Default 300 tokens, 20% overlap; none; fixed size; no semantic | Partly. The guide lists those choices. Managed embedding accepts the default only, by omitting `chunkingConfiguration`. The service rejected the presence of a chunking strategy before `NONE` or `FIXED_SIZE` could be tried on their own | Customize ingestion page; first deploy |
+| Default 300 tokens, 20% overlap; none; fixed size; no semantic | Partly. The guide lists default (300 tokens, 20% overlap), none, and fixed size, and semantic chunking is unsupported. The first deploy sent `FIXED_SIZE` at 800 tokens and 15% overlap, and the service rejected that request. `NONE` was not tried. The guide still lists fixed size and none | Customize ingestion page, read again on 18 November 2026 (Hong Kong); first deploy |
 | Deleting more than 15% is blocked by default | Partly. See the table above | Connect a data source page |
 | 200 data sources, 600 `Retrieve` a minute | Confirmed. Also 100 `Retrieve` a second per account, 50 concurrent ingestion jobs per knowledge base, 10,000 characters per query, 10 TB per knowledge base, 30 MB of extracted text per file | Quotas pages |
 | Metric `RawDataSize` in `AWS/Bedrock/KnowledgeBases` | Confirmed. Unit Gigabytes, published after an ingestion job completes | Observability page |
@@ -317,7 +322,10 @@ The request for the `theory` data source. The other two differ in
           "bucketName": "<knowledge base bucket>",
           "bucketOwnerAccountId": "<account>"
         },
-        "filterConfiguration": { "inclusionPrefixes": ["theory/"] }
+        "filterConfiguration": {
+          "inclusionPrefixes": ["theory/"],
+          "maxFileSizeInMegaBytes": "50"
+        }
       },
       "deletionProtectionConfiguration": {
         "deletionProtectionStatus": "ENABLED",
@@ -332,16 +340,25 @@ Notes:
 
 - Creation is asynchronous. The status moves from `CREATING` to
   `AVAILABLE`.
-- `maxTokens` accepts 1 to 8192 and `overlapPercentage` 1 to 99 on a
-  knowledge base that can set them. Managed embedding cannot. The user
-  guide shows `"chunkingStrategy": "DEFAULT"` for 300 tokens and 20%
-  overlap. The API reference, the SDK and the CloudFormation schema
-  list `FIXED_SIZE`, `NONE`, `HIERARCHICAL` and `SEMANTIC`. The first
-  deploy rejected a chunking strategy with managed embedding, so this
-  project omits `chunkingConfiguration`.
+- `maxTokens` accepts 1 to 8192 and `overlapPercentage` 1 to 99 where
+  the service accepts a chunking strategy. The user guide shows
+  `"chunkingStrategy": "DEFAULT"` for 300 tokens and 20% overlap, and
+  it still lists fixed size and none for a managed knowledge base.
+  The API reference, the SDK and the CloudFormation schema list
+  `FIXED_SIZE`, `NONE`, `HIERARCHICAL` and `SEMANTIC`. The first deploy
+  sent `FIXED_SIZE` at 800 tokens and 15% overlap. The service
+  answered: "A chunking strategy cannot be specified with a managed
+  embedding model. Omit chunkingConfiguration to use the default."
+  `NONE` was not tried. This project omits `chunkingConfiguration`.
+  That request passes botocore 1.44.3 validation and the CloudFormation
+  schema, so those checks do not see this rule.
 - This project also omits `parsingConfiguration`. Smart Parsing is the
   documented default. The first deploy failed on chunking before the
   service read the parsing setting.
+- The template sets `maxFileSizeInMegaBytes` to `"50"`. The first
+  deploy sent that value and failed on chunking before the service
+  reported on the cap, so whether the service accepts `"50"` is still
+  untested.
 - `BEDROCK_FOUNDATION_MODEL` and `BEDROCK_DATA_AUTOMATION` parsing are
   unsupported for managed knowledge bases.
 - With no `syncSchedule` the data source syncs only on
@@ -557,13 +574,18 @@ check at 50,000,000 bytes. The first sync shows the truth in
 
 ## Tests
 
-No product code changed. The checks behind this memo:
+The checks behind this memo, and what they miss:
 
 - The four project requests pass `botocore.validate.validate_parameters`
   for their operations in botocore 1.44.3. `overrideSearchType` inside
   `managedSearchConfiguration` is rejected by the same check.
-- The probe stack's two Bedrock resources pass the `ap-southeast-1`
-  resource schemas with a JSON Schema validator.
+- The request the first deploy sent, with `FIXED_SIZE` at 800 tokens
+  and 15% overlap, also passes that check.
+- The probe stack included that fixed-size chunking. Its two Bedrock
+  resources pass the `ap-southeast-1` resource schemas with a JSON
+  Schema validator.
+- Neither check sees the service rule. The deploy is what rejected the
+  chunking strategy.
 
 T02 adds the Jest assertions the plan lists. T03 and T04 add engine
 tests with a stubbed Bedrock client.
@@ -593,7 +615,10 @@ tests with a stubbed Bedrock client.
 ## Open questions
 
 - Does the first deploy of `CfnKnowledgeBase` with managed embedding
-  succeed in `ap-southeast-1`? T02 answers it.
+  succeed in `ap-southeast-1`? The knowledge base was created on
+  17 November 2026 (Hong Kong). The data source was rejected for the
+  `FIXED_SIZE` strategy it was sent, and the stack rolled back. The
+  follow-up omits ingestion settings.
 - Does `Retrieve` return a page number, and does the `_data_source_id`
   filter work? The first `Retrieve` in T05 answers both.
 - Is the default deletion protection status enabled? T02 sets it

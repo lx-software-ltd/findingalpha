@@ -175,9 +175,11 @@ stack rolled back. The follow-up omits `vectorIngestionConfiguration`.
    `formula-notes`, then `journal`. Each create is asynchronous, and
    the next starts when the previous one is available. The data sources
    use the default removal policy, so removing one deletes it. The PDFs
-   in S3 are the source of truth, and a re-sync rebuilds the index. A
-   different chunk size needs a custom embedding model, which replaces
-   this knowledge base.
+   in S3 are the source of truth, and a re-sync rebuilds the index.
+   Whether a different chunk size can be set is untested. The user
+   guide still lists fixed size and none for a managed knowledge base,
+   and the first deploy only shows that managed embedding rejected the
+   `FIXED_SIZE` request it was sent.
 4. Environment for `EngineFn`: `KNOWLEDGE_BASE_ID` and
    `KB_DATA_SOURCE_IDS` (JSON map of prefix to id).
 5. IAM for `EngineFn`: `bedrock:Retrieve`, `bedrock:StartIngestionJob`,
@@ -404,4 +406,6 @@ knowledge base in the console; the PDFs stay in S3.
   catch use that bypasses the system's counter. It needs the owner's
   decision because budgets are account-wide.
 - Whether the default 300-token chunks suit the owner's books. T05
-  answers it. A different size needs a custom embedding model.
+  answers it. A different chunk size is untested. The user guide still
+  lists fixed size and none, and the first deploy only rejected the
+  `FIXED_SIZE` request it was sent.
