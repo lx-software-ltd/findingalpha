@@ -40,6 +40,16 @@ const BIASES = [
 
 type Tab = "shortlist" | "backtest";
 type SortKey = "rank" | "symbol" | "composite";
+type SortDir = "asc" | "desc";
+
+const SORT_OPTIONS: readonly { value: `${SortKey}:${SortDir}`; label: string }[] = [
+  { value: "rank:asc", label: "Rank, low to high" },
+  { value: "rank:desc", label: "Rank, high to low" },
+  { value: "symbol:asc", label: "Symbol, A to Z" },
+  { value: "symbol:desc", label: "Symbol, Z to A" },
+  { value: "composite:desc", label: "Composite, high to low" },
+  { value: "composite:asc", label: "Composite, low to high" },
+];
 
 const SCREEN_TABS = [
   { id: "shortlist" as const, label: "Shortlist" },
@@ -74,27 +84,48 @@ function Shortlist() {
   const [date, setDate] = useState("");
   const [requested, setRequested] = useState("");
   const [sort, setSort] = useState<SortKey>("rank");
+  const [direction, setDirection] = useState<SortDir>("asc");
   const [open, setOpen] = useState("");
   const screen = useScreen(requested);
-  const rows = useMemo(() => sortRows(screen.data?.rows ?? [], sort), [screen.data, sort]);
-  const factorNames = Object.keys(rows[0]?.factors ?? {});
-  const columns = useMemo(
-    () => shortlistColumns(factorNames, sort, setSort),
-    [factorNames, sort],
+  const rows = useMemo(
+    () => sortRows(screen.data?.rows ?? [], sort, direction),
+    [screen.data, sort, direction],
   );
+  const factorNames = Object.keys(rows[0]?.factors ?? {});
+
+  function chooseSort(key: SortKey) {
+    if (sort === key) {
+      setDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSort(key);
+    setDirection(key === "composite" ? "desc" : "asc");
+  }
+
+  function chooseSortValue(value: string) {
+    const [key, dir] = value.split(":");
+    if (key !== "rank" && key !== "symbol" && key !== "composite") return;
+    if (dir !== "asc" && dir !== "desc") return;
+    setSort(key);
+    setDirection(dir);
+  }
+
+  const columns = shortlistColumns(factorNames, sort, direction, chooseSort);
 
   return (
     <div>
-      {screen.isError ? <p>{screenMessage(screen.error)}</p> : null}
+      {screen.isError ? <div className="alert alert-danger" role="alert">{screenMessage(screen.error)}</div> : null}
       <div className="admin-kpi-row">
         <AdminKpi label="Date" value={screen.data?.asOf ?? "—"} />
         <AdminKpi label="Universe" value={screen.data?.counts.universe ?? "—"} />
         <AdminKpi label="Passed" value={screen.data?.counts.passed ?? "—"} />
         <AdminKpi label="Shortlisted" value={screen.data?.counts.shortlisted ?? "—"} />
       </div>
-      <p className="small text-muted">Register hash {screen.data?.registerHash ?? "—"}</p>
       <AdminRecordTable
         label="Shortlist"
+        beforeTable={
+          <p className="small text-muted font-monospace mb-0">Register hash {screen.data?.registerHash ?? "—"}</p>
+        }
         filters={
           <form
             onSubmit={(event) => {
@@ -109,7 +140,7 @@ function Shortlist() {
                 </button>
               }
             >
-              <AdminFilterField label="Date" htmlFor="screen-date">
+              <AdminFilterField label="Date" htmlFor="screen-date" className="admin-filter-field-compact">
                 <input
                   id="screen-date"
                   className="form-control form-control-sm"
@@ -117,6 +148,18 @@ function Shortlist() {
                   value={date}
                   onChange={(event) => setDate(event.target.value)}
                 />
+              </AdminFilterField>
+              <AdminFilterField label="Sort" htmlFor="screen-sort" className="d-md-none admin-filter-field-full">
+                <select
+                  id="screen-sort"
+                  className="form-select form-select-sm"
+                  value={`${sort}:${direction}`}
+                  onChange={(event) => chooseSortValue(event.target.value)}
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </AdminFilterField>
             </AdminFilterBar>
           </form>
@@ -146,7 +189,8 @@ function Shortlist() {
 function shortlistColumns(
   factorNames: readonly string[],
   sort: SortKey,
-  setSort: (key: SortKey) => void,
+  direction: SortDir,
+  chooseSort: (key: SortKey) => void,
 ): AdminDataTableColumn[] {
   const sortHeader = (key: SortKey, label: string): AdminDataTableColumn => ({
     key,
@@ -154,12 +198,12 @@ function shortlistColumns(
       <TableSortHeaderButton
         label={label}
         isActive={sort === key}
-        direction={sort === key ? (key === "composite" ? "desc" : "asc") : null}
-        onClick={() => setSort(key)}
+        direction={sort === key ? direction : null}
+        onClick={() => chooseSort(key)}
         align={key === "rank" || key === "composite" ? "end" : "start"}
       />
     ),
-    thAriaSort: sort === key ? (key === "composite" ? "descending" : "ascending") : "none",
+    thAriaSort: sort === key ? (direction === "asc" ? "ascending" : "descending") : "none",
     className: key === "symbol" ? undefined : "text-end",
     priority: key === "symbol" ? "primary" : "secondary",
   });
@@ -198,18 +242,9 @@ function Row({
     <AdminExpandableRow colSpan={colSpan} expanded={open} onToggle={onToggle} editor={<FactorDetail row={row} factorNames={factorNames} />}>
       <AdminCell column="rank" className="text-end">{row.rank}</AdminCell>
       <AdminCell column="symbol">
-        <button
-          type="button"
-          className="btn btn-link admin-sort-header p-0 text-decoration-none fw-semibold"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggle();
-          }}
-        >
-          {row.symbol}
-        </button>
+        <span className="fw-semibold">{row.symbol}</span>
         <AdminDataTableCellMeta>
-          {row.name} · {figure(row.composite)}
+          Rank {row.rank} · {row.name} · {figure(row.composite)}
         </AdminDataTableCellMeta>
       </AdminCell>
       <AdminCell column="name">{row.name}</AdminCell>
@@ -236,6 +271,10 @@ function FactorDetail({
 }) {
   return (
     <div className="row g-2">
+      <div className="col-6 col-md-4">Sector: {row.sector}</div>
+      <div className="col-6 col-md-4">Quality: {figure(row.groups.quality)}</div>
+      <div className="col-6 col-md-4">Value: {figure(row.groups.value)}</div>
+      <div className="col-6 col-md-4">Trend: {figure(row.groups.trend)}</div>
       {factorNames.map((name) => (
         <div className="col-6 col-md-4" key={name}>
           {name}: {figure(row.factors[name])} (z {figure(row.z[name])})
@@ -295,22 +334,30 @@ function BacktestPanel() {
           </div>
           <h2 className="admin-card-title">Period metrics</h2>
           <AdminRecordTable label="Period metrics">
-            <AdminDataTable bare columns={metricColumns} tableClassName="admin-table-keep-cols">
+            <AdminDataTable bare columns={metricColumns}>
               <PeriodRows name="Full" metrics={data.metrics.full} />
               <PeriodRows name="2017–2021" metrics={data.metrics.early} />
               <PeriodRows name="2022 to today" metrics={data.metrics.holdout} />
             </AdminDataTable>
           </AdminRecordTable>
-          <p>
-            Hit rate {percent(data.metrics.hitRate)}. Average turnover {percent(data.metrics.averageTurnover)}.
-            Yearly cost drag {percent(data.metrics.costDrag)}. Worst 12 months {percent(data.metrics.worstWindow?.return)}
-            {" "}({data.metrics.worstWindow?.start ?? "—"} to {data.metrics.worstWindow?.end ?? "—"}).
-            Longest stretch behind SPY net {data.metrics.longestBehind?.months ?? "—"} months
-            {" "}({data.metrics.longestBehind?.start ?? "—"} to {data.metrics.longestBehind?.end ?? "—"}).
-            Names carried at a last price {data.lastPriceCount ?? "—"}.
-            Names without a trade price {data.unpricedCount ?? "—"}.
-            Months missing a benchmark {data.missingBenchmarkCount ?? "—"}.
-          </p>
+          <AdminEditorSection title="Results">
+            <dl className="row mb-0">
+              <Stat label="Hit rate" value={percent(data.metrics.hitRate)} />
+              <Stat label="Average turnover" value={percent(data.metrics.averageTurnover)} />
+              <Stat label="Yearly cost drag" value={percent(data.metrics.costDrag)} />
+              <Stat
+                label="Worst 12 months"
+                value={`${percent(data.metrics.worstWindow?.return)} (${data.metrics.worstWindow?.start ?? "—"} to ${data.metrics.worstWindow?.end ?? "—"})`}
+              />
+              <Stat
+                label="Longest stretch behind SPY net"
+                value={`${data.metrics.longestBehind?.months ?? "—"} months (${data.metrics.longestBehind?.start ?? "—"} to ${data.metrics.longestBehind?.end ?? "—"})`}
+              />
+              <Stat label="Names carried at a last price" value={String(data.lastPriceCount ?? "—")} />
+              <Stat label="Names without a trade price" value={String(data.unpricedCount ?? "—")} />
+              <Stat label="Months missing a benchmark" value={String(data.missingBenchmarkCount ?? "—")} />
+            </dl>
+          </AdminEditorSection>
           <h2 className="admin-card-title">Yearly returns</h2>
           <AdminRecordTable label="Yearly returns">
             <AdminDataTable
@@ -364,6 +411,15 @@ function PeriodRows({ name, metrics }: { readonly name: string; readonly metrics
   );
 }
 
+function Stat({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <>
+      <dt className="col-sm-5 col-lg-4">{label}</dt>
+      <dd className="col-sm-7 col-lg-8">{value}</dd>
+    </>
+  );
+}
+
 function MetricRow({
   label,
   series,
@@ -376,8 +432,10 @@ function MetricRow({
   return (
     <tr>
       <AdminCell column="period">
-        {label || series}
-        {label ? <AdminDataTableCellMeta>{series}</AdminDataTableCellMeta> : null}
+        {label}
+        <AdminDataTableCellMeta>
+          {series} · CAGR {percent(metrics?.cagr)} · Volatility {percent(metrics?.volatility)} · Sharpe {figure(metrics?.sharpe)} · Max drawdown {percent(metrics?.maxDrawdown?.drawdown)}
+        </AdminDataTableCellMeta>
       </AdminCell>
       <AdminCell column="series">{series}</AdminCell>
       <AdminCell column="cagr" className="text-end">{percent(metrics?.cagr)}</AdminCell>
@@ -394,11 +452,12 @@ function screenMessage(error: unknown): string {
   return "The screen could not be loaded.";
 }
 
-function sortRows(rows: readonly ScreenRow[], sort: SortKey): ScreenRow[] {
+function sortRows(rows: readonly ScreenRow[], sort: SortKey, direction: SortDir): ScreenRow[] {
+  const factor = direction === "asc" ? 1 : -1;
   return [...rows].sort((left, right) => {
-    if (sort === "symbol") return left.symbol.localeCompare(right.symbol);
-    if (sort === "composite") return (right.composite ?? 0) - (left.composite ?? 0);
-    return left.rank - right.rank;
+    if (sort === "symbol") return factor * left.symbol.localeCompare(right.symbol);
+    if (sort === "composite") return factor * ((left.composite ?? 0) - (right.composite ?? 0));
+    return factor * (left.rank - right.rank);
   });
 }
 

@@ -61,24 +61,30 @@ export function AdminExpandableRow({
         className={expanded ? "admin-expand-summary admin-row-framed" : "admin-expand-summary"}
         tabIndex={0}
         aria-expanded={expanded}
-        aria-controls={expanded ? detailId : undefined}
+        aria-controls={detailId}
         onKeyDown={onKeyDown}
         onMouseDown={onMouseDown}
         onClick={onClick}
       >
         {children}
       </tr>
-      {expanded ? (
-        <tr id={detailId} className="admin-row-detail-framed">
-          <td colSpan={colSpan} className="p-0">
-            <div className="admin-expand is-open">
-              <div className="admin-expand-inner p-3" onClick={(event) => event.stopPropagation()}>
-                {editor}
-              </div>
+      <tr
+        id={detailId}
+        className={expanded ? "admin-expand-detail admin-row-detail-framed" : "admin-expand-detail"}
+        aria-hidden={expanded ? undefined : true}
+      >
+        <td colSpan={colSpan} className="p-0">
+          <div className={expanded ? "admin-expand is-open" : "admin-expand"}>
+            <div
+              className="admin-expand-inner p-3"
+              inert={!expanded}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {editor}
             </div>
-          </td>
-        </tr>
-      ) : null}
+          </div>
+        </td>
+      </tr>
     </tbody>
   );
 }

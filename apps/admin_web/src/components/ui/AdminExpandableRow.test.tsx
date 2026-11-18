@@ -12,7 +12,9 @@ describe("AdminExpandableRow", () => {
         </AdminExpandableRow>
       </table>,
     );
-    expect(screen.queryByText("Editor")).toBeNull();
+    const closed = screen.getByText("Editor").closest(".admin-expand");
+    expect(closed).not.toHaveClass("is-open");
+    expect(closed?.closest("tr")).toHaveAttribute("aria-hidden", "true");
     rerender(
       <table>
         <AdminExpandableRow colSpan={1} expanded onToggle={() => undefined} editor={<p>Editor</p>}>
@@ -20,7 +22,9 @@ describe("AdminExpandableRow", () => {
         </AdminExpandableRow>
       </table>,
     );
-    expect(screen.getByText("Editor")).toBeTruthy();
+    const open = screen.getByText("Editor").closest(".admin-expand");
+    expect(open).toHaveClass("is-open");
+    expect(open?.closest("tr")).not.toHaveAttribute("aria-hidden");
     expect(screen.getByRole("row", { name: "Alpha" })).toHaveClass("admin-row-framed");
   });
 

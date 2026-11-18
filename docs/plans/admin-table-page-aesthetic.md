@@ -14,7 +14,6 @@ header, density, sort control, and column priority.
 
 - No new routes, API fields, or contract edits.
 - No finance-only widgets (money totals, row kebab menus, editor panels).
-- No change to what a control does. Sort, expand, run, and tick stay as they are.
 
 ## Files
 
@@ -39,16 +38,23 @@ header, density, sort control, and column priority.
 - System still shows switches, broker mode, universe counts, jobs, recent
   runs, and API keys. Run, stop, and deletion still confirm first.
 - Screen still sorts the shortlist, opens a name, and charts a backtest.
+  Sorting an active column reverses direction. A phone uses a sort field
+  because those columns are hidden.
 - Headings the smoke test looks for stay headings: Roadmap's "Owner tasks",
   "Methodology", "Screen", "Switches", "Jobs", and "Recent runs". The
-  shortlist symbol stays a button.
+  shortlist symbol is text in the expandable row. The row is the only
+  disclosure control.
+- A phone can still read rank, formula, period metrics, key expiry, and
+  key scopes. Hidden group scores and factor parameters open with the row.
 
 ## Done when
 
 - `npm test` in `apps/admin_web` passes.
 - `npm run lint` in `apps/admin_web` passes.
 - `npm run dev:mock` and a click-through of the four pages, including the
-  shortlist expand, the backtest tab, and a roadmap checkbox.
+  shortlist expand, a reversed sort, the backtest tab, and a roadmap checkbox.
+- `npm run test:e2e` asserts the phone sort field, the rank line, a period
+  CAGR, and a factor formula at 390px.
 
 ## Rollback
 

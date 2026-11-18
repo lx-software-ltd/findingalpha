@@ -4,6 +4,7 @@ import {
   AdminDataTable,
   AdminDataTableCellMeta,
   AdminDataTableEmptyRow,
+  AdminKpi,
   AdminPageHeader,
   AdminRecordTable,
   ConfirmDialog,
@@ -81,6 +82,9 @@ export function SystemPage() {
                 <AdminDataTableCellMeta>
                   Parameter {String(item.parameter)}. Effective {String(item.effective)}.
                 </AdminDataTableCellMeta>
+                {!item.parameter ? (
+                  <div className="small text-body-secondary">The setting has no effect until the parameter is on.</div>
+                ) : null}
               </AdminCell>
               <AdminCell column="parameter">
                 {String(item.parameter)}
@@ -96,17 +100,23 @@ export function SystemPage() {
                 >
                   {item.setting ? "On" : "Off"}
                 </button>
-                {!item.parameter ? <div className="small">The setting has no effect until the parameter is on.</div> : null}
               </AdminCell>
             </tr>
           ))}
         </AdminDataTable>
       </AdminRecordTable>
-      <p>Broker mode <span className="badge text-bg-secondary">{status.data?.brokerMode ?? "paper"}</span></p>
+      <div className="admin-kpi-row">
+        <AdminKpi label="Broker mode" value={status.data?.brokerMode ?? "—"} />
+        <AdminKpi
+          label="Universe"
+          value={data ? `${data.members} names` : "—"}
+          hint={data ? (data.asOf ?? "No as-of date") : undefined}
+        />
+        <AdminKpi label="Last price" value={data?.lastPriceDate ?? "—"} />
+        <AdminKpi label="Price backfill" value={progress(data?.backfill?.prices)} />
+        <AdminKpi label="Fundamentals backfill" value={progress(data?.backfill?.fundamentals)} />
+      </div>
       <h2 className="admin-card-title">Data</h2>
-      <p>
-        Universe {data?.asOf ?? "—"}, {data?.members ?? 0} names. Last raw price {data?.lastPriceDate ?? "—"}.
-      </p>
       <AdminRecordTable label="Count after each rule">
         <AdminDataTable
           bare
@@ -141,12 +151,9 @@ export function SystemPage() {
           ))}
         </AdminDataTable>
       </AdminRecordTable>
-      <p>
-        Price backfill {progress(data?.backfill?.prices)}. Fundamentals backfill {progress(data?.backfill?.fundamentals)}.
-      </p>
       <h2 className="admin-card-title">Jobs</h2>
-      {accepted ? <p role="status">Accepted {accepted}.</p> : null}
-      {runError ? <p role="alert">{runError}</p> : null}
+      {accepted ? <div className="alert alert-success" role="status">Accepted {accepted}.</div> : null}
+      {runError ? <div className="alert alert-danger" role="alert">{runError}</div> : null}
       <AdminRecordTable label="Jobs">
       <AdminDataTable columns={columns} bare>
         {jobs.map((job) => (
@@ -154,6 +161,9 @@ export function SystemPage() {
             <AdminCell column="job">
               {job.job}
               <AdminDataTableCellMeta>{statusLabel(job.lastRun?.status, job.progress)}</AdminDataTableCellMeta>
+              {job.lastRun?.message ? (
+                <AdminDataTableCellMeta until="tertiary">{job.lastRun.message}</AdminDataTableCellMeta>
+              ) : null}
             </AdminCell>
             <AdminCell column="schedule">{job.schedule}</AdminCell>
             <AdminCell column="status">{statusLabel(job.lastRun?.status, job.progress)}</AdminCell>
@@ -161,36 +171,38 @@ export function SystemPage() {
             <AdminCell column="duration" className="text-end">{job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}</AdminCell>
             <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
             <AdminCell column="ops">
-              {job.manualRun ? (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-primary"
-                  onClick={() => {
-                    setNames(String(registerSize));
-                    setPendingJob(job.job);
-                  }}
-                >
-                  Run now
-                </button>
-              ) : null}
-              {syncChoice(job) === "confirm" ? (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-danger ms-2"
-                  onClick={() => setSyncAction("confirm")}
-                >
-                  Confirm deletion
-                </button>
-              ) : null}
-              {syncChoice(job) === "stop" ? (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-secondary ms-2"
-                  onClick={() => setSyncAction("stop")}
-                >
-                  Stop
-                </button>
-              ) : null}
+              <div className="d-grid gap-1">
+                {job.manualRun ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary"
+                    onClick={() => {
+                      setNames(String(registerSize));
+                      setPendingJob(job.job);
+                    }}
+                  >
+                    Run now
+                  </button>
+                ) : null}
+                {syncChoice(job) === "confirm" ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => setSyncAction("confirm")}
+                  >
+                    Confirm deletion
+                  </button>
+                ) : null}
+                {syncChoice(job) === "stop" ? (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={() => setSyncAction("stop")}
+                  >
+                    Stop
+                  </button>
+                ) : null}
+              </div>
             </AdminCell>
           </tr>
         ))}
@@ -216,6 +228,7 @@ export function SystemPage() {
                 <AdminCell column="job">
                   {run.job}
                   <AdminDataTableCellMeta>{run.status}</AdminDataTableCellMeta>
+                  {run.message ? <AdminDataTableCellMeta until="tertiary">{run.message}</AdminDataTableCellMeta> : null}
                 </AdminCell>
                 <AdminCell column="status">{run.status}</AdminCell>
                 <AdminCell column="started"><DateTimeDisplay iso={run.startedAt} /></AdminCell>
@@ -248,7 +261,11 @@ export function SystemPage() {
               <tr key={row.keyId} className={row.soon ? "table-warning" : undefined}>
                 <AdminCell column="label">
                   {row.label}
-                  <AdminDataTableCellMeta>{row.state}</AdminDataTableCellMeta>
+                  <AdminDataTableCellMeta>
+                    {row.state} · {row.tier} · {accessLabel(row.allowWrite, keys.data?.writesEnabled === true)} · expires{" "}
+                    {row.expiresAt ? <DateTimeDisplay iso={row.expiresAt} /> : "never"}
+                  </AdminDataTableCellMeta>
+                  <AdminDataTableCellMeta until="tertiary">{row.scopes.join(", ")}</AdminDataTableCellMeta>
                 </AdminCell>
                 <AdminCell column="tier">{row.tier}</AdminCell>
                 <AdminCell column="scopes">{row.scopes.join(", ")}</AdminCell>

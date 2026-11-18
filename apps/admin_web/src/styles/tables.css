@@ -43,6 +43,17 @@
   .admin-data-table thead th.admin-col-ops {
     display: none;
   }
+
+  /* keep-cols shows several primary columns, so the header stays a table row. */
+  .admin-data-table.admin-table-keep-cols thead tr {
+    display: table-row;
+  }
+
+  .admin-data-table.admin-table-keep-cols thead th:not(.admin-col-secondary):not(.admin-col-tertiary):not(.admin-col-ops) {
+    display: table-cell;
+    flex: none;
+    width: auto;
+  }
 }
 
 /* Identifiers and hashes have no natural break points. */
@@ -118,6 +129,18 @@
 .admin-filter-field {
   min-width: 10rem;
   flex: 1 1 12rem;
+}
+
+.admin-filter-field-full {
+  flex: 1 1 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .admin-filter-field.admin-filter-field-compact {
+    flex: 0 0 12rem;
+    max-width: 12rem;
+  }
 }
 
 .admin-filter-fields,
@@ -250,6 +273,21 @@ textarea.form-control + .form-text {
 .admin-content:not(:has(.admin-dashboard)) .table-bordered,
 .admin-content:not(:has(.admin-dashboard)) .table-bordered > :not(caption) > * > * {
   border-color: var(--admin-line);
+}
+
+.admin-data-table tr.admin-expand-detail > td {
+  padding: 0 !important;
+  border-bottom-width: 0;
+  background: transparent;
+}
+
+.admin-data-table tr.admin-row-detail-framed > td {
+  background: var(--admin-surface);
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-expand:not(.is-open) .admin-expand-inner {
+  pointer-events: none;
 }
 
 .admin-row-framed > td {

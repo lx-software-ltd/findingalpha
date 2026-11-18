@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useState } from "react";
 import {
   AdminCell,
   AdminDataTable,
   AdminDataTableCellMeta,
   AdminEditorSection,
+  AdminExpandableRow,
   AdminKpi,
   AdminPageHeader,
   AdminRecordTable,
@@ -33,36 +34,30 @@ export function MethodologyPage() {
   const factors = data?.register.factors ?? [];
   const composite = data?.register.composite;
   const screen = data?.register.screen;
-  const columns = useMemo(() => COLUMNS, []);
+  const [open, setOpen] = useState("");
 
   return (
     <div>
       <AdminPageHeader eyebrow="Finding Alpha" title="Methodology" />
-      {methodology.isError ? <p>Methodology is unavailable.</p> : null}
+      {methodology.isError ? <div className="alert alert-danger" role="alert">Methodology is unavailable.</div> : null}
       <div className="admin-kpi-row">
         <AdminKpi label="Entries" value={data?.counts.entries ?? "—"} />
         <AdminKpi label="Provisional" value={data?.counts.provisional ?? "—"} />
         <AdminKpi label="Cited" value={data?.counts.cited ?? "—"} />
-        <AdminKpi label="Register hash" value={<span className="text-break">{data?.hash ?? "—"}</span>} />
       </div>
       <h2 className="admin-card-title">Factors</h2>
-      <AdminRecordTable label="Factors">
-        <AdminDataTable bare columns={columns}>
+      <AdminRecordTable
+        label="Factors"
+        beforeTable={<p className="small text-muted font-monospace mb-0">Register hash {data?.hash ?? "—"}</p>}
+      >
+        <AdminDataTable bare columns={COLUMNS}>
           {factors.map((factor) => (
-            <tr key={factor.id}>
-              <AdminCell column="name">
-                {factor.name}
-                <AdminDataTableCellMeta>
-                  {factor.group} · <span className="badge text-bg-secondary">{factor.status}</span>
-                </AdminDataTableCellMeta>
-              </AdminCell>
-              <AdminCell column="group">{factor.group}</AdminCell>
-              <AdminCell column="direction">{factor.direction}</AdminCell>
-              <AdminCell column="formula">{factor.formula}</AdminCell>
-              <AdminCell column="parameters">{parameters(factor)}</AdminCell>
-              <AdminCell column="status"><span className="badge text-bg-secondary">{factor.status}</span></AdminCell>
-              <AdminCell column="citation">{factor.citation?.quote ?? "—"}</AdminCell>
-            </tr>
+            <FactorRow
+              key={factor.id}
+              factor={factor}
+              open={open === factor.id}
+              onToggle={() => setOpen(open === factor.id ? "" : factor.id)}
+            />
           ))}
         </AdminDataTable>
       </AdminRecordTable>
@@ -91,3 +86,49 @@ export function MethodologyPage() {
     </div>
   );
 }
+
+function FactorRow({
+  factor,
+  open,
+  onToggle,
+}: {
+  readonly factor: MethodologyFactor;
+  readonly open: boolean;
+  readonly onToggle: () => void;
+}) {
+  return (
+    <AdminExpandableRow
+      colSpan={COLUMNS.length}
+      expanded={open}
+      onToggle={onToggle}
+      editor={
+        <dl className="row mb-0">
+          <dt className="col-sm-3">Direction</dt>
+          <dd className="col-sm-9">{factor.direction}</dd>
+          <dt className="col-sm-3">Formula</dt>
+          <dd className="col-sm-9">{factor.formula}</dd>
+          <dt className="col-sm-3">Parameters</dt>
+          <dd className="col-sm-9">{parameters(factor)}</dd>
+          <dt className="col-sm-3">Citation</dt>
+          <dd className="col-sm-9">{factor.citation?.quote ?? "—"}</dd>
+        </dl>
+      }
+    >
+      <AdminCell column="name">
+        <span className="fw-semibold">{factor.name}</span>
+        <AdminDataTableCellMeta>
+          {factor.group} · <span className="badge text-bg-secondary">{factor.status}</span>
+        </AdminDataTableCellMeta>
+        <AdminDataTableCellMeta until="secondary">{factor.formula}</AdminDataTableCellMeta>
+      </AdminCell>
+      <AdminCell column="group">{factor.group}</AdminCell>
+      <AdminCell column="direction">{factor.direction}</AdminCell>
+      <AdminCell column="formula">{factor.formula}</AdminCell>
+      <AdminCell column="parameters">{parameters(factor)}</AdminCell>
+      <AdminCell column="status"><span className="badge text-bg-secondary">{factor.status}</span></AdminCell>
+      <AdminCell column="citation">{factor.citation?.quote ?? "—"}</AdminCell>
+    </AdminExpandableRow>
+  );
+}
+
+(FactorRow as { recordGroup?: boolean }).recordGroup = true;
