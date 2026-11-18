@@ -351,6 +351,20 @@ class KbSyncTest(unittest.TestCase):
         self.assertEqual(failed["status"], "failed")
         self.assertEqual((self.store.get("KB#state", "META") or {})["manifestHash"], "kept")
 
+    def test_an_ingestion_under_a_day_is_left_running(self) -> None:
+        self.store.put(
+            {
+                "pk": "KB#state",
+                "sk": "META",
+                "jobs": {"theory/": "job-1"},
+                "jobStartedAt": "2026-11-17T03:00:00.000Z",
+            }
+        )
+        self.agent.jobs["job-1"] = {"status": "IN_PROGRESS", "statistics": {}}
+        result = self._run({})
+        self.assertEqual(result["message"], "running")
+        self.assertEqual(self.agent.stopped, [])
+
     def test_the_owner_can_stop_and_a_key_cannot_confirm(self) -> None:
         self.store.put({"pk": "KB#state", "sk": "META", "jobs": {"theory/": "job-1"}, "manifestHash": "kept"})
         self.agent.jobs["job-1"] = {"status": "IN_PROGRESS", "statistics": {}}

@@ -255,7 +255,7 @@ A failed or stopped ingestion clears the saved job ids and keeps the
 last good manifest, so the next run can start again. The idempotency
 token includes the previous job id, so a retry does not reuse it.
 Starting a sync does not replace that manifest. An ingestion still
-running after 6 hours is stopped (`bedrock:StopIngestionJob`), and the
+running after 24 hours is stopped (`bedrock:StopIngestionJob`), and the
 owner can stop one from the dashboard with `{"stop": true}`. A blocked
 deletion or a problem list is written on `KB#state` and on the run
 row. Confirm and Stop are on the System page until M07-T08. An API

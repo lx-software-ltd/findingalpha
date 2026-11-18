@@ -2,7 +2,7 @@
 
 The last good manifest is kept until a sync finishes. A failed job is
 cleared so the next run can start, and its id changes the idempotency
-token. An ingestion still running after six hours is stopped.
+token. An ingestion still running after 24 hours is stopped.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import store
 import timeutil
 from http_common import _log_event
 
-INGESTION_LIMIT = timedelta(hours=6)
+INGESTION_LIMIT = timedelta(hours=24)
 _ACTIVE = frozenset({"STARTING", "IN_PROGRESS", "STOPPING"})
 _FAILED_DOCUMENT = frozenset({"FAILED", "METADATA_UPDATE_FAILED"})
 _EXPIRED_LEASE = "1970-01-01T00:00:00.000Z"
