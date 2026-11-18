@@ -122,6 +122,17 @@ class JobsHandlerTest(unittest.TestCase):
             result = jobs_handler._adjusted({}, None, None)
         self.assertEqual(result["monthly"]["status"], "done")
 
+    def test_an_awaiting_sync_is_recorded_with_its_status(self) -> None:
+        saved: list[dict] = []
+        with (
+            patch("kb_sync.run", return_value={"ok": True, "status": "awaiting_first_sync"}),
+            patch("store.put", side_effect=lambda item: saved.append(dict(item))),
+        ):
+            result = jobs_handler.lambda_handler({"job": "kb_sync_check"}, None)
+        self.assertEqual(result["status"], "awaiting_first_sync")
+        self.assertEqual(saved[-1]["status"], "succeeded")
+        self.assertEqual(saved[-1]["errorMessage"], "awaiting_first_sync")
+
     def test_the_screen_jobs_follow_the_ingest_switch(self) -> None:
         for name in ("screen", "backfill_monthly_stats", "backtest"):
             self.assertEqual(jobs_handler.switch_for(name), "ingestEnabled")

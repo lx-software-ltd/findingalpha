@@ -86,6 +86,12 @@ def apply_result(run: JobRun, result: object) -> None:
         run.status = "partial"
         run.error_message = _partial_message(result)
         return
+    if status in {"awaiting_first_sync", "unchanged"}:
+        run.error_message = status
+        return
+    if status == "done" and isinstance(result.get("failedKeys"), list) and result["failedKeys"]:
+        run.error_message = f"{len(result['failedKeys'])} documents failed"
+        return
     if status in {"missing_inputs", "failed"} or result.get("ok") is False:
         run.status = "failed"
         run.error_class = status or "failed"

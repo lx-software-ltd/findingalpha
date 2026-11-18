@@ -129,9 +129,11 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
     import audit
 
     target = name if chosen is None else f"{name} {chosen}"
+    if params.get("confirmDeletion") is True:
+        target = f"{name} confirmDeletion"
     audit.write(actor, "job.run", target, event)
     accepted: dict[str, Any] = {"accepted": True}
-    if params:
+    if "portfolioSize" in params:
         accepted["portfolioSize"] = params["portfolioSize"]
     return _json_response(202, accepted)
 
@@ -162,6 +164,12 @@ def _run_params(name: str, event: dict[str, Any]) -> str | tuple[dict[str, int],
     body = _request_object(event)
     if body is None:
         return "body must be a JSON object"
+    if name == "kb_sync_check":
+        if not body:
+            return {}, None
+        if set(body) == {"confirmDeletion"} and body.get("confirmDeletion") is True:
+            return {"confirmDeletion": True}, None
+        return "only confirmDeletion true is allowed"
     if not body:
         if name != "backtest":
             return {}, None

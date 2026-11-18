@@ -13,7 +13,7 @@ export const jobs = {
       "cron": "30 5 * * ? *",
       "timeZone": "Asia/Hong_Kong",
       "killSwitch": "",
-      "manualRun": false,
+      "manualRun": true,
       "keyRun": true
     },
     {

@@ -128,6 +128,12 @@ def _backtest(event: dict[str, Any], _run: job_runs.JobRun, context: Any = None)
     return backtest.run(event, context)
 
 
+def _kb_sync(event: dict[str, Any], _run: job_runs.JobRun, _context: Any = None) -> dict[str, Any]:
+    import kb_sync
+
+    return kb_sync.run(event)
+
+
 JOBS = {
     "noop": _noop,
     "tick": _tick,
@@ -141,6 +147,7 @@ JOBS = {
     "screen": _screen,
     "backfill_monthly_stats": _monthly,
     "backtest": _backtest,
+    "kb_sync_check": _kb_sync,
 }
 
 
