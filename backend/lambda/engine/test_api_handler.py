@@ -89,10 +89,22 @@ class ApiHandlerTest(unittest.TestCase):
             rejected = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
             rejected["body"] = json.dumps({"confirmDeletion": False})
             refused = api_handler.lambda_handler(rejected, None)
+            stopped = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
+            stopped["body"] = json.dumps({"stop": True})
+            halt = api_handler.lambda_handler(stopped, None)
         self.assertEqual(empty["statusCode"], 202)
         self.assertEqual(allowed["statusCode"], 202)
-        self.assertEqual(sent, [("kb_sync_check", None), ("kb_sync_check", {"confirmDeletion": True})])
-        self.assertEqual(audited[-1], "kb_sync_check confirmDeletion")
+        self.assertEqual(halt["statusCode"], 202)
+        self.assertEqual(
+            sent,
+            [
+                ("kb_sync_check", None),
+                ("kb_sync_check", {"confirmDeletion": True}),
+                ("kb_sync_check", {"stop": True}),
+            ],
+        )
+        self.assertEqual(audited[-2], "kb_sync_check confirmDeletion")
+        self.assertEqual(audited[-1], "kb_sync_check stop")
         self.assertEqual(refused["statusCode"], 400)
 
     def test_the_latest_universe_is_the_newest_finished_row(self) -> None:

@@ -37,18 +37,24 @@ class _Store:
 class _Agent:
     def __init__(self) -> None:
         self.started: list[dict[str, Any]] = []
+        self.stopped: list[str] = []
         self.jobs: dict[str, dict[str, Any]] = {}
         self.documents: list[dict[str, Any]] = []
+        self.document_pages: list[dict[str, Any]] | None = None
         self.conflict = False
+        self.adopt = True
+        self.fail_on = ""
 
     def start_ingestion_job(self, **kwargs: Any) -> dict[str, Any]:
-        if self.conflict:
-            from botocore.exceptions import ClientError
+        from botocore.exceptions import ClientError
 
+        self.started.append(kwargs)
+        if kwargs.get("dataSourceId") == self.fail_on:
+            raise ClientError({"Error": {"Code": "ThrottlingException", "Message": "slow"}}, "StartIngestionJob")
+        if self.conflict:
             self.conflict = False
             raise ClientError({"Error": {"Code": "ConflictException", "Message": "running"}}, "StartIngestionJob")
-        job_id = f"job-{len(self.started) + 1}"
-        self.started.append(kwargs)
+        job_id = f"job-{len(self.jobs) + 1}"
         self.jobs[job_id] = {
             "status": "COMPLETE",
             "statistics": {"numberOfDocumentsScanned": 1, "numberOfDocumentsDeleted": 0},
@@ -60,14 +66,22 @@ class _Agent:
         return {"ingestionJob": {"ingestionJobId": kwargs["ingestionJobId"], **job}}
 
     def list_ingestion_jobs(self, **_kwargs: Any) -> dict[str, Any]:
+        if not self.adopt:
+            return {"ingestionJobSummaries": []}
         return {
             "ingestionJobSummaries": [
                 {"ingestionJobId": "adopted", "status": "IN_PROGRESS", "dataSourceId": "ds-theory"}
             ]
         }
 
-    def list_knowledge_base_documents(self, **_kwargs: Any) -> dict[str, Any]:
+    def list_knowledge_base_documents(self, **kwargs: Any) -> dict[str, Any]:
+        if self.document_pages is not None:
+            return self.document_pages.pop(0)
         return {"documentDetails": self.documents}
+
+    def stop_ingestion_job(self, **kwargs: Any) -> dict[str, Any]:
+        self.stopped.append(kwargs["ingestionJobId"])
+        return {}
 
 
 class KbSyncTest(unittest.TestCase):
@@ -87,8 +101,8 @@ class KbSyncTest(unittest.TestCase):
         )
         self.env.start()
         self.patches = [
-            patch("kb_sync.store.get", self.store.get),
-            patch("kb_sync.store.put", self.store.put),
+            patch("kb_sync_jobs.store.get", self.store.get),
+            patch("kb_sync_jobs.store.put", self.store.put),
         ]
         for item in self.patches:
             item.start()
@@ -145,11 +159,20 @@ class KbSyncTest(unittest.TestCase):
         self.assertEqual(result["status"], "unchanged")
         self.assertEqual(self.agent.started, [])
 
-    def test_size_and_problems_block_before_a_job_starts(self) -> None:
+    def test_size_blocks_and_a_problem_file_is_skipped(self) -> None:
         oversized = self._run({"trigger": "manual"}, [_obj("theory/big.pdf", 1001)])
         self.assertEqual(oversized["status"], "blocked_size")
-        bad = kb_sync.problems(kb_sync.manifest([_obj("theory/notes.markdown")]))
-        self.assertEqual(bad, [{"key": "theory/notes.markdown", "problem": "unsupported"}])
+        self.assertEqual(self.agent.started, [])
+        self.assertEqual((self.store.get("KB#state", "META") or {})["blocked"]["status"], "blocked_size")
+        bad = kb_sync.problems(kb_sync.manifest([_obj("theory/notes.rtf")]))
+        self.assertEqual(bad, [{"key": "theory/notes.rtf", "problem": "unsupported"}])
+        for extension in (".markdown", ".htm", ".pptx"):
+            self.assertEqual(kb_sync.problems(kb_sync.manifest([_obj(f"theory/notes{extension}")])), [])
+        skipped = self._run({"trigger": "manual"}, [_obj("theory/a.pdf"), _obj("theory/notes.rtf")])
+        self.assertEqual(skipped["status"], "running")
+        self.assertEqual(skipped["problems"], [{"key": "theory/notes.rtf", "problem": "unsupported"}])
+        pending = (self.store.get("KB#state", "META") or {})["pending"]
+        self.assertNotIn("theory/notes.rtf", pending["sources"]["theory/"]["keys"])
         orphan = kb_sync.problems(kb_sync.manifest([_obj("theory/gone.pdf.metadata.json", 11)]))
         self.assertEqual(orphan[0]["problem"], "orphan_sidecar")
         huge = kb_sync.problems(kb_sync.manifest([_obj("theory/a.pdf.metadata.json", 10 * 1024 + 1)]))
@@ -158,7 +181,7 @@ class KbSyncTest(unittest.TestCase):
             kb_sync.manifest([_obj("theory/a.pdf", 50_000_000), _obj("theory/a.pdf.metadata.json", 10 * 1024)])
         )
         self.assertEqual(exact, [])
-        self.assertEqual(self.agent.started, [])
+        self.assertEqual([item["dataSourceId"] for item in self.agent.started], ["ds-theory", "ds-notes", "ds-journal"])
 
     def test_deletion_is_checked_per_prefix_and_confirmation_allows_it(self) -> None:
         previous = _docs("theory/", 100) + _docs("journal/", 10)
@@ -223,3 +246,166 @@ class KbSyncTest(unittest.TestCase):
         result = self._run({})
         self.assertEqual(result["status"], "running")
         self.assertIn("jobs", self.store.get("KB#state", "META") or {})
+
+    def test_a_failed_ingestion_can_be_retried_and_the_token_changes(self) -> None:
+        objects = _docs("theory/", 2)
+        self._run({"trigger": "manual"}, objects)
+        first = self.agent.started[0]["clientToken"]
+        for job in self.agent.jobs.values():
+            job["status"] = "FAILED"
+        failed = self._run({})
+        self.assertEqual(failed["status"], "failed")
+        saved = self.store.get("KB#state", "META") or {}
+        self.assertNotIn("jobs", saved)
+        self.assertNotIn("manifestHash", saved)
+        self.assertTrue(saved["lastJobs"])
+        row = self.store.get("JOB#kb_sync_check", "STATE") or {}
+        self.assertEqual(row["status"], "failed")
+        self.assertNotIn("failures", row)
+        again = self._run({"trigger": "manual"}, _docs("theory/", 3))
+        self.assertEqual(again["status"], "running")
+        self.assertNotEqual(self.agent.started[-3]["clientToken"], first)
+
+    def test_a_start_that_raises_keeps_the_job_it_already_started(self) -> None:
+        from botocore.exceptions import ClientError
+
+        self.agent.fail_on = "ds-theory"
+        with self.assertRaises(ClientError):
+            self._run({"trigger": "manual"}, _docs("theory/", 1))
+        with self.assertRaises(ClientError):
+            self._run({"trigger": "manual"}, _docs("theory/", 1))
+        self.assertEqual(self.agent.started[0]["clientToken"], self.agent.started[1]["clientToken"])
+        self.assertNotIn(("KB#state", "META"), self.store.items)
+        self.assertNotIn(("JOB#kb_sync_check", "STATE"), self.store.items)
+
+        self.agent.fail_on = "ds-notes"
+        self.agent.started.clear()
+        self.agent.jobs.clear()
+        objects = _docs("theory/", 1) + [_obj("journal/a.md")]
+        result = self._run({"trigger": "manual"}, objects)
+        self.assertEqual(result["status"], "running")
+        saved = self.store.get("KB#state", "META") or {}
+        self.assertEqual(list(saved["jobs"]), ["theory/"])
+        done = self._run({})
+        self.assertEqual(done["status"], "done")
+        self.assertNotIn("manifestHash", self.store.get("KB#state", "META") or {})
+        self.agent.fail_on = ""
+        self.agent.started.clear()
+        self._run({"job": "kb_sync_check"}, objects)
+        self.assertEqual([item["dataSourceId"] for item in self.agent.started], ["ds-journal"])
+
+    def test_a_conflict_with_nothing_to_adopt_does_not_leave_a_running_row(self) -> None:
+        self.agent.conflict = True
+        self.agent.adopt = False
+        result = self._run({"trigger": "manual"}, _docs("theory/", 1))
+        self.assertEqual(result["error"], "ingestion already running")
+        self.assertNotIn(("JOB#kb_sync_check", "STATE"), self.store.items)
+        self.assertNotIn("jobs", self.store.get("KB#state", "META") or {})
+
+    def test_a_running_sync_keeps_the_last_manifest(self) -> None:
+        previous = [_obj(f"theory/book-{index}.pdf", size=1, etag=f"e{index}") for index in range(100)]
+        base = kb_sync.snapshot(kb_sync.manifest(previous))
+        self.store.put(
+            {"pk": "KB#state", "sk": "META", "status": "done", "syncedAt": "2026-11-17T00:00:00.000Z", **base}
+        )
+        started = self._run({"job": "kb_sync_check"}, previous + [_obj("theory/new.pdf")])
+        self.assertEqual(started["status"], "running")
+        during = self.store.get("KB#state", "META") or {}
+        self.assertEqual(during["manifestHash"], base["manifestHash"])
+        self.assertEqual(during["sources"], base["sources"])
+        for job in self.agent.jobs.values():
+            job["status"] = "FAILED"
+        self._run({})
+        after = self.store.get("KB#state", "META") or {}
+        self.assertEqual(after["manifestHash"], base["manifestHash"])
+        self.assertEqual(after["syncedAt"], "2026-11-17T00:00:00.000Z")
+        blocked = self._run({"job": "kb_sync_check"}, _docs("theory/", 10))
+        self.assertEqual(blocked["status"], "blocked_deletion")
+        self.assertIn("theory/ 90 of 100", blocked["error"])
+        self.assertEqual((self.store.get("KB#state", "META") or {})["blocked"]["deletions"][0]["gone"], 90)
+
+    def test_the_schedule_starts_a_later_sync(self) -> None:
+        objects = _docs("theory/", 2)
+        self.store.put({"pk": "KB#state", "sk": "META", **kb_sync.snapshot(kb_sync.manifest(objects))})
+        result = self._run({"job": "kb_sync_check"}, objects + [_obj("journal/note.md")])
+        self.assertEqual(result["status"], "running")
+        self.assertEqual([item["dataSourceId"] for item in self.agent.started], ["ds-journal"])
+
+    def test_an_old_ingestion_is_stopped(self) -> None:
+        self.store.put(
+            {
+                "pk": "KB#state",
+                "sk": "META",
+                "jobs": {"theory/": "job-1"},
+                "jobStartedAt": "2026-11-17T00:00:00.000Z",
+                "manifestHash": "kept",
+            }
+        )
+        self.agent.jobs["job-1"] = {"status": "IN_PROGRESS", "statistics": {}}
+        result = self._run({})
+        self.assertEqual(result["message"], "stopping")
+        self.assertEqual(self.agent.stopped, ["job-1"])
+        self.assertIn("jobs", self.store.get("KB#state", "META") or {})
+        self.agent.jobs["job-1"]["status"] = "STOPPED"
+        failed = self._run({})
+        self.assertEqual(failed["status"], "failed")
+        self.assertEqual((self.store.get("KB#state", "META") or {})["manifestHash"], "kept")
+
+    def test_the_owner_can_stop_and_a_key_cannot_confirm(self) -> None:
+        self.store.put({"pk": "KB#state", "sk": "META", "jobs": {"theory/": "job-1"}, "manifestHash": "kept"})
+        self.agent.jobs["job-1"] = {"status": "IN_PROGRESS", "statistics": {}}
+        stopped = self._run({"trigger": "manual", "by": "user-1", "params": {"stop": True}})
+        self.assertEqual(stopped["message"], "stopping")
+        refused = self._run({"trigger": "manual", "by": "apikey:abc123", "params": {"confirmDeletion": True}})
+        self.assertEqual(refused["error"], "only the owner can confirm a deletion")
+        stopped_by_key = self._run({"trigger": "manual", "by": "apikey:abc123", "params": {"stop": True}})
+        self.assertEqual(stopped_by_key["error"], "only the owner can stop a sync")
+
+    def test_a_key_cannot_start_the_first_sync(self) -> None:
+        result = self._run({"trigger": "manual", "by": "apikey:abc123"}, _docs("theory/", 1))
+        self.assertEqual(result["error"], "the owner starts the first sync")
+        self.assertEqual(self.agent.started, [])
+
+    def test_failed_documents_are_read_across_pages(self) -> None:
+        self.store.put(
+            {
+                "pk": "KB#state",
+                "sk": "META",
+                "jobs": {"theory/": "job-1"},
+                "pending": kb_sync.snapshot(kb_sync.manifest([])),
+            }
+        )
+        self.agent.jobs["job-1"] = {"status": "COMPLETE", "statistics": {"numberOfDocumentsDeleted": 0}}
+        self.agent.document_pages = [
+            {
+                "documentDetails": [{"status": "FAILED", "identifier": {"s3": {"uri": "s3://kb-bucket/theory/a.pdf"}}}],
+                "nextToken": "more",
+            },
+            {
+                "documentDetails": [
+                    {"status": "INDEXED", "identifier": {"s3": {"uri": "s3://kb-bucket/theory/b.pdf"}}},
+                    {"status": "FAILED", "identifier": {"s3": {"uri": "s3://kb-bucket/theory/c.pdf"}}},
+                ]
+            },
+        ]
+        result = self._run({})
+        self.assertEqual(result["failedKeys"], ["theory/a.pdf", "theory/c.pdf"])
+
+    def test_the_bucket_listing_follows_pages_and_skips_folders(self) -> None:
+        class _Paginator:
+            def paginate(self, **kwargs: Any) -> list[dict[str, Any]]:
+                prefix = kwargs["Prefix"]
+                if prefix == "theory/":
+                    return [
+                        {"Contents": [{"Key": "theory/a.pdf", "Size": 3, "ETag": '"a"'}]},
+                        {"Contents": [{"Key": "theory/", "Size": 0, "ETag": '"dir"'}]},
+                    ]
+                return [{}]
+
+        class _S3:
+            def get_paginator(self, _name: str) -> _Paginator:
+                return _Paginator()
+
+        with patch("boto3.client", return_value=_S3()):
+            listed = kb_sync._load()
+        self.assertEqual(listed, [{"key": "theory/a.pdf", "size": 3, "etag": '"a"'}])

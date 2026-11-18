@@ -233,7 +233,8 @@ revisited from that value.
      status `unchanged`.
    - Otherwise start one ingestion job for each data source whose
      files changed, and store the job ids.
-   - A listed problem (step 2) blocks the sync before any of these.
+   - A listed problem (step 2) is stored and logged, and that file is
+     left out of the sync. It does not block the other files.
 4. `poll(state)`: for stored job ids, read the job status and the
    statistics (scanned, indexed, failed). When all are complete, store
    the manifest hash, document count, bytes and time in `KB#state`.
@@ -246,6 +247,17 @@ Kong) is created in this step. Until the first Run now, the schedule
 returns `awaiting_first_sync` and starts nothing. Run now is
 `POST /jobs/kb_sync_check/run`. `POST /kb/sync` waits for the
 dashboard step.
+
+A failed or stopped ingestion clears the saved job ids and keeps the
+last good manifest, so the next run can start again. The idempotency
+token includes the previous job id, so a retry does not reuse it.
+Starting a sync does not replace that manifest. An ingestion still
+running after 6 hours is stopped (`bedrock:StopIngestionJob`), and the
+owner can stop one from the dashboard with `{"stop": true}`. A blocked
+deletion or a problem list is written on `KB#state` and on the run
+row. Confirm and Stop are on the System page until M07-T08. An API
+key cannot confirm a deletion, stop a sync, or start the first sync.
+The roadmap row stays `todo` until the first real sync.
 
 Tests with a stubbed Bedrock client: each status; the hash ignores
 listing order; a sidecar change counts as a change; a failed document

@@ -471,6 +471,7 @@ describe("findingalpha stack", () => {
       "bedrock:GetIngestionJob",
       "bedrock:ListIngestionJobs",
       "bedrock:ListKnowledgeBaseDocuments",
+      "bedrock:StopIngestionJob",
     ]) {
       expect(engine).toContain(action);
     }

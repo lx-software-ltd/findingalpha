@@ -38,6 +38,21 @@ describe("mock admin api", () => {
     });
     expect(sized.status).toBe(202);
     expect((await sized.json()).portfolioSize).toBe(15);
+    const sync = await mockAdminFetch("/jobs/kb_sync_check/run", {
+      method: "POST",
+      body: JSON.stringify({ confirmDeletion: true }),
+    });
+    expect(sync.status).toBe(202);
+    const stopped = await mockAdminFetch("/jobs/kb_sync_check/run", {
+      method: "POST",
+      body: JSON.stringify({ stop: true }),
+    });
+    expect(stopped.status).toBe(202);
+    const badSync = await mockAdminFetch("/jobs/kb_sync_check/run", {
+      method: "POST",
+      body: JSON.stringify({ confirmDeletion: false }),
+    });
+    expect(badSync.status).toBe(400);
   });
 
   it("keeps a PUT in memory", async () => {

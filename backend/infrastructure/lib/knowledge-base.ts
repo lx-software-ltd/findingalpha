@@ -17,6 +17,7 @@ const ENGINE_ACTIONS = [
   "bedrock:GetIngestionJob",
   "bedrock:ListIngestionJobs",
   "bedrock:ListKnowledgeBaseDocuments",
+  "bedrock:StopIngestionJob",
 ];
 
 /**

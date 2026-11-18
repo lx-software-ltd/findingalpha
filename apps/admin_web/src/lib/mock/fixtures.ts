@@ -43,6 +43,17 @@ export const statusFixture = {
     },
     { job: "reconcile", schedule: "30 12 ? * TUE-SAT * Asia/Hong_Kong", lastRun: null, manualRun: false },
     { job: "backtest", schedule: "", lastRun: null, manualRun: true },
+    {
+      job: "kb_sync_check",
+      schedule: "30 5 * * ? * Asia/Hong_Kong",
+      manualRun: true,
+      lastRun: {
+        status: "failed",
+        startedAt: "2026-01-02T21:30:00.000Z",
+        durationMs: 80,
+        message: "blocked_deletion: theory/ 50 of 100",
+      },
+    },
   ],
 };
 

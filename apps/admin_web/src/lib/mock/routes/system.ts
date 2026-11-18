@@ -48,6 +48,13 @@ function runJob(ctx: MockCtx): Json {
     }
   }
   if (Object.keys(record).length === 0) return json(202, { accepted: true });
+  if (job === "kb_sync_check") {
+    const keys = Object.keys(record);
+    if (keys.length === 1 && (record.confirmDeletion === true || record.stop === true)) {
+      return json(202, { accepted: true });
+    }
+    return json(400, { message: "only confirmDeletion true or stop true is allowed" });
+  }
   if (job !== "backtest") return json(400, { message: "this job does not take a body" });
   if (Object.keys(record).some((key) => key !== "portfolioSize")) {
     return json(400, { message: "only portfolioSize is allowed" });

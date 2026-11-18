@@ -1,7 +1,9 @@
-"""Decide when the knowledge base should sync, and poll the jobs it starts.
+"""Decide when the knowledge base should sync.
 
 The daily schedule never starts the first sync. Run now does. A deletion
-above 15% is judged per data source and waits for confirmDeletion.
+above 15% is judged per data source and waits for the owner to confirm.
+A problem file is recorded and left out of the sync. Starting and polling
+the ingestion jobs lives in ``kb_sync_jobs``.
 """
 
 from __future__ import annotations
@@ -9,27 +11,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import datetime, timedelta
 from typing import Any, Callable
 
-import store
-import timeutil
-from http_common import _log_event
-
 PREFIXES = ("theory/", "formula-notes/", "journal/")
-EXTENSIONS = frozenset({".pdf", ".md", ".txt", ".html", ".doc", ".docx", ".xls", ".xlsx", ".csv"})
+EXTENSIONS = frozenset(
+    {".pdf", ".md", ".markdown", ".txt", ".html", ".htm", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".pptx"}
+)
 MAX_FILE_BYTES = 50_000_000
 MAX_SIDECAR_BYTES = 10 * 1024
 STATE_PK = "KB#state"
 STATE_SK = "META"
 JOB = "kb_sync_check"
-_ACTIVE = frozenset({"STARTING", "IN_PROGRESS", "STOPPING"})
-_FAILED_JOB = frozenset({"FAILED", "STOPPED"})
-_FAILED_DOCUMENT = frozenset({"FAILED", "METADATA_UPDATE_FAILED"})
-_EXPIRED_LEASE = "1970-01-01T00:00:00.000Z"
 
 Loader = Callable[[], list[dict[str, Any]]]
-Clock = Callable[[], datetime]
 
 
 def manifest(objects: list[dict[str, Any]]) -> dict[str, Any]:
@@ -67,6 +61,21 @@ def problems(built: dict[str, Any]) -> list[dict[str, str]]:
     return found
 
 
+def syncable(built: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    """The manifest with problem files removed, and the problems themselves."""
+    found = problems(built)
+    bad_documents = {item["key"] for item in found if item["problem"] in {"unsupported", "too_large"}}
+    bad_sidecars = {item["key"] for item in found if item["problem"] in {"sidecar_too_large", "orphan_sidecar"}}
+    documents = {key: item for key, item in built["documents"].items() if key not in bad_documents}
+    sidecars = {
+        key: item
+        for key, item in built["sidecars"].items()
+        if key not in bad_sidecars and item["document"] in documents
+    }
+    total = sum(item["size"] for item in documents.values()) + sum(item["size"] for item in sidecars.values())
+    return {"documents": documents, "sidecars": sidecars, "bytes": total}, found
+
+
 def fingerprint(built: dict[str, Any]) -> str:
     """A hash of every object. Listing order does not change it."""
     return _digest(_rows(built, None))
@@ -86,6 +95,11 @@ def snapshot(built: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def started_once(state: dict[str, Any]) -> bool:
+    """True once a sync has committed a manifest or any data source."""
+    return bool(state.get("manifestHash") or state.get("sources") or state.get("syncedAt"))
+
+
 def decide(
     built: dict[str, Any],
     state: dict[str, Any],
@@ -93,10 +107,10 @@ def decide(
     confirm: bool = False,
     cap: int | None = None,
 ) -> dict[str, Any]:
-    """Choose what this run should do. ``start`` names the prefixes whose files changed."""
-    found = problems(built)
-    if found:
-        return {"status": "blocked_problems", "problems": found}
+    """Choose what this run should do. ``start`` names the prefixes whose files changed.
+
+    ``built`` is the syncable manifest: problem files are already removed.
+    """
     limit = _cap() if cap is None else cap
     if limit is None:
         return {"status": "failed", "error": "KB_MAX_RAW_BYTES"}
@@ -123,111 +137,12 @@ def run(
     *,
     loader: Loader | None = None,
     agent: Any = None,
-    clock: Clock | None = None,
+    clock: Any = None,
 ) -> dict[str, Any]:
     """Poll a sync that is already running, or decide whether a new one may start."""
-    moment = (clock or timeutil.utc_now)()
-    state = store.get(STATE_PK, STATE_SK) or {}
-    if state.get("jobs"):
-        return _poll(state, agent or _agent(), moment)
-    if str(event.get("trigger") or "") != "manual" and not state.get("manifestHash"):
-        return {"ok": True, "status": "awaiting_first_sync"}
-    built = manifest((loader or _load)())
-    choice = decide(built, state, confirm=_confirmed(event))
-    if choice["status"] != "start":
-        ok = choice["status"] == "unchanged"
-        _log_event("info", tag="kb_sync", status=choice["status"])
-        return {"ok": ok, **choice}
-    return _start(built, choice, agent or _agent(), moment)
+    import kb_sync_jobs
 
-
-def _start(built: dict[str, Any], choice: dict[str, Any], agent: Any, moment: datetime) -> dict[str, Any]:
-    ids = _source_ids()
-    knowledge_base = os.environ.get("KNOWLEDGE_BASE_ID", "")
-    if ids is None or not knowledge_base:
-        return {"ok": False, "status": "failed", "error": "knowledge base is not configured"}
-    _job_row("running", timeutil.format_iso_millis(moment + timedelta(minutes=16)))
-    jobs: dict[str, str] = {}
-    for prefix in choice["prefixes"]:
-        token = _digest(_rows(built, prefix))[:40]
-        try:
-            response = agent.start_ingestion_job(
-                knowledgeBaseId=knowledge_base,
-                dataSourceId=ids[prefix],
-                clientToken=token,
-            )
-            jobs[prefix] = response["ingestionJob"]["ingestionJobId"]
-        except Exception as exc:
-            if _error_code(exc) != "ConflictException":
-                raise
-            adopted = _running_job(agent, knowledge_base, ids[prefix])
-            if not adopted:
-                return {"ok": False, "status": "failed", "error": "ingestion already running"}
-            jobs[prefix] = adopted
-    store.put(
-        {
-            "pk": STATE_PK,
-            "sk": STATE_SK,
-            "status": "running",
-            "jobs": jobs,
-            "pending": snapshot(built),
-            "expectedDeletions": {prefix: choice["expectedDeletions"].get(prefix, 0) for prefix in jobs},
-            "updatedAt": timeutil.format_iso_millis(moment),
-        }
-    )
-    _job_row("running", _EXPIRED_LEASE)
-    _log_event("info", tag="kb_sync", status="running", sources=len(jobs))
-    return {"ok": True, "status": "running", "prefixes": list(jobs)}
-
-
-def _poll(state: dict[str, Any], agent: Any, moment: datetime) -> dict[str, Any]:
-    knowledge_base = os.environ.get("KNOWLEDGE_BASE_ID", "")
-    ids = _source_ids() or {}
-    seen: dict[str, dict[str, Any]] = {}
-    for prefix, job_id in (state.get("jobs") or {}).items():
-        response = agent.get_ingestion_job(
-            knowledgeBaseId=knowledge_base,
-            dataSourceId=ids.get(prefix, ""),
-            ingestionJobId=job_id,
-        )
-        seen[prefix] = response["ingestionJob"]
-    if any(item.get("status") in _ACTIVE for item in seen.values()):
-        _job_row("running", _EXPIRED_LEASE)
-        return {"ok": True, "status": "running"}
-    if any(item.get("status") in _FAILED_JOB for item in seen.values()):
-        _job_row("failed", None, failures=3)
-        return {"ok": False, "status": "failed", "error": "ingestion failed"}
-    failed: list[str] = []
-    shortfall: dict[str, int] = {}
-    expected = state.get("expectedDeletions") or {}
-    for prefix, item in seen.items():
-        deleted = int((item.get("statistics") or {}).get("numberOfDocumentsDeleted") or 0)
-        if int(expected.get(prefix) or 0) > deleted:
-            shortfall[prefix] = int(expected[prefix]) - deleted
-        failed.extend(_failed_keys(agent, knowledge_base, ids.get(prefix, "")))
-    pending = state.get("pending") or {}
-    saved = {
-        "pk": STATE_PK,
-        "sk": STATE_SK,
-        "status": "done",
-        "syncedAt": timeutil.format_iso_millis(moment),
-        "manifestHash": pending.get("manifestHash"),
-        "bytes": pending.get("bytes"),
-        "documents": pending.get("documents"),
-        "sources": pending.get("sources") or {},
-        "updatedAt": timeutil.format_iso_millis(moment),
-    }
-    if failed:
-        saved["failedKeys"] = sorted(failed)
-    if shortfall:
-        saved["deletionShortfall"] = shortfall
-    store.put(saved)
-    _job_row("done", None)
-    _log_event("info", tag="kb_sync", status="done", failed=len(failed))
-    result: dict[str, Any] = {"ok": True, "status": "done", "failedKeys": sorted(failed)}
-    if shortfall:
-        result["deletionShortfall"] = shortfall
-    return result
+    return kb_sync_jobs.run(event, _context, loader=loader, agent=agent, clock=clock)
 
 
 def _deletions(built: dict[str, Any], state: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -262,13 +177,6 @@ def _prefix(key: str) -> str | None:
     return next((prefix for prefix in PREFIXES if key.startswith(prefix)), None)
 
 
-def _confirmed(event: dict[str, Any]) -> bool:
-    if event.get("confirmDeletion") is True:
-        return True
-    params = event.get("params")
-    return isinstance(params, dict) and params.get("confirmDeletion") is True
-
-
 def _cap() -> int | None:
     raw = os.environ.get("KB_MAX_RAW_BYTES", "")
     return int(raw) if raw.isdigit() else None
@@ -296,58 +204,3 @@ def _load() -> list[dict[str, Any]]:
                 if not str(item["Key"]).endswith("/"):
                     found.append({"key": item["Key"], "size": int(item["Size"]), "etag": str(item["ETag"])})
     return found
-
-
-def _agent() -> Any:
-    import boto3
-
-    return boto3.client("bedrock-agent")
-
-
-def _running_job(agent: Any, knowledge_base: str, source_id: str) -> str:
-    response = agent.list_ingestion_jobs(knowledgeBaseId=knowledge_base, dataSourceId=source_id, maxResults=20)
-    for item in response.get("ingestionJobSummaries") or []:
-        if item.get("status") in {"STARTING", "IN_PROGRESS"}:
-            return str(item.get("ingestionJobId") or "")
-    return ""
-
-
-def _failed_keys(agent: Any, knowledge_base: str, source_id: str) -> list[str]:
-    found: list[str] = []
-    token = ""
-    while True:
-        kwargs: dict[str, Any] = {"knowledgeBaseId": knowledge_base, "dataSourceId": source_id, "maxResults": 100}
-        if token:
-            kwargs["nextToken"] = token
-        page = agent.list_knowledge_base_documents(**kwargs)
-        for item in page.get("documentDetails") or []:
-            if item.get("status") not in _FAILED_DOCUMENT:
-                continue
-            uri = str(((item.get("identifier") or {}).get("s3") or {}).get("uri") or "")
-            found.append(uri.split("/", 3)[-1] if "://" in uri else uri)
-        token = str(page.get("nextToken") or "")
-        if not token:
-            return found
-
-
-def _job_row(status: str, lease: str | None, failures: int = 0) -> None:
-    item: dict[str, Any] = {
-        "pk": f"JOB#{JOB}",
-        "sk": "STATE",
-        "status": status,
-        "gsi1pk": "JOBSTATE",
-        "gsi1sk": JOB,
-        "updatedAt": timeutil.now_iso(),
-    }
-    if lease is not None:
-        item["leaseUntil"] = lease
-    if failures:
-        item["failures"] = failures
-    store.put(item)
-
-
-def _error_code(exc: Exception) -> str:
-    response = getattr(exc, "response", None)
-    if isinstance(response, dict):
-        return str((response.get("Error") or {}).get("Code") or "")
-    return ""

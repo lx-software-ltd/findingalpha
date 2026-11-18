@@ -343,10 +343,13 @@ start it. The system status reports `keyRun` and the saved
 `portfolioSizeMin` to `portfolioSizeMax` in the register. An empty body
 uses the register size and the audit row records that size. A body that
 is not a JSON object is refused, as is a body on any job other than
-`backtest` and `kb_sync_check`. `kb_sync_check` accepts an empty body or
-`{"confirmDeletion": true}` and nothing else. The daily schedule does
-not start the first sync; Run now does. A deletion above 15% is checked
-per data source, and the sync waits until that confirmation. A size
+`backtest` and `kb_sync_check`. `kb_sync_check` accepts an empty body,
+`{"confirmDeletion": true}`, or `{"stop": true}`, and nothing else.
+The daily schedule does not start the first sync; Run now does. A
+deletion above 15% is checked per data source, and the sync waits
+until the owner confirms it from the dashboard. An API key cannot
+confirm a deletion, stop a sync, or start the first sync. A key can
+start a later sync. A problem file is recorded and skipped. A size
 that would replace an unfinished run is 409, and the saved run stays.
 The 202 body echoes `portfolioSize` when one was sent. A tick that
 cannot resume a job is `failed` and names that job.

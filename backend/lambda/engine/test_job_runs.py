@@ -113,6 +113,14 @@ class JobRunsTest(unittest.TestCase):
         self.assertEqual(table.items[-1]["status"], "succeeded")
         self.assertNotIn("errorMessage", table.items[-1])
 
+    def test_an_unchanged_result_is_a_plain_success_for_another_job(self) -> None:
+        table = _Table()
+        with patch("store.put", side_effect=lambda item: table.put_item(Item=item)):
+            with job_runs.record("screen") as run:
+                job_runs.apply_result(run, {"ok": True, "status": "unchanged", "failedKeys": ["a.pdf"]})
+        self.assertEqual(table.items[-1]["status"], "succeeded")
+        self.assertNotIn("errorMessage", table.items[-1])
+
 
 if __name__ == "__main__":
     unittest.main()
