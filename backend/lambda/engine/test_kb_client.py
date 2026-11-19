@@ -122,6 +122,26 @@ class KbClientTest(unittest.TestCase):
         self.assertEqual(self.store.updates, ["USAGE#2026-11", "USAGE#2026-11-18"])
         self.assertNotIn(_PHRASE, str(self.logs))
 
+    def test_a_managed_location_maps_to_the_plain_file_name(self) -> None:
+        self.agent.results = [
+            {
+                "content": {"text": _PHRASE},
+                "location": {
+                    "s3Location": {
+                        "uri": "https://kb-bucket.s3.ap-southeast-1.amazonaws.com/theory/"
+                        "Security%20Analysis%2C%20Graham%20%26%20Dodd.pdf"
+                    },
+                    "type": "S3",
+                },
+                "score": 0.5,
+                "metadata": {"_excerpt_page_number": 437.0, "_data_source_id": "ds-theory"},
+            }
+        ]
+        found = self._retrieve("margin of safety", source_types=["theory"])
+        self.assertEqual(found[0]["document"], "Security Analysis, Graham & Dodd.pdf")
+        self.assertEqual(found[0]["sourceType"], "theory")
+        self.assertEqual(found[0]["locator"], "437")
+
     def test_the_cap_refuses_at_the_limit(self) -> None:
         self.store.items[("USAGE#2026-11", "KB")] = {"count": 5000}
         with self.assertRaises(kb_client.KbBudgetExceeded):

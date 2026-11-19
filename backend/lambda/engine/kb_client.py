@@ -13,6 +13,7 @@ import os
 import time
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import unquote, urlsplit
 
 import kb_sync
 import store
@@ -21,7 +22,8 @@ from http_common import _log_event
 
 _BUDGETS = Path(__file__).resolve().parent / "contracts" / "budgets.json"
 _SOURCE_TYPES = {"theory": "theory/", "formula-notes": "formula-notes/", "journal": "journal/"}
-_PAGE = "x-amz-bedrock-kb-document-page-number"
+_PAGE = "_excerpt_page_number"
+_LEGACY_PAGE = "x-amz-bedrock-kb-document-page-number"
 _QUERY_LIMIT = 1000
 
 Clock = Callable[[], Any]
@@ -131,12 +133,12 @@ def _call(text: str, top_k: int, folders: list[str], client: Any) -> list[dict[s
 def _map(results: list[dict[str, Any]], folders: list[str] | None) -> list[dict[str, Any]]:
     passages: list[dict[str, Any]] = []
     for item in results:
-        uri = str(((item.get("location") or {}).get("s3Location") or {}).get("uri") or "")
-        key = uri.split("/", 3)[-1] if "://" in uri else uri
+        key = _object_key(str(((item.get("location") or {}).get("s3Location") or {}).get("uri") or ""))
         source_type = next((name for name, prefix in _SOURCE_TYPES.items() if key.startswith(prefix)), "")
         if folders is not None and source_type not in folders:
             continue
-        page = (item.get("metadata") or {}).get(_PAGE)
+        metadata = item.get("metadata") or {}
+        page = metadata.get(_PAGE, metadata.get(_LEGACY_PAGE))
         passages.append(
             {
                 "text": str((item.get("content") or {}).get("text") or ""),
@@ -149,6 +151,15 @@ def _map(results: list[dict[str, Any]], folders: list[str] | None) -> list[dict[
             }
         )
     return passages
+
+
+def _object_key(uri: str) -> str:
+    """The object key from ``s3://bucket/key`` or a percent-encoded HTTPS object URL."""
+    if uri.startswith("s3://"):
+        return uri.split("/", 3)[-1]
+    if "://" in uri:
+        return unquote(urlsplit(uri).path.lstrip("/"))
+    return uri
 
 
 def _reserve(pk: str, cap: int) -> int:
