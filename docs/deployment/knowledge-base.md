@@ -53,6 +53,22 @@ at 5 US dollars per decimal gigabyte. Retrievals so far this month
 are estimated at 1 US dollar per thousand. The page shows those
 figures separately. Both rates are in `contracts/budgets.json`.
 
+## Formula notes
+
+The parser drops or garbles most display equations in the PDFs. A
+formula the register relies on is kept as a Markdown note in
+`docs/knowledge-base/formula-notes/`: the book's formula in plain text,
+its symbols, the book and page, and a short quote. The owner approves
+a note in its pull request. After merge, upload the folder and press
+**Sync now**:
+
+```sh
+aws s3 sync docs/knowledge-base/formula-notes/ \
+  s3://<kb bucket>/formula-notes/ --region ap-southeast-1 --delete
+```
+
+`--delete` removes a note from the bucket when it is removed from git.
+
 ## Retrieval cap
 
 `contracts/budgets.json` allows 5,000 retrievals a month. At 4,000 the
