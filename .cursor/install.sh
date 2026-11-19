@@ -7,6 +7,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+if [ -f apps/public_www/package.json ]; then
+  echo "==> Installing public www dependencies (apps/public_www)"
+  ( cd apps/public_www && npm ci )
+fi
+
 if [ -f apps/admin_web/package.json ]; then
   echo "==> Installing admin console dependencies (apps/admin_web)"
   ( cd apps/admin_web && npm ci )

@@ -15,6 +15,7 @@ AGENTS.md  BUGBOT.md  SECURITY.md  .cursorrules  pyproject.toml
 .cursor/            rules, skills, hooks, environment.json, install.sh, mcp.json
 .github/            workflows, PULL_REQUEST_TEMPLATE.md, dependabot.yml
 apps/admin_web/     the dashboard (Vite, React, TypeScript, Bootstrap)
+apps/public_www/    public logo site (Vite, React, TypeScript)
 backend/infrastructure/   CDK app (bin, lib, test, params)
 backend/lambda/engine/    all Python for AdminApiFn and EngineFn, tests beside code
 backend/lambda/pre_token_generation/   Cognito sign-in gate
