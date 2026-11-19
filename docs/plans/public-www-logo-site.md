@@ -1,10 +1,11 @@
 # Plan: Public www logo site, login branding, and hosting
 
 **Status**: Active
-**Zone**: yellow for admin login (`apps/admin_web/src/**`); red for
-hosting (`backend/infrastructure/**`, `scripts/deploy/**`,
-`.github/workflows/deploy-*.yml`). Owner asked in chat to add CF/S3
-hosting and the deploy script in this pull request.
+**Zone**: yellow for admin login (`apps/admin_web/src/**`) and
+`apps/public_www/**`; red for hosting (`backend/infrastructure/**`,
+`scripts/deploy/**`, `.github/workflows/deploy-*.yml`). Owner asked in
+chat to add CF/S3 hosting and the deploy script in this pull request
+(explicit red-zone approval before those writes).
 
 ## Goal
 
@@ -62,4 +63,6 @@ leave the stack in place and stop the deploy workflow; do not
 
 - Owner must set GitHub vars `PUBLIC_WWW_DOMAIN_NAME` and
   `PUBLIC_WWW_CERTIFICATE_ARN`, then approve a Cloudflare DNS CNAME
-  for the public hostname after the first stack deploy.
+  for the public hostname after the first stack deploy. Until those
+  vars are set, **Deploy Backend** skips `findingalpha-public-www`
+  so backend/admin deploys stay unblocked.

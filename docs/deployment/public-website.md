@@ -8,8 +8,10 @@ in `apps/public_www`.
 - Origin bucket `findingalpha-public-www-<account>-<region>` (private,
   TLS-only, versioned, RETAIN)
 - Access logs bucket `findingalpha-public-www-logs-<account>-<region>`
-- CloudFront distribution with HTTPS redirect, SPA rewrite, and a tight
-  Content-Security-Policy (no analytics hosts)
+  (90-day expiry for current and noncurrent versions)
+- CloudFront distribution with HTTPS redirect and a tight
+  Content-Security-Policy (no analytics hosts). Unknown paths keep
+  real 403/404 responses (no SPA rewrite to `index.html`).
 
 Parameters (GitHub `production` environment, not git):
 
@@ -19,9 +21,15 @@ Parameters (GitHub `production` environment, not git):
 | `PublicWebsiteCertificateArn` | `PUBLIC_WWW_CERTIFICATE_ARN` (ACM in us-east-1) |
 | `WafWebAclArn` | `PUBLIC_WWW_WAF_WEB_ACL_ARN` (optional) |
 
-**Deploy Backend** creates or updates the stack. **Deploy Public
-Website** builds `apps/public_www` and runs
-`scripts/deploy/deploy-public-website.sh`.
+**Deploy Backend** deploys `findingalpha` and `findingalpha-admin-web`
+first, then `findingalpha-public-www` only when both public domain and
+certificate variables are set. Empty public vars skip that stack so
+backend deploys are not blocked.
+
+**Deploy Public Website** builds `apps/public_www` and runs
+`scripts/deploy/deploy-public-website.sh`. It also runs after a
+successful **Deploy Backend** on `main`, and skips when the app or the
+CloudFormation stack is missing.
 
 ## Local
 
@@ -36,6 +44,9 @@ npm run preview
 
 1. Request an ACM certificate in `us-east-1` for the public hostname.
 2. Set `PUBLIC_WWW_DOMAIN_NAME` and `PUBLIC_WWW_CERTIFICATE_ARN`.
-3. Merge so **Deploy Backend** creates `findingalpha-public-www`.
+3. Merge or re-run **Deploy Backend** so it creates
+   `findingalpha-public-www` (after the backend and admin stacks).
 4. Create the Cloudflare DNS CNAME (DNS only) after the owner says go.
-5. Push or run **Deploy Public Website** to upload `dist/`.
+5. **Deploy Public Website** uploads `dist/` automatically after a
+   successful backend deploy, or on push to `apps/public_www/**` on
+   `main`.

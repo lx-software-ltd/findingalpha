@@ -18,7 +18,9 @@ describe("LoginPage", () => {
   });
 
   it("shows the brand icon and a Google-only sign-in control on a dark stage", () => {
-    const { container } = render(<LoginPage />);
+    document.documentElement.setAttribute("data-bs-theme", "light");
+    document.documentElement.style.colorScheme = "light";
+    const { container, unmount } = render(<LoginPage />);
     expect(screen.getByRole("img", { name: "Finding Alpha" })).toHaveAttribute(
       "src",
       "/icon.png",
@@ -29,6 +31,11 @@ describe("LoginPage", () => {
     expect(button.querySelector("svg")).not.toBeNull();
     expect(container.querySelector(".admin-login")).not.toBeNull();
     expect(container.querySelector(".admin-login-card")).toBeNull();
+    expect(document.documentElement.getAttribute("data-bs-theme")).toBe("dark");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
+    unmount();
+    expect(document.documentElement.getAttribute("data-bs-theme")).toBe("light");
+    expect(document.documentElement.style.colorScheme).toBe("light");
   });
 
   it("starts Google sign-in when the logo button is pressed", async () => {

@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useAuth } from "../components/AuthProvider";
 import { LOGIN_DENIED_FLASH_KEY } from "../lib/auth";
 
@@ -60,6 +60,32 @@ export function LoginPage() {
   const [deniedMessage] = useState<string | null>(() =>
     consumeLoginDeniedFlash(),
   );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const previousScheme = root.style.colorScheme;
+    const previousTheme = root.getAttribute("data-bs-theme");
+    const meta = document.querySelector('meta[name="color-scheme"]');
+    const previousMeta = meta?.getAttribute("content") ?? null;
+    root.style.colorScheme = "dark";
+    root.setAttribute("data-bs-theme", "dark");
+    meta?.setAttribute("content", "dark");
+    return () => {
+      root.style.colorScheme = previousScheme;
+      if (previousTheme === null) {
+        root.removeAttribute("data-bs-theme");
+      } else {
+        root.setAttribute("data-bs-theme", previousTheme);
+      }
+      if (meta) {
+        if (previousMeta === null) {
+          meta.removeAttribute("content");
+        } else {
+          meta.setAttribute("content", previousMeta);
+        }
+      }
+    };
+  }, []);
 
   return (
     <div className="admin-login">

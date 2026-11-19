@@ -311,6 +311,7 @@
 
 .admin-login {
   --admin-login-bg: #1a1a1b;
+  color-scheme: dark;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
