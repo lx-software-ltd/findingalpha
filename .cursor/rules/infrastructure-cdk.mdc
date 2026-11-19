@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Infrastructure
 
-- Stacks are `findingalpha` and `findingalpha-admin-web`. The bootstrap qualifier comes from `CDK_BOOTSTRAP_QUALIFIER`. [why: convention from the sibling repository]
+- Stacks are `findingalpha`, `findingalpha-admin-web`, and `findingalpha-public-www`. The bootstrap qualifier comes from `CDK_BOOTSTRAP_QUALIFIER`. [why: convention from the sibling repository]
 - The HTTP API uses `SharedPermissionLambdaIntegration` plus one `AdminApiInvoke` permission. Do not switch back to `HttpLambdaIntegration` per route or add `events.Rule` targets on `AdminApiFn`. New schedules use EventBridge Scheduler with an IAM-role target. [why: convention from the sibling repository]
 - SES send grants are `Resource: *` plus `ses:FromAddress` (`sesSendFromDomainStatement`). Identity-ARN resource lists pass tests and deny in production. [why: convention from the sibling repository]
 - Secret parameters set `noEcho: true`. [why: convention from the sibling repository]

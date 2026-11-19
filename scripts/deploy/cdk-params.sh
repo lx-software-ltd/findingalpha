@@ -3,16 +3,18 @@
 # cdk_load_param_args <resolved-param-file> sets:
 #   BACKEND_PARAM_ARGS (keys starting findingalpha:)
 #   ADMIN_WEB_PARAM_ARGS (keys starting findingalpha-admin-web:)
+#   PUBLIC_WWW_PARAM_ARGS (keys starting findingalpha-public-www:)
 # A key with any other prefix, or with no prefix, is an error.
 # Empty values are omitted.
 
 cdk_load_param_args() {
   local resolved="$1"
-  local backend_file admin_web_file unknown
+  local backend_file admin_web_file public_www_file unknown
   backend_file="$(mktemp)"
   admin_web_file="$(mktemp)"
-  _cdk_params_cleanup() { rm -f "$backend_file" "$admin_web_file"; }
-  unknown="$(jq -r 'keys[] | select(test("^(findingalpha:|findingalpha-admin-web:)") | not)' "$resolved")"
+  public_www_file="$(mktemp)"
+  _cdk_params_cleanup() { rm -f "$backend_file" "$admin_web_file" "$public_www_file"; }
+  unknown="$(jq -r 'keys[] | select(test("^(findingalpha:|findingalpha-admin-web:|findingalpha-public-www:)") | not)' "$resolved")"
   if [[ -n "$unknown" ]]; then
     echo "unknown parameter key prefix:" >&2
     echo "$unknown" >&2
@@ -27,9 +29,15 @@ cdk_load_param_args() {
     _cdk_params_cleanup
     return 1
   fi
+  if ! jq -r 'to_entries[] | select(.value != null) | .value = (if .value | type == "string" then .value else (.value | tostring) end) | .value = (.value | gsub("\r\n"; "\n") | gsub("\r"; "\n") | gsub("\n"; "\\n") | ltrimstr(" ") | rtrimstr(" ")) | select(.value != "") | select(.key | startswith("findingalpha-public-www:")) | "--parameters", "\(.key)=\(.value)"' "$resolved" > "$public_www_file"; then
+    _cdk_params_cleanup
+    return 1
+  fi
   BACKEND_PARAM_ARGS=()
   ADMIN_WEB_PARAM_ARGS=()
+  PUBLIC_WWW_PARAM_ARGS=()
   readarray -t BACKEND_PARAM_ARGS < "$backend_file"
   readarray -t ADMIN_WEB_PARAM_ARGS < "$admin_web_file"
+  readarray -t PUBLIC_WWW_PARAM_ARGS < "$public_www_file"
   _cdk_params_cleanup
 }

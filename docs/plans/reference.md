@@ -35,6 +35,7 @@ scripts/            checks, contract sync, deploy helpers, offline tools
 | --- | --- |
 | Backend stack | `findingalpha` |
 | Web stack | `findingalpha-admin-web` |
+| Public www stack | `findingalpha-public-www` |
 | KMS key alias | `findingalpha/shared` |
 | Records table | `findingalpha-records` |
 | Audit table | `findingalpha-audit-log` |
@@ -43,6 +44,10 @@ scripts/            checks, contract sync, deploy helpers, offline tools
 | Access logs bucket | `findingalpha-access-logs-<account>-<region>` |
 | Web bucket | `findingalpha-web-<account>-<region>` |
 | Web logs bucket | `findingalpha-web-logs-<account>-<region>` |
+| Public www bucket | `findingalpha-public-www-<account>-<region>` |
+| Public www logs bucket | `findingalpha-public-www-logs-<account>-<region>` |
+| Public hostname | `www.<domain>` (or the apex hostname the owner sets) |
+| Public response headers | `findingalpha-public-www-security-headers` |
 | HTTP API | `findingalpha-admin-api` |
 | Dashboard hostname | `admin.<domain>` |
 | API hostname for key callers | `api.<domain>` (M03A) |
@@ -101,6 +106,14 @@ come from the GitHub `production` environment, not from the file.
 | `AdminWebCertificateArn` | GitHub var `ADMIN_WEB_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
 | `CspCognitoConnectOrigin` | GitHub var `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.<region>.amazoncognito.com` or `https://auth.<domain>` |
 | `WafWebAclArn` | GitHub var `ADMIN_WAF_WEB_ACL_ARN` | Empty disables |
+
+### `findingalpha-public-www`
+
+| Parameter | Source | Notes |
+| --- | --- | --- |
+| `PublicWebsiteDomainName` | GitHub var `PUBLIC_WWW_DOMAIN_NAME` | CloudFront alias |
+| `PublicWebsiteCertificateArn` | GitHub var `PUBLIC_WWW_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
+| `WafWebAclArn` | GitHub var `PUBLIC_WWW_WAF_WEB_ACL_ARN` | Empty disables |
 
 ### GitHub variables and secrets
 

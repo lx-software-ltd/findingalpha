@@ -62,7 +62,8 @@ argues, cites and proposes. It never computes a number that decides money.
 ```
 
 Two stacks: `findingalpha` (everything except web hosting) and
-`findingalpha-admin-web` (S3 and CloudFront). Two Lambda functions share
+`findingalpha-admin-web` (S3 and CloudFront for the dashboard) and
+`findingalpha-public-www` (S3 and CloudFront for the logo site). Two Lambda functions share
 `backend/lambda/engine`. `AdminApiFn` serves the dashboard and holds no
 broker or model keys. `EngineFn` runs jobs and holds those keys.
 `PreTokenGenerationFn` guards sign-in. One DynamoDB table uses `pk` /
