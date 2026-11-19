@@ -25,6 +25,9 @@ export const ROUTES: AdminApiRoute[] = [
   { path: "/screens/{date}", methods: [Method.GET], auth: "jwt" },
   { path: "/backtests", methods: [Method.GET], auth: "jwt" },
   { path: "/backtests/{runId}", methods: [Method.GET], auth: "jwt" },
+  { path: "/kb/status", methods: [Method.GET], auth: "jwt" },
+  { path: "/kb/eval/latest", methods: [Method.GET], auth: "jwt" },
+  { path: "/kb/sync", methods: [Method.POST], auth: "jwt" },
   { path: "/public", methods: [Method.GET], auth: "key", throttle: { rate: 2, burst: 10 } },
   { path: "/public/{proxy+}", methods: [Method.GET], auth: "key", throttle: { rate: 2, burst: 10 } },
   {

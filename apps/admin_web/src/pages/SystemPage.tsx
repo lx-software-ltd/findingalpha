@@ -39,7 +39,6 @@ export function SystemPage() {
   const put = usePutSettings();
   const [pending, setPending] = useState<{ name: SwitchName; next: boolean } | null>(null);
   const [pendingJob, setPendingJob] = useState<string | null>(null);
-  const [syncAction, setSyncAction] = useState<"confirm" | "stop" | null>(null);
   const [names, setNames] = useState(String(registerSize));
   const [accepted, setAccepted] = useState<string | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -209,24 +208,6 @@ export function SystemPage() {
                       Run now
                     </button>
                   ) : null}
-                  {syncChoice(job) === "confirm" ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-danger"
-                      onClick={() => setSyncAction("confirm")}
-                    >
-                      Confirm deletion
-                    </button>
-                  ) : null}
-                  {syncChoice(job) === "stop" ? (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={() => setSyncAction("stop")}
-                    >
-                      Stop
-                    </button>
-                  ) : null}
                 </div>
               </AdminCell>
             </tr>
@@ -351,37 +332,6 @@ export function SystemPage() {
         ) : null}
       </ConfirmDialog>
       <ConfirmDialog
-        open={syncAction !== null}
-        title={syncAction === "stop" ? "Stop sync" : "Confirm deletion"}
-        body={
-          syncAction === "stop"
-            ? "Stop the knowledge base sync that is running?"
-            : "More than 15% of a folder is gone. Sync anyway?"
-        }
-        confirmLabel={syncAction === "stop" ? "Stop sync" : "Sync"}
-        tone={syncAction === "stop" ? "danger" : "primary"}
-        onCancel={() => setSyncAction(null)}
-        onConfirm={() => {
-          const action = syncAction;
-          setSyncAction(null);
-          if (!action) return;
-          const request =
-            action === "stop"
-              ? { job: "kb_sync_check", stop: true }
-              : { job: "kb_sync_check", confirmDeletion: true };
-          runJob.mutate(request, {
-            onSuccess: () => {
-              setRunError(null);
-              setAccepted(action === "stop" ? "kb_sync_check, stop requested" : "kb_sync_check, deletion confirmed");
-            },
-            onError: (error: unknown) => {
-              setAccepted(null);
-              setRunError(getAdminApiErrorMessage(error) ?? "The run was refused.");
-            },
-          });
-        }}
-      />
-      <ConfirmDialog
         open={pending !== null}
         title="Change setting"
         body={pending ? `Turn ${pending.name} ${pending.next ? "on" : "off"}?` : ""}
@@ -395,16 +345,6 @@ export function SystemPage() {
       />
     </div>
   );
-}
-
-function syncChoice(job: {
-  job: string;
-  lastRun?: { status?: string; message?: string } | null;
-}): "confirm" | "stop" | null {
-  if (job.job !== "kb_sync_check" || !job.lastRun) return null;
-  if (job.lastRun.message?.startsWith("blocked_deletion")) return "confirm";
-  if (job.lastRun.status === "partial" && job.lastRun.message !== "stopping") return "stop";
-  return null;
 }
 
 function statusLabel(

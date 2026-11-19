@@ -4,6 +4,8 @@
     "maxRetrievalsPerMonth": 5000,
     "warnShare": 0.8,
     "defaultTopK": 8,
-    "maxTopK": 12
+    "maxTopK": 12,
+    "storageUsdPerGb": 5,
+    "retrievalUsdPerThousand": 1
   }
 }

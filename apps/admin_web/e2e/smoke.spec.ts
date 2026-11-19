@@ -77,6 +77,18 @@ test("screen shows the shortlist and the equity curves", async ({ page }, testIn
   expect(await overflows(page)).toBe(false);
 });
 
+test("knowledge base shows the sync and a question", async ({ page }) => {
+  await page.goto("/knowledge-base");
+  await expect(page.getByRole("heading", { name: "Knowledge base" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sync now" })).toBeVisible();
+  await expect(page.getByText("q01")).toBeVisible();
+  await page.getByRole("button", { name: "Sync now" }).click();
+  await expect(page.getByText("Start a knowledge base sync?")).toBeVisible();
+  await page.getByRole("button", { name: "Sync", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Sync requested.");
+  expect(await overflows(page)).toBe(false);
+});
+
 test("system shows the three tables", async ({ page }, testInfo) => {
   await page.goto("/system");
   await expect(page.getByRole("heading", { name: "Switches" })).toBeVisible();

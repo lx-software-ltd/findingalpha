@@ -157,6 +157,36 @@ export function handleSystem(ctx: MockCtx): Json | null {
       },
     });
   }
+  if (ctx.method === "GET" && ctx.path === "/kb/status") {
+    return json(200, {
+      documents: 131,
+      bytes: 500_000_000,
+      capBytes: 2_000_000_000,
+      retrievals: 12,
+      retrievalCap: 5000,
+      syncedAt: "2026-11-18T01:00:00.000Z",
+      status: "done",
+      running: false,
+      stopping: false,
+      progress: null,
+      evaluation: { ranAt: "2026-11-18T02:00:00.000Z", questions: 20, hitAt8: 16, hitAt3: 12 },
+      problems: [],
+      failedDocuments: [],
+      blocked: null,
+      blockedReason: null,
+      cost: { storageUsd: 2.5, retrievalUsd: 0.01 },
+    });
+  }
+  if (ctx.method === "GET" && ctx.path === "/kb/eval/latest") {
+    return json(200, {
+      ranAt: "2026-11-18T02:00:00.000Z",
+      questions: 20,
+      hitAt8: 16,
+      hitAt3: 12,
+      results: [{ id: "q01", rank: 2 }],
+    });
+  }
+  if (ctx.method === "POST" && ctx.path === "/kb/sync") return runJob({ ...ctx, path: "/jobs/kb_sync_check/run" });
   if (ctx.method === "POST" && /^\/jobs\/[^/]+\/run$/.test(ctx.path)) return runJob(ctx);
   return null;
 }

@@ -22,6 +22,10 @@ describe("mock admin api", () => {
     expect(screen.rows[0].symbol).toBe("AAA");
     const backtests = await (await mockAdminFetch("/backtests")).json();
     expect(backtests.runs[0].runId).toBe("run-example");
+    const knowledge = await (await mockAdminFetch("/kb/status")).json();
+    expect(knowledge.documents).toBe(131);
+    const evaluation = await (await mockAdminFetch("/kb/eval/latest")).json();
+    expect(evaluation.results[0].id).toBe("q01");
     const universe = await (await mockAdminFetch("/universe/latest")).json();
     expect(universe.asOf).toBe("2024-06-03");
     expect(universe.backfill.prices.cursor).toBe(2);
