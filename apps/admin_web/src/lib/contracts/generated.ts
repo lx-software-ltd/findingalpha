@@ -1034,12 +1034,12 @@ export const roadmap = {
         {
           "id": "M07-T03",
           "title": "Sync",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M07-T04",
           "title": "Retrieval client",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M07-T05",

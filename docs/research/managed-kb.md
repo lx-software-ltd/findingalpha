@@ -468,9 +468,21 @@ With a sidecar attribute the filter is
 `{ "equals": { "key": "source_type", "value": "theory" } }`.
 
 Each result carries `content.text`, `location.s3Location.uri`, `score`,
-`metadata` and `documentId`. No page says whether a managed knowledge
-base returns a page number. T04's `locator` depends on it.
-**Unverified** until the first `Retrieve`.
+`metadata` and `documentId`. Verified on 19 November 2026 (Hong Kong):
+
+- `location.s3Location.uri` is an HTTPS object URL with the key
+  percent-encoded, `https://<bucket>.s3.<region>.amazonaws.com/theory/Investment%20Analysis...pdf`,
+  not `s3://`. Pull request 52 decodes it.
+- The page is `metadata._excerpt_page_number`, a float such as `327.0`.
+  It matched the questions file's page for 14 of the 17 hits.
+- `metadata` also carries `_data_source_id`, `_document_title`,
+  `_file_type`, `_chunk_id`, and for tables `_table_id` and
+  `_table_section_title`.
+- The `_data_source_id` filter works: a `theory` query returns only
+  theory passages, a `journal` query returns none.
+- Smart Parsing turns a figure into a passage of the form
+  `<analysis> <image_type> ... <description> ...`. Such a passage can
+  outrank the sentence a question expects (q17).
 
 ## IAM actions
 
@@ -622,14 +634,50 @@ tests with a stubbed Bedrock client.
   The first deploy that night rolled back on the chunking strategy.
 - 18 November 2026: the second deploy, with no ingestion settings,
   created the knowledge base and its three data sources.
+- 18 November 2026, 12:12: the first sync started. It completed at
+  02:10 on 19 November. `theory/` scanned 131 and indexed 127. Three
+  books failed on "Document with 501 images exceeded images/document
+  limit of 500". A fourth failed at 12:27 on 19 November with an
+  internal error, after the job had closed. `RawDataSize` read 0.8607,
+  which is 924,133,605 bytes in binary gigabytes, so the 2.0 alarm and
+  the 2,147,483,648-byte cap agree.
+- 19 November 2026: the four books were split on chapter boundaries
+  into 36 parts and the originals moved to `held/`. The second sync ran
+  from 22:31 to 23:03: 163 scanned, 36 indexed, 4 deleted, 0 failed.
+- 19 November 2026: the first `kb_eval` scored 0 of 20 because the
+  location URI was not decoded. After pull request 52 it scored 17 of
+  20 at 8 and 16 of 20 at 3.
+
+## Formula hand check
+
+Run on 19 November 2026 (Hong Kong) against the 20 questions, reading
+the passages from each question's expected book and page.
+
+| Result | Questions |
+| --- | --- |
+| Definition in words, readable | q01, q02, q03, q04, q05, q06, q07, q09, q12, q16, q19 |
+| Short formula, readable | q04 (`EBIT/Interest expense`), q09 (`√t = √12`) |
+| Fraction flattened, readable with care | q01, q02, q10 (`µ-r`, the `σ` below the line lost) |
+| Formula garbled | q13 (`IR = IC + VBR` for `IR = IC · √BR`), q14, q20 (`Xe⁻rT⁻ₜ)`) |
+| Formula missing from the passage | q11, q15, q18, q20 (`d₁`, `d₂`) |
+| Passage not retrieved | q08, q17 |
+
+The PDF text layer holds the missing formulas. For q15, q18 and q20,
+`pdftotext` on the same page gives the drawdown, `h(x)` and `d₁`, `d₂`
+in linear form. The managed parser drops display equations. In Grinold
+and Kahn (q13, q14) the equations are images, and the parser reads them
+wrongly.
+
+Definitions in words can be cited. Symbolic formulas cannot be cited
+from the knowledge base as it is parsed today.
 
 ## Open questions
 
-- Which chunking and parsing did the service apply? The documented
-  defaults are 300 tokens with 20% overlap and Smart Parsing.
-  `GetDataSource` on each data source answers it.
-- Does `Retrieve` return a page number, and does the `_data_source_id`
-  filter work? The first `Retrieve` in T05 answers both.
+- Which chunking and parsing did the service apply? `GetDataSource`
+  returns no `vectorIngestionConfiguration`, so the documented
+  defaults apply: 300 tokens with 20% overlap and Smart Parsing.
 - Is the default deletion protection status enabled? T02 sets it
   explicitly, so the answer does not block.
-- Are formulas readable after parsing? T05's hand check answers it.
+- How should symbolic formulas reach the knowledge base? The owner
+  decides between formula notes (the plan's fallback) and other
+  options before T06.
