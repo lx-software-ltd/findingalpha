@@ -1,52 +1,65 @@
-# Plan: Public www logo site and shared favicon
+# Plan: Public www logo site, login branding, and hosting
 
 **Status**: Active
-**Zone**: green (`apps/public_www/**`, `apps/admin_web/public/**`,
-`apps/admin_web/index.html`, docs, CI lockfile/lint/test wiring).
-Hosting and deploy workflows stay red and are out of scope.
+**Zone**: yellow for admin login (`apps/admin_web/src/**`); red for
+hosting (`backend/infrastructure/**`, `scripts/deploy/**`,
+`.github/workflows/deploy-*.yml`). Owner asked in chat to add CF/S3
+hosting and the deploy script in this pull request.
 
 ## Goal
 
-Add a public site at `apps/public_www` that shows only the Finding Alpha
-logo centred on a dark page, matching the sibling `apps/public_www`
-layout convention. Generate `favicon.ico` from the brand icon and serve
-it from both the public site and the admin console.
+1. Public site at `apps/public_www` with only the Finding Alpha logo
+   centred, plus a shared `favicon.ico` for public and admin.
+2. Admin login page: dark background matching the public site, brand
+   icon on top, no “findingalpha” copy, Google sign-in button shows
+   only the Google logo.
+3. CDK stack `findingalpha-public-www` (S3 + CloudFront), deploy script,
+   and GitHub Actions workflow to publish `apps/public_www/dist`.
 
 ## Non-goals
 
-- CloudFront / S3 / certificate / DNS for `www.<domain>` (red:
-  `backend/infrastructure/**`, `.github/workflows/deploy-*.yml`).
-- Marketing copy, contact forms, analytics, or extra routes.
+- Marketing copy, analytics, or extra public routes.
+- Changing authenticated admin chrome (still light Bootstrap).
+- Creating DNS records (owner checklist; stop and ask before DNS).
 
 ## Files
 
-- `apps/public_www/**` — Vite React app, logo page, favicons, tests
-- `apps/admin_web/public/favicon.ico` (+ svg/png/apple-touch)
-- `apps/admin_web/index.html` — link the new favicon set
-- `AGENTS.md`, `docs/plans/reference.md`, `docs/architecture/zones.md`
-- `.github/workflows/{check-lockfiles,lint,test}.yml`, dependabot,
-  `.cursor/install.sh`, `.cursor/skills/cursor-cloud/SKILL.md`
+- `apps/public_www/**`
+- `apps/admin_web/src/pages/LoginPage.tsx`, `LoginPage.test.tsx`,
+  `src/styles/shell.css`, `public/icon.png`, favicons, `index.html`
+- `backend/infrastructure/lib/findingalpha-public-www-stack.ts`
+- `backend/infrastructure/test/findingalpha-public-www-stack.test.ts`
+- `backend/infrastructure/bin/app.ts`
+- `scripts/deploy/deploy-public-website.sh`, `cdk-params.sh`
+- `.github/workflows/deploy-public-website.yml`, `deploy-backend.yml`,
+  `cdk-diff.yml`
+- Docs: this plan, `reference.md`, `owner-checklist.md`,
+  `docs/deployment/*`, `zones.md`, `AGENTS.md`
 
 ## Invariants this change preserves
 
-- No secrets or personal data in git.
-- No CDK or deploy-script changes.
-- Admin console behaviour and routes unchanged aside from favicon links.
+- No secrets or personal data (including the live domain) in git.
+- Public and admin origin buckets stay private, TLS-only, RETAIN.
+- Paper-only / money paths untouched.
+- Deploy still goes through GitHub Actions; agents do not run
+  `cdk deploy` or `scripts/deploy/`.
 
 ## Done when
 
-- `npm run lint`, `npm test`, and `npm run build` pass in
-  `apps/public_www`.
-- `npm run build` still passes in `apps/admin_web`.
-- Browser check: public page shows only the centred logo; both apps
-  serve `favicon.ico`.
+- `npm run lint`, `npm test`, `npm run build` in `apps/public_www` and
+  `apps/admin_web`.
+- `npm run build && npm test` in `backend/infrastructure`.
+- Browser: dark login with icon + Google-only button; public logo page.
+- Stack test asserts private buckets, HTTPS redirect, and outputs.
 
 ## Rollback
 
-Revert the pull request. No deployed public stack exists yet.
+Revert the pull request. If the public stack was already deployed,
+leave the stack in place and stop the deploy workflow; do not
+`cdk destroy` from an agent.
 
 ## Open questions
 
-- Approve a follow-up red-zone change for a
-  `findingalpha-public-www` stack and deploy workflow, copied from
-  `lx-software`.
+- Owner must set GitHub vars `PUBLIC_WWW_DOMAIN_NAME` and
+  `PUBLIC_WWW_CERTIFICATE_ARN`, then approve a Cloudflare DNS CNAME
+  for the public hostname after the first stack deploy.
