@@ -1,6 +1,6 @@
 import { ROADMAP } from "../lib/contracts/generated";
 import { useOwnerTasks, useSetOwnerTask } from "../hooks/useOwnerTasks";
-import { AdminKpi } from "../components/ui";
+import { AdminKpi, AdminPageHeader } from "../components/ui";
 import {
   blockingOwnerTasks,
   currentMilestone,
@@ -31,11 +31,11 @@ function MilestoneCard({
   const progress = milestoneProgress(milestone);
   const blockers = blockingOwnerTasks(milestone, roadmap, doneIds);
   return (
-    <article className="card mb-3">
+    <article className="card shadow-sm mb-3">
       <div className="card-body">
         <div className="d-flex flex-wrap gap-2 align-items-center">
-          <strong>{milestone.id}</strong>
-          <span>{milestone.title}</span>
+          <span className="badge text-bg-light border">{milestone.id}</span>
+          <h3 className="admin-card-title mb-0">{milestone.title}</h3>
           <span className={`badge ${STATUS_CLASS[milestone.status] ?? "text-bg-secondary"}`}>{milestone.status}</span>
           <span className="badge text-bg-light border">{milestone.zone}</span>
         </div>
@@ -47,7 +47,7 @@ function MilestoneCard({
         {(milestone.pullRequests ?? []).map((url) => (
           <a key={url} href={url} className="ms-2">Pull request</a>
         ))}
-        <details className="mt-2">
+        <details className="admin-disclosure mt-2">
           <summary>Steps</summary>
           <ul className="list-unstyled mb-0">
             {milestone.steps.map((step) => (
@@ -77,36 +77,42 @@ export function RoadmapPage() {
 
   return (
     <div>
-      <div className="d-flex gap-2 mb-3" aria-label="Phase">
-        {["Build", "Paper trading", "Gate", "Real money"].map((label) => (
-          <span key={label} className={`badge ${label === "Build" ? "text-bg-primary" : "text-bg-light border"}`}>{label}</span>
-        ))}
+      <AdminPageHeader eyebrow="Finding Alpha" title="Roadmap">
+        <div className="d-flex flex-wrap gap-2" aria-label="Phase">
+          {["Build", "Paper trading", "Gate", "Real money"].map((label) => (
+            <span key={label} className={`badge ${label === "Build" ? "text-bg-primary" : "text-bg-light border"}`}>{label}</span>
+          ))}
+        </div>
+      </AdminPageHeader>
+      <div className="admin-kpi-row">
+        <AdminKpi label="Steps" value={`${progress.done} / ${progress.total}`} hint={`${progress.percent}%`} />
+        <AdminKpi label="Milestones" value={`${milestonesDone} / ${roadmap.milestones.length}`} />
+        <AdminKpi label="Current" value={current ? `${current.id} ${current.title}` : "—"} />
+        <AdminKpi label="Open owner tasks" value={String(openTasks.length)} />
       </div>
-      <div className="row g-2 mb-3">
-        <div className="col-6 col-lg-3"><AdminKpi label="Steps" value={`${progress.done} / ${progress.total}`} hint={`${progress.percent}%`} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Milestones" value={`${milestonesDone} / ${roadmap.milestones.length}`} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Current" value={current ? `${current.id} ${current.title}` : "—"} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Open owner tasks" value={String(openTasks.length)} /></div>
-      </div>
-      <h2 className="h5">Owner tasks</h2>
-      <ul className="list-unstyled">
-        {ordered.map((task) => (
-          <li key={task.id} className={currentBlockers.has(task.id) ? "text-warning-emphasis" : undefined}>
-            <label className="d-flex gap-2">
-              <input
-                type="checkbox"
-                checked={doneIds.has(task.id)}
-                aria-label={task.id}
-                onChange={(event) => setTask.mutate({ id: task.id, done: event.target.checked })}
-              />
-              <span>{task.id}</span>
-              <span>{task.title}</span>
-              {task.blocks.map((id) => <span key={id} className="badge text-bg-light border">{id}</span>)}
-            </label>
-          </li>
-        ))}
-      </ul>
-      <h2 className="h5">Milestones</h2>
+      <section className="card shadow-sm mb-4">
+        <div className="card-body">
+          <h2 className="admin-card-title">Owner tasks</h2>
+          <ul className="list-unstyled mb-0">
+            {ordered.map((task) => (
+              <li key={task.id} className={currentBlockers.has(task.id) ? "text-warning-emphasis" : undefined}>
+                <label className="d-flex flex-wrap gap-2 align-items-baseline">
+                  <input
+                    type="checkbox"
+                    checked={doneIds.has(task.id)}
+                    aria-label={task.id}
+                    onChange={(event) => setTask.mutate({ id: task.id, done: event.target.checked })}
+                  />
+                  <span>{task.id}</span>
+                  <span>{task.title}</span>
+                  {task.blocks.map((id) => <span key={id} className="badge text-bg-light border">{id}</span>)}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+      <h2 className="admin-card-title">Milestones</h2>
       {roadmap.milestones.map((milestone) => (
         <MilestoneCard key={milestone.id} milestone={milestone} doneIds={doneIds} />
       ))}

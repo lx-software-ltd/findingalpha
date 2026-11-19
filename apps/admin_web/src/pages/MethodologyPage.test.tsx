@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MethodologyPage } from "./MethodologyPage";
 
@@ -57,9 +57,13 @@ describe("MethodologyPage", () => {
   it("shows the provisional register", async () => {
     renderPage();
     expect(await screen.findByText("Return on invested capital")).toBeInTheDocument();
-    expect(screen.getByText("NOPAT_ttm / average(investedCapital)")).toBeInTheDocument();
-    expect(screen.getByText("abc123abc123abcd")).toBeInTheDocument();
+    expect(screen.getAllByText("NOPAT_ttm / average(investedCapital)").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Register hash abc123abc123abcd/)).toHaveClass("small");
+    expect(screen.queryByText("Register hash", { selector: ".admin-kpi-label" })).toBeNull();
     expect(screen.getAllByText("provisional").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Return on invested capital" }));
+    expect(document.querySelector(".admin-expand.is-open")).toHaveTextContent("maxTaxRate 0.35");
+    expect(document.querySelector(".admin-expand.is-open")).toHaveTextContent("higher");
     expect(screen.getByText(/quality 0.4/)).toBeInTheDocument();
     expect(screen.getByText("netDebtToEbitda <= 4")).toBeInTheDocument();
   });

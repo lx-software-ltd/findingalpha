@@ -66,9 +66,12 @@ describe("SystemPage", () => {
   it("shows the universe and confirms a run", async () => {
     const user = userEvent.setup();
     renderPage();
-    expect(await screen.findAllByText("partial · 9 of 131")).toHaveLength(2);
-    expect(await screen.findByText(/Universe 2024-06-03, 4 names/)).toBeTruthy();
-    expect(screen.getByText(/2 of 8/)).toBeTruthy();
+    expect(await screen.findAllByRole("cell", { name: /partial · 9 of 131/ })).toHaveLength(2);
+    expect(screen.getByText(/0 6 · partial · 9 of 131/)).toBeInTheDocument();
+    expect(await screen.findByText("4 names")).toBeTruthy();
+    expect(screen.getAllByText("2024-06-03").length).toBeGreaterThan(0);
+    expect(screen.getByText("paper")).toBeTruthy();
+    expect(screen.getByText("Price backfill").parentElement).toHaveTextContent("2 of 8");
     expect(screen.getByText("revenue")).toBeTruthy();
     expect(screen.getByText("50%")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Run now" }));
@@ -171,7 +174,8 @@ describe("SystemPage", () => {
       return Promise.resolve({});
     });
     renderPage();
-    expect(await screen.findByText(/Universe —, 0 names/)).toBeTruthy();
-    expect(screen.getByText(/Price backfill —/)).toBeTruthy();
+    expect(await screen.findByText("0 names")).toBeTruthy();
+    expect(screen.getByText("Universe").parentElement).toHaveTextContent("No as-of date");
+    expect(screen.getByText("Price backfill").parentElement).toHaveTextContent("—");
   });
 });

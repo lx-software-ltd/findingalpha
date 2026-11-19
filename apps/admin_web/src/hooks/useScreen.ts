@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { adminFetchJson } from "../lib/apiAdminClient";
 import { queryKeys } from "../lib/queryKeys";
 
@@ -87,5 +87,6 @@ export function useBacktest(runId: string) {
     queryKey: queryKeys.backtest(runId),
     queryFn: () => adminFetchJson<BacktestDetail>(`/backtests/${runId}`),
     enabled: runId.length > 0,
+    placeholderData: keepPreviousData,
   });
 }

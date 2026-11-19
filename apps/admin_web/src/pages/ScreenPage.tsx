@@ -1,5 +1,22 @@
 import { useMemo, useState } from "react";
-import { AdminKpi, AdminTabList, LineChart } from "../components/ui";
+import {
+  AdminCell,
+  AdminDataTable,
+  AdminDataTableCellMeta,
+  AdminDataTableEmptyRow,
+  AdminEditorSection,
+  AdminExpandableRow,
+  AdminExpandButton,
+  AdminFilterBar,
+  AdminFilterField,
+  AdminKpi,
+  AdminPageHeader,
+  AdminRecordTable,
+  AdminTabList,
+  LineChart,
+  TableSortHeaderButton,
+  type AdminDataTableColumn,
+} from "../components/ui";
 import {
   useBacktest,
   useBacktests,
@@ -8,6 +25,8 @@ import {
   type ScreenRow,
   type SeriesMetrics,
 } from "../hooks/useScreen";
+import { adminTabButtonId } from "../lib/adminTabs";
+import { markRecordGroup } from "../lib/recordGroup";
 
 const BIASES = [
   "Adjusted prices include every name that passed the price and dollar-volume floors in any month since February 2017 and still has a CIK. A delisted name with no current CIK has no prices and cannot be ranked. A name never stored in a universe file uses today's CIK and the SIC cached from SEC submissions; a missing SIC excludes it. A reused ticker with no universe row is left out. When monthly stats are missing, only today's members are priced and the weekly result says so.",
@@ -23,21 +42,42 @@ const BIASES = [
 
 type Tab = "shortlist" | "backtest";
 type SortKey = "rank" | "symbol" | "composite";
+type SortDir = "asc" | "desc";
+
+const SORT_OPTIONS: readonly { value: `${SortKey}:${SortDir}`; label: string }[] = [
+  { value: "rank:asc", label: "Rank, low to high" },
+  { value: "rank:desc", label: "Rank, high to low" },
+  { value: "symbol:asc", label: "Symbol, A to Z" },
+  { value: "symbol:desc", label: "Symbol, Z to A" },
+  { value: "composite:desc", label: "Composite, high to low" },
+  { value: "composite:asc", label: "Composite, low to high" },
+];
+
+const SCREEN_TABS = [
+  { id: "shortlist" as const, label: "Shortlist" },
+  { id: "backtest" as const, label: "Backtest" },
+];
 
 export function ScreenPage() {
   const [tab, setTab] = useState<Tab>("shortlist");
   return (
     <div>
-      <h2 className="h5">Screen</h2>
+      <AdminPageHeader eyebrow="Finding Alpha" title="Screen" />
       <AdminTabList
-        tabs={[
-          { id: "shortlist", label: "Shortlist" },
-          { id: "backtest", label: "Backtest" },
-        ]}
-        value={tab}
+        tabs={SCREEN_TABS}
+        active={tab}
         onChange={setTab}
+        label="Screen sections"
+        idPrefix="screen"
+        panelId="screen-panel"
       />
-      {tab === "shortlist" ? <Shortlist /> : <BacktestPanel />}
+      <div
+        id="screen-panel"
+        role="tabpanel"
+        aria-labelledby={adminTabButtonId("screen", tab)}
+      >
+        {tab === "shortlist" ? <Shortlist /> : <BacktestPanel />}
+      </div>
     </div>
   );
 }
@@ -46,106 +86,203 @@ function Shortlist() {
   const [date, setDate] = useState("");
   const [requested, setRequested] = useState("");
   const [sort, setSort] = useState<SortKey>("rank");
+  const [direction, setDirection] = useState<SortDir>("asc");
   const [open, setOpen] = useState("");
   const screen = useScreen(requested);
-  const rows = useMemo(() => sortRows(screen.data?.rows ?? [], sort), [screen.data, sort]);
+  const rows = useMemo(
+    () => sortRows(screen.data?.rows ?? [], sort, direction),
+    [screen.data, sort, direction],
+  );
   const factorNames = Object.keys(rows[0]?.factors ?? {});
+
+  function chooseSort(key: SortKey) {
+    if (sort === key) {
+      setDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSort(key);
+    setDirection(key === "composite" ? "desc" : "asc");
+  }
+
+  function chooseSortValue(value: string) {
+    const [key, dir] = value.split(":");
+    if (key !== "rank" && key !== "symbol" && key !== "composite") return;
+    if (dir !== "asc" && dir !== "desc") return;
+    setSort(key);
+    setDirection(dir);
+  }
+
+  const columns = shortlistColumns(factorNames, sort, direction, chooseSort);
 
   return (
     <div>
-      <form
-        className="row g-2 align-items-end mb-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setRequested(date);
-        }}
+      {screen.isError ? <div className="alert alert-danger" role="alert">{screenMessage(screen.error)}</div> : null}
+      <div className="admin-kpi-row">
+        <AdminKpi label="Date" value={screen.data?.asOf ?? "—"} />
+        <AdminKpi label="Universe" value={screen.data?.counts.universe ?? "—"} />
+        <AdminKpi label="Passed" value={screen.data?.counts.passed ?? "—"} />
+        <AdminKpi label="Shortlisted" value={screen.data?.counts.shortlisted ?? "—"} />
+      </div>
+      <AdminRecordTable
+        label="Shortlist"
+        beforeTable={
+          <p className="small text-muted font-monospace mb-0">Register hash {screen.data?.registerHash ?? "—"}</p>
+        }
+        filters={
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              setRequested(date);
+            }}
+          >
+            <AdminFilterBar
+              create={
+                <button className="btn btn-outline-secondary btn-sm admin-create-btn" type="submit">
+                  Load date
+                </button>
+              }
+            >
+              <AdminFilterField label="Date" htmlFor="screen-date" className="admin-filter-field-compact">
+                <input
+                  id="screen-date"
+                  className="form-control form-control-sm"
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                />
+              </AdminFilterField>
+              <AdminFilterField label="Sort" htmlFor="screen-sort" className="d-md-none admin-filter-field-full">
+                <select
+                  id="screen-sort"
+                  className="form-select form-select-sm"
+                  value={`${sort}:${direction}`}
+                  onChange={(event) => chooseSortValue(event.target.value)}
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </AdminFilterField>
+            </AdminFilterBar>
+          </form>
+        }
       >
-        <div className="col-auto">
-          <label className="form-label" htmlFor="screen-date">Date</label>
-          <input id="screen-date" className="form-control" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-        </div>
-        <div className="col-auto">
-          <button className="btn btn-outline-secondary" type="submit">Load date</button>
-        </div>
-      </form>
-      {screen.isError ? <p>{screenMessage(screen.error)}</p> : null}
-      <div className="row g-3 mb-3">
-        <div className="col-6 col-lg-3"><AdminKpi label="Date" value={screen.data?.asOf ?? "—"} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Universe" value={screen.data?.counts.universe ?? "—"} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Passed" value={screen.data?.counts.passed ?? "—"} /></div>
-        <div className="col-6 col-lg-3"><AdminKpi label="Shortlisted" value={screen.data?.counts.shortlisted ?? "—"} /></div>
-      </div>
-      <p className="text-break">Register hash {screen.data?.registerHash ?? "—"}</p>
-      <div className="table-responsive">
-        <table className="table align-middle">
-          <thead>
-            <tr>
-              <SortHeader label="Rank" active={sort === "rank"} direction="ascending" onClick={() => setSort("rank")} />
-              <SortHeader label="Symbol" active={sort === "symbol"} direction="ascending" onClick={() => setSort("symbol")} />
-              <th>Name</th>
-              <th>Sector</th>
-              <SortHeader label="Composite" active={sort === "composite"} direction="descending" onClick={() => setSort("composite")} />
-              <th>Quality</th>
-              <th>Value</th>
-              <th>Trend</th>
-              {factorNames.map((name) => (
-                <th key={name}>{name}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <Row key={row.symbol} row={row} factorNames={factorNames} open={open === row.symbol} onToggle={() => setOpen(open === row.symbol ? "" : row.symbol)} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <AdminDataTable bare columns={columns}>
+          {screen.isSuccess && rows.length === 0 ? (
+            <AdminDataTableEmptyRow colSpan={columns.length} message="No names on this date." />
+          ) : (
+            rows.map((row) => (
+              <Row
+                key={row.symbol}
+                row={row}
+                factorNames={factorNames}
+                colSpan={columns.length}
+                open={open === row.symbol}
+                onToggle={() => setOpen(open === row.symbol ? "" : row.symbol)}
+              />
+            ))
+          )}
+        </AdminDataTable>
+      </AdminRecordTable>
     </div>
   );
+}
+
+function shortlistColumns(
+  factorNames: readonly string[],
+  sort: SortKey,
+  direction: SortDir,
+  chooseSort: (key: SortKey) => void,
+): AdminDataTableColumn[] {
+  const sortHeader = (key: SortKey, label: string): AdminDataTableColumn => ({
+    key,
+    header: (
+      <TableSortHeaderButton
+        label={label}
+        isActive={sort === key}
+        direction={sort === key ? direction : null}
+        onClick={() => chooseSort(key)}
+        align={key === "rank" || key === "composite" ? "end" : "start"}
+      />
+    ),
+    thAriaSort: sort === key ? (direction === "asc" ? "ascending" : "descending") : "none",
+    className: key === "symbol" ? undefined : "text-end",
+    priority: key === "symbol" ? "primary" : "secondary",
+  });
+  return [
+    sortHeader("rank", "Rank"),
+    sortHeader("symbol", "Symbol"),
+    { key: "name", header: "Name", priority: "secondary" },
+    { key: "sector", header: "Sector", priority: "tertiary" },
+    sortHeader("composite", "Composite"),
+    { key: "quality", header: "Quality", className: "text-end", priority: "secondary" },
+    { key: "value", header: "Value", className: "text-end", priority: "tertiary" },
+    { key: "trend", header: "Trend", className: "text-end", priority: "tertiary" },
+    ...factorNames.map((name) => ({
+      key: name,
+      header: name,
+      className: "text-end",
+      priority: "tertiary" as const,
+    })),
+  ];
 }
 
 function Row({
   row,
   factorNames,
+  colSpan,
   open,
   onToggle,
 }: {
   readonly row: ScreenRow;
   readonly factorNames: readonly string[];
+  readonly colSpan: number;
   readonly open: boolean;
   readonly onToggle: () => void;
 }) {
   return (
-    <>
-      <tr>
-        <td>{row.rank}</td>
-        <td>
-          <button type="button" className="btn btn-link p-0" onClick={onToggle}>{row.symbol}</button>
-        </td>
-        <td>{row.name}</td>
-        <td>{row.sector}</td>
-        <td>{figure(row.composite)}</td>
-        <td>{figure(row.groups.quality)}</td>
-        <td>{figure(row.groups.value)}</td>
-        <td>{figure(row.groups.trend)}</td>
-        {factorNames.map((name) => (
-          <td key={name}>{figure(row.factors[name])}</td>
-        ))}
-      </tr>
-      {open ? (
-        <tr>
-          <td colSpan={8 + factorNames.length}>
-            <div className="row">
-              {factorNames.map((name) => (
-                <div className="col-6 col-md-4" key={name}>
-                  {name}: {figure(row.factors[name])} (z {figure(row.z[name])})
-                </div>
-              ))}
-            </div>
-          </td>
-        </tr>
-      ) : null}
-    </>
+    <AdminExpandableRow colSpan={colSpan} expanded={open} onToggle={onToggle} editor={<FactorDetail row={row} factorNames={factorNames} />}>
+      <AdminCell column="rank" className="text-end">{row.rank}</AdminCell>
+      <AdminCell column="symbol">
+        <AdminExpandButton>{row.symbol}</AdminExpandButton>
+        <AdminDataTableCellMeta>
+          Rank {row.rank} · {row.name} · {figure(row.composite)}
+        </AdminDataTableCellMeta>
+      </AdminCell>
+      <AdminCell column="name">{row.name}</AdminCell>
+      <AdminCell column="sector">{row.sector}</AdminCell>
+      <AdminCell column="composite" className="text-end">{figure(row.composite)}</AdminCell>
+      <AdminCell column="quality" className="text-end">{figure(row.groups.quality)}</AdminCell>
+      <AdminCell column="value" className="text-end">{figure(row.groups.value)}</AdminCell>
+      <AdminCell column="trend" className="text-end">{figure(row.groups.trend)}</AdminCell>
+      {factorNames.map((name) => (
+        <AdminCell column={name} className="text-end" key={name}>{figure(row.factors[name])}</AdminCell>
+      ))}
+    </AdminExpandableRow>
+  );
+}
+
+markRecordGroup(Row);
+
+function FactorDetail({
+  row,
+  factorNames,
+}: {
+  readonly row: ScreenRow;
+  readonly factorNames: readonly string[];
+}) {
+  return (
+    <div className="row g-2">
+      <div className="col-6 col-md-4">Sector: {row.sector}</div>
+      <div className="col-6 col-md-4">Quality: {figure(row.groups.quality)}</div>
+      <div className="col-6 col-md-4">Value: {figure(row.groups.value)}</div>
+      <div className="col-6 col-md-4">Trend: {figure(row.groups.trend)}</div>
+      {factorNames.map((name) => (
+        <div className="col-6 col-md-4" key={name}>
+          {name}: {figure(row.factors[name])} (z {figure(row.z[name])})
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -158,59 +295,97 @@ function BacktestPanel() {
   const data = detail.data;
   const series = data
     ? [
-        curve("Strategy", "#0d6efd", data.labels, data.curves.strategy),
-        curve("SPY net", "#6c757d", data.labels, data.curves.spyNet),
-        curve("SPY gross", "#198754", data.labels, data.curves.spyGross),
+        curve("Strategy", "#0f766e", data.labels, data.curves.strategy),
+        curve("SPY net", "#5c6570", data.labels, data.curves.spyNet),
+        curve("SPY gross", "#067647", data.labels, data.curves.spyGross),
       ]
     : [];
+  const metricColumns: AdminDataTableColumn[] = [
+    { key: "period", header: "Period" },
+    { key: "series", header: "Series", priority: "secondary" },
+    { key: "cagr", header: "CAGR", className: "text-end", priority: "secondary" },
+    { key: "volatility", header: "Volatility", className: "text-end", priority: "tertiary" },
+    { key: "sharpe", header: "Sharpe", className: "text-end", priority: "tertiary" },
+    { key: "drawdown", header: "Max drawdown", className: "text-end", priority: "tertiary" },
+  ];
   return (
     <div>
       {runs.length === 0 ? <p>No backtest is stored. The live runs wait until prices and fundamentals are in.</p> : null}
       {runs.length > 0 ? (
-        <label className="form-label">
-          Run
-          <select className="form-select" value={runId} onChange={(event) => setChosen(event.target.value)}>
+        <div className="admin-filter-field mb-3">
+          <label className="form-label small mb-1" htmlFor="backtest-run">Run</label>
+          <select
+            id="backtest-run"
+            className="form-select form-select-sm"
+            value={runId}
+            onChange={(event) => setChosen(event.target.value)}
+          >
             {runs.map((run) => (
               <option key={run.runId} value={run.runId}>{run.runId} · {run.portfolioSize} names</option>
             ))}
           </select>
-        </label>
+        </div>
       ) : null}
+      {detail.isError ? <div className="alert alert-danger" role="alert">The backtest could not be loaded.</div> : null}
       {data ? (
         <>
-          <LineChart series={series} title="Backtest equity curves" formatY={(value) => value.toFixed(0)} />
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr><th>Period</th><th>Series</th><th>CAGR</th><th>Volatility</th><th>Sharpe</th><th>Max drawdown</th></tr>
-              </thead>
-              <tbody>
-                <PeriodRows name="Full" metrics={data.metrics.full} />
-                <PeriodRows name="2017–2021" metrics={data.metrics.early} />
-                <PeriodRows name="2022 to today" metrics={data.metrics.holdout} />
-              </tbody>
-            </table>
+          <div className="card shadow-sm mb-4">
+            <div className="card-body">
+              <h2 className="admin-card-title">Equity curves</h2>
+              <LineChart series={series} title="Backtest equity curves" formatY={(value) => value.toFixed(0)} />
+            </div>
           </div>
-          <p>
-            Hit rate {percent(data.metrics.hitRate)}. Average turnover {percent(data.metrics.averageTurnover)}.
-            Yearly cost drag {percent(data.metrics.costDrag)}. Worst 12 months {percent(data.metrics.worstWindow?.return)}
-            {" "}({data.metrics.worstWindow?.start ?? "—"} to {data.metrics.worstWindow?.end ?? "—"}).
-            Longest stretch behind SPY net {data.metrics.longestBehind?.months ?? "—"} months
-            {" "}({data.metrics.longestBehind?.start ?? "—"} to {data.metrics.longestBehind?.end ?? "—"}).
-            Names carried at a last price {data.lastPriceCount ?? "—"}.
-            Names without a trade price {data.unpricedCount ?? "—"}.
-            Months missing a benchmark {data.missingBenchmarkCount ?? "—"}.
-          </p>
-          <h3 className="h6">Yearly returns</h3>
-          <ul>
-            {(data.metrics.yearly ?? []).map((year) => (
-              <li key={year.year}>{year.year}: strategy {percent(year.strategy)}, SPY net {percent(year.benchmark)}</li>
-            ))}
-          </ul>
+          <h2 className="admin-card-title">Period metrics</h2>
+          <AdminRecordTable label="Period metrics">
+            <AdminDataTable bare columns={metricColumns}>
+              <PeriodRows name="Full" metrics={data.metrics.full} />
+              <PeriodRows name="2017–2021" metrics={data.metrics.early} />
+              <PeriodRows name="2022 to today" metrics={data.metrics.holdout} />
+            </AdminDataTable>
+          </AdminRecordTable>
+          <AdminEditorSection title="Results">
+            <dl className="row mb-0">
+              <Stat label="Hit rate" value={percent(data.metrics.hitRate)} />
+              <Stat label="Average turnover" value={percent(data.metrics.averageTurnover)} />
+              <Stat label="Yearly cost drag" value={percent(data.metrics.costDrag)} />
+              <Stat
+                label="Worst 12 months"
+                value={`${percent(data.metrics.worstWindow?.return)} (${data.metrics.worstWindow?.start ?? "—"} to ${data.metrics.worstWindow?.end ?? "—"})`}
+              />
+              <Stat
+                label="Longest stretch behind SPY net"
+                value={`${data.metrics.longestBehind?.months ?? "—"} months (${data.metrics.longestBehind?.start ?? "—"} to ${data.metrics.longestBehind?.end ?? "—"})`}
+              />
+              <Stat label="Names carried at a last price" value={String(data.lastPriceCount ?? "—")} />
+              <Stat label="Names without a trade price" value={String(data.unpricedCount ?? "—")} />
+              <Stat label="Months missing a benchmark" value={String(data.missingBenchmarkCount ?? "—")} />
+            </dl>
+          </AdminEditorSection>
+          <h2 className="admin-card-title">Yearly returns</h2>
+          <AdminRecordTable label="Yearly returns">
+            <AdminDataTable
+              bare
+              tableClassName="admin-table-keep-cols"
+              columns={[
+                { key: "year", header: "Year" },
+                { key: "strategy", header: "Strategy", className: "text-end" },
+                { key: "benchmark", header: "SPY net", className: "text-end" },
+              ]}
+            >
+              {(data.metrics.yearly ?? []).map((year) => (
+                <tr key={year.year}>
+                  <AdminCell column="year">{year.year}</AdminCell>
+                  <AdminCell column="strategy" className="text-end">{percent(year.strategy)}</AdminCell>
+                  <AdminCell column="benchmark" className="text-end">{percent(year.benchmark)}</AdminCell>
+                </tr>
+              ))}
+            </AdminDataTable>
+          </AdminRecordTable>
         </>
       ) : null}
-      <h3 className="h6">Known biases</h3>
-      <ul>{BIASES.map((note) => <li key={note}>{note}</li>)}</ul>
+      <AdminEditorSection title="Known biases">
+        <ul className="mb-0">{BIASES.map((note) => <li key={note}>{note}</li>)}</ul>
+      </AdminEditorSection>
     </div>
   );
 }
@@ -218,49 +393,47 @@ function BacktestPanel() {
 function PeriodRows({ name, metrics }: { readonly name: string; readonly metrics: PeriodMetrics | undefined }) {
   return (
     <>
-      <MetricRow label={name} series="Strategy" metrics={metrics} />
-      {metrics?.benchmarks?.spyNet ? <MetricRow label="" series="SPY net" metrics={metrics.benchmarks.spyNet} /> : null}
-      {metrics?.benchmarks?.spyGross ? <MetricRow label="" series="SPY gross" metrics={metrics.benchmarks.spyGross} /> : null}
+      <MetricRow period={name} label={name} series="Strategy" metrics={metrics} />
+      {metrics?.benchmarks?.spyNet ? <MetricRow period={name} label="" series="SPY net" metrics={metrics.benchmarks.spyNet} /> : null}
+      {metrics?.benchmarks?.spyGross ? <MetricRow period={name} label="" series="SPY gross" metrics={metrics.benchmarks.spyGross} /> : null}
+    </>
+  );
+}
+
+function Stat({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <>
+      <dt className="col-sm-5 col-lg-4">{label}</dt>
+      <dd className="col-sm-7 col-lg-8">{value}</dd>
     </>
   );
 }
 
 function MetricRow({
+  period,
   label,
   series,
   metrics,
 }: {
+  readonly period: string;
   readonly label: string;
   readonly series: string;
   readonly metrics: SeriesMetrics | undefined;
 }) {
   return (
     <tr>
-      <td>{label}</td>
-      <td>{series}</td>
-      <td>{percent(metrics?.cagr)}</td>
-      <td>{percent(metrics?.volatility)}</td>
-      <td>{figure(metrics?.sharpe)}</td>
-      <td>{percent(metrics?.maxDrawdown?.drawdown)}</td>
+      <AdminCell column="period">
+        {label}
+        <AdminDataTableCellMeta>
+          {period} · {series} · CAGR {percent(metrics?.cagr)} · Volatility {percent(metrics?.volatility)} · Sharpe {figure(metrics?.sharpe)} · Max drawdown {percent(metrics?.maxDrawdown?.drawdown)}
+        </AdminDataTableCellMeta>
+      </AdminCell>
+      <AdminCell column="series">{series}</AdminCell>
+      <AdminCell column="cagr" className="text-end">{percent(metrics?.cagr)}</AdminCell>
+      <AdminCell column="volatility" className="text-end">{percent(metrics?.volatility)}</AdminCell>
+      <AdminCell column="sharpe" className="text-end">{figure(metrics?.sharpe)}</AdminCell>
+      <AdminCell column="drawdown" className="text-end">{percent(metrics?.maxDrawdown?.drawdown)}</AdminCell>
     </tr>
-  );
-}
-
-function SortHeader({
-  label,
-  active,
-  direction,
-  onClick,
-}: {
-  readonly label: string;
-  readonly active: boolean;
-  readonly direction: "ascending" | "descending";
-  readonly onClick: () => void;
-}) {
-  return (
-    <th aria-sort={active ? direction : "none"}>
-      <button type="button" className="btn btn-link p-0" onClick={onClick}>{label}</button>
-    </th>
   );
 }
 
@@ -270,12 +443,31 @@ function screenMessage(error: unknown): string {
   return "The screen could not be loaded.";
 }
 
-function sortRows(rows: readonly ScreenRow[], sort: SortKey): ScreenRow[] {
+function sortRows(rows: readonly ScreenRow[], sort: SortKey, direction: SortDir): ScreenRow[] {
+  const factor = direction === "asc" ? 1 : -1;
   return [...rows].sort((left, right) => {
-    if (sort === "symbol") return left.symbol.localeCompare(right.symbol);
-    if (sort === "composite") return (right.composite ?? 0) - (left.composite ?? 0);
+    const primary = compareRows(left, right, sort, factor);
+    if (primary !== 0) return primary;
+    const symbol = left.symbol.localeCompare(right.symbol);
+    if (symbol !== 0) return symbol;
     return left.rank - right.rank;
   });
+}
+
+function compareRows(left: ScreenRow, right: ScreenRow, sort: SortKey, factor: number): number {
+  if (sort === "symbol") return factor * left.symbol.localeCompare(right.symbol);
+  if (sort === "composite") return compareNumber(left.composite, right.composite, factor);
+  return compareNumber(left.rank, right.rank, factor);
+}
+
+/** Missing numbers sort last in either direction. */
+function compareNumber(left: number | null, right: number | null, factor: number): number {
+  const leftMissing = left === null || Number.isNaN(left);
+  const rightMissing = right === null || Number.isNaN(right);
+  if (leftMissing && rightMissing) return 0;
+  if (leftMissing) return 1;
+  if (rightMissing) return -1;
+  return factor * (left - right);
 }
 
 function curve(name: string, colour: string, labels: readonly string[], values: readonly number[]) {
