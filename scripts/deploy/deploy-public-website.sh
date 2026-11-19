@@ -63,18 +63,41 @@ if [ -d "$BUILD_DIR/assets" ]; then
 fi
 
 echo "Uploading site root files…"
+desired_root="$(mktemp)"
 shopt -s nullglob
 for path in "$BUILD_DIR"/*; do
   [ -f "$path" ] || continue
   base="$(basename "$path")"
+  printf '%s\n' "$base" >> "$desired_root"
   [ "$base" = "index.html" ] && continue
   upload_file "$path" "$base"
 done
+sort -u -o "$desired_root" "$desired_root"
 
 echo "Uploading index.html last with no-cache…"
 aws s3 cp "$BUILD_DIR/index.html" "s3://$BUCKET_NAME/index.html" \
   --cache-control "no-cache,must-revalidate" \
   --content-type "text/html; charset=utf-8"
+
+echo "Pruning retired root objects…"
+current_root="$(mktemp)"
+aws s3api list-objects-v2 \
+  --bucket "$BUCKET_NAME" \
+  --delimiter "/" \
+  --query 'Contents[].Key' \
+  --output text 2>/dev/null \
+  | tr '\t' '\n' \
+  | grep -v '^$' \
+  | grep -v '/' \
+  | sort -u > "$current_root" || true
+while IFS= read -r key; do
+  [ -n "$key" ] || continue
+  if ! grep -Fxq "$key" "$desired_root"; then
+    echo "Deleting s3://$BUCKET_NAME/$key"
+    aws s3 rm "s3://$BUCKET_NAME/$key"
+  fi
+done < "$current_root"
+rm -f "$desired_root" "$current_root"
 
 DISTRIBUTION_QUERY="Stacks[0].Outputs[?OutputKey=='PublicWebsiteDistributionId']."
 DISTRIBUTION_QUERY+="OutputValue"
