@@ -83,9 +83,33 @@ describe("findingalpha public www stack", () => {
     expect(text).not.toContain("googletagmanager");
   });
 
-  test("exports the bucket and distribution ids the deploy script reads", () => {
-    template.hasOutput("PublicWebsiteBucketName", {});
-    template.hasOutput("PublicWebsiteDistributionId", {});
-    template.hasOutput("PublicWebsiteDistributionDomain", {});
+  test("unknown paths keep real errors instead of SPA rewrite to index.html", () => {
+    const distributions = template.findResources("AWS::CloudFront::Distribution");
+    const text = JSON.stringify(distributions);
+    expect(text).not.toContain("CustomErrorResponses");
+    expect(Object.keys(template.findResources("AWS::CloudFront::Function"))).toHaveLength(0);
+  });
+
+  test("log bucket expires current and noncurrent versions", () => {
+    template.hasResourceProperties("AWS::S3::Bucket", {
+      AccessControl: "LogDeliveryWrite",
+      LifecycleConfiguration: {
+        Rules: Match.arrayWith([
+          Match.objectLike({ Id: "ExpireOldLogs", Status: "Enabled", ExpirationInDays: 90 }),
+          Match.objectLike({
+            Id: "ExpireNoncurrentLogs",
+            Status: "Enabled",
+            NoncurrentVersionExpiration: Match.objectLike({ NoncurrentDays: 90 }),
+          }),
+        ]),
+      },
+    });
+  });
+
+  test("outputs the bucket and distribution ids the deploy script reads without exports", () => {
+    template.hasOutput("PublicWebsiteBucketName", { Export: Match.absent() });
+    template.hasOutput("PublicWebsiteDistributionId", { Export: Match.absent() });
+    template.hasOutput("PublicWebsiteDistributionDomain", { Export: Match.absent() });
+    template.hasOutput("PublicWebsiteLoggingBucketName", { Export: Match.absent() });
   });
 });

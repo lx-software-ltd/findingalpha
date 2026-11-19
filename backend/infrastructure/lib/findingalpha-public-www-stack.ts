@@ -41,7 +41,10 @@ export class FindingalphaPublicWwwStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
-      lifecycleRules: [{ id: "ExpireOldLogs", expiration: cdk.Duration.days(90) }],
+      lifecycleRules: [
+        { id: "ExpireOldLogs", expiration: cdk.Duration.days(90) },
+        { id: "ExpireNoncurrentLogs", noncurrentVersionExpiration: cdk.Duration.days(90) },
+      ],
     });
 
     const bucket = new s3.Bucket(this, "PublicWwwBucket", {
@@ -53,18 +56,6 @@ export class FindingalphaPublicWwwStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       serverAccessLogsBucket: logs,
       serverAccessLogsPrefix: "web/",
-    });
-
-    const rewrite = new cloudfront.Function(this, "SpaRewrite", {
-      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
-  var request = event.request;
-  var uri = request.uri;
-  if (uri.startsWith('/assets/')) return request;
-  if (uri.indexOf('.') === -1) {
-    request.uri = '/index.html';
-  }
-  return request;
-}`),
     });
 
     const csp = [
@@ -108,6 +99,8 @@ export class FindingalphaPublicWwwStack extends cdk.Stack {
     });
 
     this.bucket = bucket;
+    // Logo-only site: keep real 403/404 for unknown paths and missing assets.
+    // Do not rewrite to index.html (that would make every URL look like a page).
     const distribution = new cloudfront.Distribution(this, "Distribution", {
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
@@ -115,7 +108,6 @@ export class FindingalphaPublicWwwStack extends cdk.Stack {
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         responseHeadersPolicy: headers,
-        functionAssociations: [{ function: rewrite, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
       },
       domainNames: [domainName.valueAsString],
       certificate: cdk.aws_certificatemanager.Certificate.fromCertificateArn(
@@ -124,10 +116,6 @@ export class FindingalphaPublicWwwStack extends cdk.Stack {
         certificateArn.valueAsString,
       ),
       defaultRootObject: "index.html",
-      errorResponses: [
-        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html", ttl: cdk.Duration.minutes(5) },
-        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html", ttl: cdk.Duration.minutes(5) },
-      ],
       logBucket: logs,
       logFilePrefix: "cloudfront/",
     });
@@ -145,21 +133,19 @@ export class FindingalphaPublicWwwStack extends cdk.Stack {
     }
     ownPolicy.addPropertyOverride("PolicyDocument.Statement.1.Sid", "AllowCloudFrontServicePrincipalReadOnly");
 
+    // Plain outputs for the deploy script. No exportName — nothing imports them
+    // and exports would lock renames.
     new cdk.CfnOutput(this, "PublicWebsiteBucketName", {
       value: bucket.bucketName,
-      exportName: "findingalpha-public-www-PublicWebsiteBucketName",
     });
     new cdk.CfnOutput(this, "PublicWebsiteDistributionId", {
       value: distribution.distributionId,
-      exportName: "findingalpha-public-www-PublicWebsiteDistributionId",
     });
     new cdk.CfnOutput(this, "PublicWebsiteDistributionDomain", {
       value: distribution.distributionDomainName,
-      exportName: "findingalpha-public-www-PublicWebsiteDistributionDomain",
     });
     new cdk.CfnOutput(this, "PublicWebsiteLoggingBucketName", {
       value: logs.bucketName,
-      exportName: "findingalpha-public-www-PublicWebsiteLoggingBucketName",
     });
   }
 }
