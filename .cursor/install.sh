@@ -7,6 +7,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+if [ -f scripts/sync-brand-assets.sh ]; then
+  echo "==> Syncing shared brand assets"
+  bash scripts/sync-brand-assets.sh
+fi
+
 if [ -f apps/public_www/package.json ]; then
   echo "==> Installing public www dependencies (apps/public_www)"
   ( cd apps/public_www && npm ci )

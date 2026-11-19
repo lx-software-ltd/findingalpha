@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "prebuild": "bash ../../scripts/sync-brand-assets.sh",
     "dev": "vite",
     "dev:mock": "vite --mode mock --port 5174",
     "build": "tsc -b && vite build",

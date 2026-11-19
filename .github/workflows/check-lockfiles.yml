@@ -20,6 +20,9 @@ jobs:
         with:
           node-version: "lts/*"
 
+      - name: Validate brand asset copies
+        run: bash scripts/sync-brand-assets.sh --check
+
       - name: Validate package-lock.json
         run: |
           set -e
