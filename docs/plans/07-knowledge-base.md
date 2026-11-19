@@ -337,6 +337,16 @@ that matters, a short Markdown file under `formula-notes/` with the
 formula in plain text, what each symbol means, and the book and page.
 The owner writes or approves each note.
 
+On 19 November 2026 (Hong Kong) the targets were met (17 of 20 at 8,
+16 of 20 at 3), but the parser dropped or garbled most symbolic
+formulas. The owner chose formula notes. The drafts are in
+`docs/knowledge-base/formula-notes/`, one per formula the register
+uses where a book in `theory/` supports it. Each holds the book's
+formula, not the register's, so T06 can compare the two. Once approved
+they are uploaded to `formula-notes/` and synced. T05 is done when that
+sync completes and a retrieval with the `formula-notes` filter returns
+each note.
+
 ### M07-T06 Cite the register
 
 Add a third status to `methodology.validate`: `owner_accepted`, which
