@@ -9,16 +9,6 @@ const SHORT: readonly AdminTabItem<"a" | "b">[] = [
   { id: "b", label: "Beta" },
 ];
 
-const LONG: readonly AdminTabItem<string>[] = [
-  { id: "one", label: "One" },
-  { id: "two", label: "Two" },
-  { id: "three", label: "Three" },
-  { id: "four", label: "Four" },
-  { id: "five", label: "Five" },
-  { id: "six", label: "Six" },
-  { id: "seven", label: "Seven" },
-];
-
 function ShortTabs() {
   const [active, setActive] = useState<"a" | "b">("a");
   return (
@@ -44,22 +34,7 @@ describe("AdminTabList", () => {
     expect(screen.getByRole("tab", { name: "Alpha" })).toHaveClass("admin-tab");
   });
 
-  it("renders a native select when there are more than six tabs", () => {
-    render(
-      <AdminTabList
-        tabs={LONG}
-        active="one"
-        onChange={() => undefined}
-        label="Many sections"
-        idPrefix="many"
-      />,
-    );
-    const select = screen.getByRole("combobox", { name: "Many sections" });
-    expect(select.tagName).toBe("SELECT");
-    expect(select.id).toBe("many-select");
-  });
-
-  it("disables every tab when the list is disabled", () => {
+  it("activates the next tab on ArrowRight", async () => {
     render(
       <AdminTabList
         tabs={SHORT}

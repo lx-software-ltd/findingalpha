@@ -5,12 +5,14 @@ import {
   AdminDataTableCellMeta,
   AdminEditorSection,
   AdminExpandableRow,
+  AdminExpandButton,
   AdminKpi,
   AdminPageHeader,
   AdminRecordTable,
   type AdminDataTableColumn,
 } from "../components/ui";
 import { useMethodology, type MethodologyFactor } from "../hooks/useMethodology";
+import { markRecordGroup } from "../lib/recordGroup";
 
 function parameters(factor: MethodologyFactor): string {
   const entries = Object.entries(factor.parameters);
@@ -115,7 +117,7 @@ function FactorRow({
       }
     >
       <AdminCell column="name">
-        <span className="fw-semibold">{factor.name}</span>
+        <AdminExpandButton>{factor.name}</AdminExpandButton>
         <AdminDataTableCellMeta>
           {factor.group} · <span className="badge text-bg-secondary">{factor.status}</span>
         </AdminDataTableCellMeta>
@@ -131,4 +133,4 @@ function FactorRow({
   );
 }
 
-(FactorRow as { recordGroup?: boolean }).recordGroup = true;
+markRecordGroup(FactorRow);

@@ -119,6 +119,7 @@ export const screenFixture = {
 
 export const backtestListFixture = [
   { runId: "run-example", portfolioSize: 20, registerHash: "abc123abc123abcd", createdAt: "2017-04-01T00:00:00Z" },
+  { runId: "run-other", portfolioSize: 10, registerHash: "def456def456def4", createdAt: "2018-04-01T00:00:00Z" },
 ];
 
 export const backtestFixture = {

@@ -27,7 +27,7 @@ test("methodology lists provisional factors", async ({ page }, testInfo) => {
     await expect(
       page.locator("td[data-column='name'] .admin-table-cell-meta").filter({ hasText: "NOPAT_ttm / average(investedCapital)" }),
     ).toBeVisible();
-    await page.getByRole("row", { name: /Return on invested capital/ }).click();
+    await page.getByRole("button", { name: "Return on invested capital" }).click();
     await expect(page.locator(".admin-expand.is-open")).toContainText("maxTaxRate 0.35");
   }
   expect(await overflows(page)).toBe(false);
@@ -48,7 +48,8 @@ test("screen shows the shortlist and the equity curves", async ({ page }, testIn
       const top = await aaa.boundingBox();
       return bbb !== null && top !== null && bbb.y < top.y;
     }).toBe(true);
-    await aaa.click();
+    await page.getByRole("button", { name: "AAA" }).click();
+    await expect(page.getByRole("button", { name: "AAA" })).toHaveAttribute("aria-expanded", "true");
     await expect(page.locator(".admin-expand.is-open")).toContainText("Quality: 0.40");
     await expect(page.locator(".admin-expand.is-open")).toContainText("Sector: tech");
   }
@@ -71,6 +72,7 @@ test("screen shows the shortlist and the equity curves", async ({ page }, testIn
     const meta = page.locator("td[data-column='period'] .admin-table-cell-meta").first();
     await expect(meta).toBeVisible();
     await expect(meta).toContainText("CAGR");
+    await expect(meta).toContainText("Full");
   }
   expect(await overflows(page)).toBe(false);
 });
@@ -87,8 +89,14 @@ test("system shows the three tables", async ({ page }, testInfo) => {
     const jobName = await page.locator("td[data-column='job']").first().boundingBox();
     expect(jobName?.width ?? 0).toBeGreaterThan(140);
     const rotation = page.locator("tr", { hasText: "rotation" });
-    await expect(rotation.locator(".admin-table-cell-meta").first()).toContainText("expires");
-    await expect(rotation.locator(".admin-table-cell-meta").nth(1)).toContainText("operate");
+    await expect(rotation.locator(".admin-table-cell-meta").filter({ hasText: "expires" })).toBeVisible();
+    await expect(rotation.locator(".admin-table-cell-meta").filter({ hasText: "operate" })).toBeVisible();
+    await expect(rotation.locator(".admin-table-cell-meta").filter({ hasText: "Last used" })).toBeVisible();
+    await expect(page.locator("td[data-column='name'] .admin-table-cell-meta").filter({ hasText: "redeploy" }).first()).toBeVisible();
+    const ingest = page.locator("tr", { hasText: "ingest_daily" }).first();
+    await expect(ingest.locator(".admin-table-cell-meta").filter({ hasText: "0 12" })).toBeVisible();
+    await expect(ingest.locator(".admin-table-cell-meta").filter({ hasText: "ms" })).toBeVisible();
+    await expect(page.locator("section[aria-label='Recent runs'] .admin-table-cell-meta").first()).toContainText("2026");
     await expect(page.locator("tr", { hasText: "ingest_daily" }).locator(".admin-table-cell-meta").last()).toContainText("timeout");
   }
   expect(await overflows(page)).toBe(false);

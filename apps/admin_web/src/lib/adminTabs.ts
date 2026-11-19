@@ -3,9 +3,6 @@ export function adminTabButtonId(prefix: string, tabId: string): string {
   return `${prefix}-tab-${tabId}`;
 }
 
-/** Phones switch from the two-column grid to a native `<select>` above this many tabs. */
-export const ADMIN_TAB_SELECT_THRESHOLD = 6;
-
 /**
  * Next tab id for a WAI-ARIA tablist key press (automatic activation model).
  * Returns null for keys that are not tablist navigation.

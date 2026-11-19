@@ -10,6 +10,7 @@ import {
   type RefObject,
   type TdHTMLAttributes,
 } from "react";
+import { hasRecordGroup } from "../../lib/recordGroup";
 import {
   adminColumnClass,
   type AdminTableColumnPriority,
@@ -67,10 +68,7 @@ export type AdminDataTableProps = {
 const ColumnsContext = createContext<readonly AdminDataTableColumn[] | null>(null);
 
 function isRecordGroup(child: ReactNode): boolean {
-  return (
-    isValidElement(child) &&
-    (child.type as { recordGroup?: boolean }).recordGroup === true
-  );
+  return isValidElement(child) && hasRecordGroup(child.type);
 }
 
 /** Expandable records render their own `<tbody>`. Plain rows stay in one body. */
@@ -220,6 +218,13 @@ function useColumnAlignmentCheck(
     if (!import.meta.env.DEV) return;
     const table = tableRef.current;
     if (!table) return;
+    if (table.querySelector("tbody tbody")) {
+      const signature = "nested-tbody";
+      if (!reported.current.has(signature)) {
+        reported.current.add(signature);
+        console.warn("AdminDataTable rendered a tbody inside a tbody. Call markRecordGroup on the row component.");
+      }
+    }
     const rows = table.querySelectorAll<HTMLTableRowElement>("tbody > tr");
     rows.forEach((row) => {
       const cells = Array.from(row.children).filter(

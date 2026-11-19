@@ -92,24 +92,24 @@ export function RoadmapPage() {
       </div>
       <section className="card shadow-sm mb-4">
         <div className="card-body">
-      <h2 className="admin-card-title">Owner tasks</h2>
-      <ul className="list-unstyled mb-0">
-        {ordered.map((task) => (
-          <li key={task.id} className={currentBlockers.has(task.id) ? "text-warning-emphasis" : undefined}>
-            <label className="d-flex flex-wrap gap-2 align-items-baseline">
-              <input
-                type="checkbox"
-                checked={doneIds.has(task.id)}
-                aria-label={task.id}
-                onChange={(event) => setTask.mutate({ id: task.id, done: event.target.checked })}
-              />
-              <span>{task.id}</span>
-              <span>{task.title}</span>
-              {task.blocks.map((id) => <span key={id} className="badge text-bg-light border">{id}</span>)}
-            </label>
-          </li>
-        ))}
-      </ul>
+          <h2 className="admin-card-title">Owner tasks</h2>
+          <ul className="list-unstyled mb-0">
+            {ordered.map((task) => (
+              <li key={task.id} className={currentBlockers.has(task.id) ? "text-warning-emphasis" : undefined}>
+                <label className="d-flex flex-wrap gap-2 align-items-baseline">
+                  <input
+                    type="checkbox"
+                    checked={doneIds.has(task.id)}
+                    aria-label={task.id}
+                    onChange={(event) => setTask.mutate({ id: task.id, done: event.target.checked })}
+                  />
+                  <span>{task.id}</span>
+                  <span>{task.title}</span>
+                  {task.blocks.map((id) => <span key={id} className="badge text-bg-light border">{id}</span>)}
+                </label>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
       <h2 className="admin-card-title">Milestones</h2>

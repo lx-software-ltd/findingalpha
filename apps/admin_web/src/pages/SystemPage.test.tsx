@@ -66,7 +66,8 @@ describe("SystemPage", () => {
   it("shows the universe and confirms a run", async () => {
     const user = userEvent.setup();
     renderPage();
-    expect(await screen.findAllByText("partial · 9 of 131")).toHaveLength(2);
+    expect(await screen.findAllByRole("cell", { name: /partial · 9 of 131/ })).toHaveLength(2);
+    expect(screen.getByText(/0 6 · partial · 9 of 131/)).toBeInTheDocument();
     expect(await screen.findByText("4 names")).toBeTruthy();
     expect(screen.getAllByText("2024-06-03").length).toBeGreaterThan(0);
     expect(screen.getByText("paper")).toBeTruthy();

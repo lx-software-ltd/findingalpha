@@ -61,7 +61,7 @@ describe("MethodologyPage", () => {
     expect(screen.getByText(/Register hash abc123abc123abcd/)).toHaveClass("small");
     expect(screen.queryByText("Register hash", { selector: ".admin-kpi-label" })).toBeNull();
     expect(screen.getAllByText("provisional").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("row", { name: /Return on invested capital/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Return on invested capital" }));
     expect(document.querySelector(".admin-expand.is-open")).toHaveTextContent("maxTaxRate 0.35");
     expect(document.querySelector(".admin-expand.is-open")).toHaveTextContent("higher");
     expect(screen.getByText(/quality 0.4/)).toBeInTheDocument();

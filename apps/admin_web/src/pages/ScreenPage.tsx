@@ -6,6 +6,7 @@ import {
   AdminDataTableEmptyRow,
   AdminEditorSection,
   AdminExpandableRow,
+  AdminExpandButton,
   AdminFilterBar,
   AdminFilterField,
   AdminKpi,
@@ -25,6 +26,7 @@ import {
   type SeriesMetrics,
 } from "../hooks/useScreen";
 import { adminTabButtonId } from "../lib/adminTabs";
+import { markRecordGroup } from "../lib/recordGroup";
 
 const BIASES = [
   "Adjusted prices include every name that passed the price and dollar-volume floors in any month since February 2017 and still has a CIK. A delisted name with no current CIK has no prices and cannot be ranked. A name never stored in a universe file uses today's CIK and the SIC cached from SEC submissions; a missing SIC excludes it. A reused ticker with no universe row is left out. When monthly stats are missing, only today's members are priced and the weekly result says so.",
@@ -242,7 +244,7 @@ function Row({
     <AdminExpandableRow colSpan={colSpan} expanded={open} onToggle={onToggle} editor={<FactorDetail row={row} factorNames={factorNames} />}>
       <AdminCell column="rank" className="text-end">{row.rank}</AdminCell>
       <AdminCell column="symbol">
-        <span className="fw-semibold">{row.symbol}</span>
+        <AdminExpandButton>{row.symbol}</AdminExpandButton>
         <AdminDataTableCellMeta>
           Rank {row.rank} · {row.name} · {figure(row.composite)}
         </AdminDataTableCellMeta>
@@ -260,7 +262,7 @@ function Row({
   );
 }
 
-(Row as { recordGroup?: boolean }).recordGroup = true;
+markRecordGroup(Row);
 
 function FactorDetail({
   row,
@@ -309,26 +311,27 @@ function BacktestPanel() {
   return (
     <div>
       {runs.length === 0 ? <p>No backtest is stored. The live runs wait until prices and fundamentals are in.</p> : null}
+      {runs.length > 0 ? (
+        <div className="admin-filter-field mb-3">
+          <label className="form-label small mb-1" htmlFor="backtest-run">Run</label>
+          <select
+            id="backtest-run"
+            className="form-select form-select-sm"
+            value={runId}
+            onChange={(event) => setChosen(event.target.value)}
+          >
+            {runs.map((run) => (
+              <option key={run.runId} value={run.runId}>{run.runId} · {run.portfolioSize} names</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      {detail.isError ? <div className="alert alert-danger" role="alert">The backtest could not be loaded.</div> : null}
       {data ? (
         <>
           <div className="card shadow-sm mb-4">
             <div className="card-body">
               <h2 className="admin-card-title">Equity curves</h2>
-              {runs.length > 0 ? (
-                <div className="admin-filter-field mb-3">
-                  <label className="form-label small mb-1" htmlFor="backtest-run">Run</label>
-                  <select
-                    id="backtest-run"
-                    className="form-select form-select-sm"
-                    value={runId}
-                    onChange={(event) => setChosen(event.target.value)}
-                  >
-                    {runs.map((run) => (
-                      <option key={run.runId} value={run.runId}>{run.runId} · {run.portfolioSize} names</option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
               <LineChart series={series} title="Backtest equity curves" formatY={(value) => value.toFixed(0)} />
             </div>
           </div>
@@ -379,20 +382,6 @@ function BacktestPanel() {
             </AdminDataTable>
           </AdminRecordTable>
         </>
-      ) : runs.length > 0 ? (
-        <div className="admin-filter-field mb-3">
-          <label className="form-label small mb-1" htmlFor="backtest-run">Run</label>
-          <select
-            id="backtest-run"
-            className="form-select form-select-sm"
-            value={runId}
-            onChange={(event) => setChosen(event.target.value)}
-          >
-            {runs.map((run) => (
-              <option key={run.runId} value={run.runId}>{run.runId} · {run.portfolioSize} names</option>
-            ))}
-          </select>
-        </div>
       ) : null}
       <AdminEditorSection title="Known biases">
         <ul className="mb-0">{BIASES.map((note) => <li key={note}>{note}</li>)}</ul>
@@ -404,9 +393,9 @@ function BacktestPanel() {
 function PeriodRows({ name, metrics }: { readonly name: string; readonly metrics: PeriodMetrics | undefined }) {
   return (
     <>
-      <MetricRow label={name} series="Strategy" metrics={metrics} />
-      {metrics?.benchmarks?.spyNet ? <MetricRow label="" series="SPY net" metrics={metrics.benchmarks.spyNet} /> : null}
-      {metrics?.benchmarks?.spyGross ? <MetricRow label="" series="SPY gross" metrics={metrics.benchmarks.spyGross} /> : null}
+      <MetricRow period={name} label={name} series="Strategy" metrics={metrics} />
+      {metrics?.benchmarks?.spyNet ? <MetricRow period={name} label="" series="SPY net" metrics={metrics.benchmarks.spyNet} /> : null}
+      {metrics?.benchmarks?.spyGross ? <MetricRow period={name} label="" series="SPY gross" metrics={metrics.benchmarks.spyGross} /> : null}
     </>
   );
 }
@@ -421,10 +410,12 @@ function Stat({ label, value }: { readonly label: string; readonly value: string
 }
 
 function MetricRow({
+  period,
   label,
   series,
   metrics,
 }: {
+  readonly period: string;
   readonly label: string;
   readonly series: string;
   readonly metrics: SeriesMetrics | undefined;
@@ -434,7 +425,7 @@ function MetricRow({
       <AdminCell column="period">
         {label}
         <AdminDataTableCellMeta>
-          {series} · CAGR {percent(metrics?.cagr)} · Volatility {percent(metrics?.volatility)} · Sharpe {figure(metrics?.sharpe)} · Max drawdown {percent(metrics?.maxDrawdown?.drawdown)}
+          {period} · {series} · CAGR {percent(metrics?.cagr)} · Volatility {percent(metrics?.volatility)} · Sharpe {figure(metrics?.sharpe)} · Max drawdown {percent(metrics?.maxDrawdown?.drawdown)}
         </AdminDataTableCellMeta>
       </AdminCell>
       <AdminCell column="series">{series}</AdminCell>
@@ -455,10 +446,28 @@ function screenMessage(error: unknown): string {
 function sortRows(rows: readonly ScreenRow[], sort: SortKey, direction: SortDir): ScreenRow[] {
   const factor = direction === "asc" ? 1 : -1;
   return [...rows].sort((left, right) => {
-    if (sort === "symbol") return factor * left.symbol.localeCompare(right.symbol);
-    if (sort === "composite") return factor * ((left.composite ?? 0) - (right.composite ?? 0));
-    return factor * (left.rank - right.rank);
+    const primary = compareRows(left, right, sort, factor);
+    if (primary !== 0) return primary;
+    const symbol = left.symbol.localeCompare(right.symbol);
+    if (symbol !== 0) return symbol;
+    return left.rank - right.rank;
   });
+}
+
+function compareRows(left: ScreenRow, right: ScreenRow, sort: SortKey, factor: number): number {
+  if (sort === "symbol") return factor * left.symbol.localeCompare(right.symbol);
+  if (sort === "composite") return compareNumber(left.composite, right.composite, factor);
+  return compareNumber(left.rank, right.rank, factor);
+}
+
+/** Missing numbers sort last in either direction. */
+function compareNumber(left: number | null, right: number | null, factor: number): number {
+  const leftMissing = left === null || Number.isNaN(left);
+  const rightMissing = right === null || Number.isNaN(right);
+  if (leftMissing && rightMissing) return 0;
+  if (leftMissing) return 1;
+  if (rightMissing) return -1;
+  return factor * (left - right);
 }
 
 function curve(name: string, colour: string, labels: readonly string[], values: readonly number[]) {

@@ -7,7 +7,7 @@ export {
 export type { AdminDataTableColumn } from "./AdminDataTable";
 export { AdminEditorSection } from "./AdminEditorSection";
 export type { AdminEditorSectionProps } from "./AdminEditorSection";
-export { AdminExpandableRow } from "./AdminExpandableRow";
+export { AdminExpandableRow, AdminExpandButton } from "./AdminExpandableRow";
 export type { AdminExpandableRowProps } from "./AdminExpandableRow";
 export { AdminPageHeader } from "./AdminPageHeader";
 export type { AdminPageHeaderProps } from "./AdminPageHeader";

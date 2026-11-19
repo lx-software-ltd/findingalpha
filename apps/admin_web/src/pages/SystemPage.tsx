@@ -54,6 +54,23 @@ export function SystemPage() {
     { key: "message", header: "Message", priority: "tertiary" },
     { key: "ops", header: "Run" },
   ];
+  const runColumns: AdminDataTableColumn[] = [
+    { key: "job", header: "Job" },
+    { key: "status", header: "Status", priority: "secondary" },
+    { key: "started", header: "Started", priority: "secondary" },
+    { key: "duration", header: "Duration", className: "text-end", priority: "tertiary" },
+    { key: "message", header: "Message", priority: "tertiary" },
+  ];
+  const keyColumns: AdminDataTableColumn[] = [
+    { key: "label", header: "Label" },
+    { key: "tier", header: "Tier", priority: "secondary" },
+    { key: "scopes", header: "Scopes", priority: "tertiary" },
+    { key: "access", header: "Access", priority: "secondary" },
+    { key: "created", header: "Created", priority: "tertiary" },
+    { key: "expires", header: "Expires", priority: "secondary" },
+    { key: "used", header: "Last used", priority: "tertiary" },
+    { key: "state", header: "State", priority: "secondary" },
+  ];
   const data = universe.data;
   const coverage = {
     ...(data?.coverage?.flows ?? {}),
@@ -81,6 +98,7 @@ export function SystemPage() {
                 {item.name}
                 <AdminDataTableCellMeta>
                   Parameter {String(item.parameter)}. Effective {String(item.effective)}.
+                  <span className="d-block">Change in the parameter file and redeploy</span>
                 </AdminDataTableCellMeta>
                 {!item.parameter ? (
                   <div className="small text-body-secondary">The setting has no effect until the parameter is on.</div>
@@ -106,7 +124,7 @@ export function SystemPage() {
         </AdminDataTable>
       </AdminRecordTable>
       <div className="admin-kpi-row">
-        <AdminKpi label="Broker mode" value={status.data?.brokerMode ?? "—"} />
+        <AdminKpi label="Broker mode" value={status.data?.brokerMode ?? "paper"} />
         <AdminKpi
           label="Universe"
           value={data ? `${data.members} names` : "—"}
@@ -155,79 +173,83 @@ export function SystemPage() {
       {accepted ? <div className="alert alert-success" role="status">Accepted {accepted}.</div> : null}
       {runError ? <div className="alert alert-danger" role="alert">{runError}</div> : null}
       <AdminRecordTable label="Jobs">
-      <AdminDataTable columns={columns} bare>
-        {jobs.map((job) => (
-          <tr key={job.job}>
-            <AdminCell column="job">
-              {job.job}
-              <AdminDataTableCellMeta>{statusLabel(job.lastRun?.status, job.progress)}</AdminDataTableCellMeta>
-              {job.lastRun?.message ? (
-                <AdminDataTableCellMeta until="tertiary">{job.lastRun.message}</AdminDataTableCellMeta>
-              ) : null}
-            </AdminCell>
-            <AdminCell column="schedule">{job.schedule}</AdminCell>
-            <AdminCell column="status">{statusLabel(job.lastRun?.status, job.progress)}</AdminCell>
-            <AdminCell column="started">{job.lastRun ? <DateTimeDisplay iso={job.lastRun.startedAt} /> : "—"}</AdminCell>
-            <AdminCell column="duration" className="text-end">{job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}</AdminCell>
-            <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
-            <AdminCell column="ops">
-              <div className="d-grid gap-1">
-                {job.manualRun ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-primary"
-                    onClick={() => {
-                      setNames(String(registerSize));
-                      setPendingJob(job.job);
-                    }}
-                  >
-                    Run now
-                  </button>
+        <AdminDataTable columns={columns} bare>
+          {jobs.map((job) => (
+            <tr key={job.job}>
+              <AdminCell column="job">
+                {job.job}
+                <AdminDataTableCellMeta>
+                  {job.schedule || "—"} · {statusLabel(job.lastRun?.status, job.progress)}
+                </AdminDataTableCellMeta>
+                <AdminDataTableCellMeta until="tertiary">
+                  {job.lastRun ? <DateTimeDisplay iso={job.lastRun.startedAt} /> : "—"}
+                  {" · "}
+                  {job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}
+                </AdminDataTableCellMeta>
+                {job.lastRun?.message ? (
+                  <AdminDataTableCellMeta until="tertiary">{job.lastRun.message}</AdminDataTableCellMeta>
                 ) : null}
-                {syncChoice(job) === "confirm" ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-danger"
-                    onClick={() => setSyncAction("confirm")}
-                  >
-                    Confirm deletion
-                  </button>
-                ) : null}
-                {syncChoice(job) === "stop" ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-secondary"
-                    onClick={() => setSyncAction("stop")}
-                  >
-                    Stop
-                  </button>
-                ) : null}
-              </div>
-            </AdminCell>
-          </tr>
-        ))}
-      </AdminDataTable>
+              </AdminCell>
+              <AdminCell column="schedule">{job.schedule}</AdminCell>
+              <AdminCell column="status">{statusLabel(job.lastRun?.status, job.progress)}</AdminCell>
+              <AdminCell column="started">{job.lastRun ? <DateTimeDisplay iso={job.lastRun.startedAt} /> : "—"}</AdminCell>
+              <AdminCell column="duration" className="text-end">{job.lastRun ? `${job.lastRun.durationMs} ms` : "—"}</AdminCell>
+              <AdminCell column="message">{job.lastRun?.message ?? ""}</AdminCell>
+              <AdminCell column="ops">
+                <div className="d-grid gap-1">
+                  {job.manualRun ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={() => {
+                        setNames(String(registerSize));
+                        setPendingJob(job.job);
+                      }}
+                    >
+                      Run now
+                    </button>
+                  ) : null}
+                  {syncChoice(job) === "confirm" ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => setSyncAction("confirm")}
+                    >
+                      Confirm deletion
+                    </button>
+                  ) : null}
+                  {syncChoice(job) === "stop" ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary"
+                      onClick={() => setSyncAction("stop")}
+                    >
+                      Stop
+                    </button>
+                  ) : null}
+                </div>
+              </AdminCell>
+            </tr>
+          ))}
+        </AdminDataTable>
       </AdminRecordTable>
       <h2 className="admin-card-title">Recent runs</h2>
       <AdminRecordTable label="Recent runs">
         <AdminDataTable
           bare
-          columns={[
-            { key: "job", header: "Job" },
-            { key: "status", header: "Status", priority: "secondary" },
-            { key: "started", header: "Started", priority: "secondary" },
-            { key: "duration", header: "Duration", className: "text-end", priority: "tertiary" },
-            { key: "message", header: "Message", priority: "tertiary" },
-          ]}
+          columns={runColumns}
         >
           {(runs.data?.runs ?? []).length === 0 ? (
-            <AdminDataTableEmptyRow colSpan={5} message="No runs yet." />
+            <AdminDataTableEmptyRow colSpan={runColumns.length} message="No runs yet." />
           ) : (
             (runs.data?.runs ?? []).map((run: JobRun, index) => (
               <tr key={`${run.job}-${run.startedAt}-${index}`}>
                 <AdminCell column="job">
                   {run.job}
-                  <AdminDataTableCellMeta>{run.status}</AdminDataTableCellMeta>
+                  <AdminDataTableCellMeta>
+                    {run.status} · <DateTimeDisplay iso={run.startedAt} />
+                  </AdminDataTableCellMeta>
+                  <AdminDataTableCellMeta until="tertiary">{run.durationMs} ms</AdminDataTableCellMeta>
                   {run.message ? <AdminDataTableCellMeta until="tertiary">{run.message}</AdminDataTableCellMeta> : null}
                 </AdminCell>
                 <AdminCell column="status">{run.status}</AdminCell>
@@ -243,19 +265,10 @@ export function SystemPage() {
       <AdminRecordTable label="API keys">
         <AdminDataTable
           bare
-          columns={[
-            { key: "label", header: "Label" },
-            { key: "tier", header: "Tier", priority: "secondary" },
-            { key: "scopes", header: "Scopes", priority: "tertiary" },
-            { key: "access", header: "Access", priority: "secondary" },
-            { key: "created", header: "Created", priority: "tertiary" },
-            { key: "expires", header: "Expires", priority: "secondary" },
-            { key: "used", header: "Last used", priority: "tertiary" },
-            { key: "state", header: "State", priority: "secondary" },
-          ]}
+          columns={keyColumns}
         >
           {(keys.data?.keys ?? []).length === 0 ? (
-            <AdminDataTableEmptyRow colSpan={8} message="No keys yet." />
+            <AdminDataTableEmptyRow colSpan={keyColumns.length} message="No keys yet." />
           ) : (
             (keys.data?.keys ?? []).map((row) => (
               <tr key={row.keyId} className={row.soon ? "table-warning" : undefined}>
@@ -266,6 +279,11 @@ export function SystemPage() {
                     {row.expiresAt ? <DateTimeDisplay iso={row.expiresAt} /> : "never"}
                   </AdminDataTableCellMeta>
                   <AdminDataTableCellMeta until="tertiary">{row.scopes.join(", ")}</AdminDataTableCellMeta>
+                  <AdminDataTableCellMeta until="tertiary">
+                    Created <DateTimeDisplay iso={row.createdAt} />
+                    {" · "}
+                    Last used {row.lastUsedAt ? <DateTimeDisplay iso={row.lastUsedAt} /> : "never"}
+                  </AdminDataTableCellMeta>
                 </AdminCell>
                 <AdminCell column="tier">{row.tier}</AdminCell>
                 <AdminCell column="scopes">{row.scopes.join(", ")}</AdminCell>

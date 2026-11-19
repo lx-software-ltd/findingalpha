@@ -1,4 +1,5 @@
-import { useId, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { createContext, useContext, useId, useRef, type MouseEvent, type ReactNode } from "react";
+import { markRecordGroup } from "../../lib/recordGroup";
 
 export type AdminExpandableRowProps = {
   readonly colSpan: number;
@@ -8,16 +9,49 @@ export type AdminExpandableRowProps = {
   readonly editor: ReactNode;
 };
 
-function selectionText(): string {
+type ExpandContextValue = {
+  readonly expanded: boolean;
+  readonly detailId: string;
+  readonly onToggle: () => void;
+};
+
+const ExpandContext = createContext<ExpandContextValue | null>(null);
+
+function selectionInside(row: HTMLElement): boolean {
   const selection = window.getSelection();
-  if (!selection || selection.isCollapsed) return "";
-  return selection.toString();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+  if (selection.toString().trim().length === 0) return false;
+  const node = selection.anchorNode;
+  return node !== null && row.contains(node);
+}
+
+/** Disclosure control for one expandable record. Screen readers and keyboards use this, not the row. */
+export function AdminExpandButton({ children }: { readonly children: ReactNode }) {
+  const ctx = useContext(ExpandContext);
+  if (!ctx) {
+    throw new Error("AdminExpandButton must be rendered inside AdminExpandableRow");
+  }
+  return (
+    <button
+      type="button"
+      className="btn btn-link p-0 text-decoration-none fw-semibold"
+      aria-expanded={ctx.expanded}
+      aria-controls={ctx.expanded ? ctx.detailId : undefined}
+      onClick={(event) => {
+        event.stopPropagation();
+        ctx.onToggle();
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 /**
- * One record: a focusable summary row plus, when open, a detail row.
+ * One record: a summary row plus, when open, a detail row.
  * Each record is its own `<tbody>` so the open editor stays with that record.
- * Clicking the row toggles. Dragging to select text, and clicks inside the editor, do not.
+ * Pointer users can click the row. Keyboard and screen-reader users use `AdminExpandButton`.
+ * Dragging to select text inside the row does not toggle. The editor is not rendered while closed.
  */
 export function AdminExpandableRow({
   colSpan,
@@ -29,15 +63,8 @@ export function AdminExpandableRow({
   const detailId = useId();
   const pointerDown = useRef<{ x: number; y: number } | null>(null);
 
-  function toggleFromRow() {
-    if (selectionText().trim().length > 0) return;
-    onToggle();
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLTableRowElement>) {
-    if (event.target !== event.currentTarget) return;
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
+  function toggleFromRow(row: HTMLElement) {
+    if (selectionInside(row)) return;
     onToggle();
   }
 
@@ -52,41 +79,33 @@ export function AdminExpandableRow({
       const moved = Math.abs(event.clientX - down.x) > 4 || Math.abs(event.clientY - down.y) > 4;
       if (moved) return;
     }
-    toggleFromRow();
+    toggleFromRow(event.currentTarget);
   }
 
   return (
     <tbody className="admin-record-group">
-      <tr
-        className={expanded ? "admin-expand-summary admin-row-framed" : "admin-expand-summary"}
-        tabIndex={0}
-        aria-expanded={expanded}
-        aria-controls={detailId}
-        onKeyDown={onKeyDown}
-        onMouseDown={onMouseDown}
-        onClick={onClick}
-      >
-        {children}
-      </tr>
-      <tr
-        id={detailId}
-        className={expanded ? "admin-expand-detail admin-row-detail-framed" : "admin-expand-detail"}
-        aria-hidden={expanded ? undefined : true}
-      >
-        <td colSpan={colSpan} className="p-0">
-          <div className={expanded ? "admin-expand is-open" : "admin-expand"}>
-            <div
-              className="admin-expand-inner p-3"
-              inert={!expanded}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {editor}
+      <ExpandContext.Provider value={{ expanded, detailId, onToggle }}>
+        <tr
+          className={expanded ? "admin-expand-summary admin-row-framed" : "admin-expand-summary"}
+          onMouseDown={onMouseDown}
+          onClick={onClick}
+        >
+          {children}
+        </tr>
+      </ExpandContext.Provider>
+      {expanded ? (
+        <tr id={detailId} className="admin-expand-detail admin-row-detail-framed">
+          <td colSpan={colSpan} className="p-0">
+            <div className="admin-expand is-open">
+              <div className="admin-expand-inner p-3" onClick={(event) => event.stopPropagation()}>
+                {editor}
+              </div>
             </div>
-          </div>
-        </td>
-      </tr>
+          </td>
+        </tr>
+      ) : null}
     </tbody>
   );
 }
 
-(AdminExpandableRow as { recordGroup?: boolean }).recordGroup = true;
+markRecordGroup(AdminExpandableRow);
