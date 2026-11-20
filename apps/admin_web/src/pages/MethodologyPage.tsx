@@ -46,6 +46,7 @@ export function MethodologyPage() {
         <AdminKpi label="Entries" value={data?.counts.entries ?? "—"} />
         <AdminKpi label="Provisional" value={data?.counts.provisional ?? "—"} />
         <AdminKpi label="Cited" value={data?.counts.cited ?? "—"} />
+        <AdminKpi label="Owner accepted" value={data?.counts.ownerAccepted ?? "—"} />
       </div>
       <h2 className="admin-card-title">Factors</h2>
       <AdminRecordTable
@@ -69,15 +70,18 @@ export function MethodologyPage() {
           <p className="mb-1">
             Weights {Object.entries(composite.groupWeights).map(([name, weight]) => `${name} ${weight}`).join(", ")}.
           </p>
-          <p className="mb-0">
-            Winsorise {composite.winsorisePercentiles.join(" to ")}. Sector minimum {composite.minSectorSize}.
+          <p className="mb-1">
+            Winsorise at ±{composite.winsoriseStdDevs} standard deviations. Sector minimum {composite.minSectorSize}.
             A group needs {composite.minFactorsPerGroupShare} of its factors.
           </p>
+          <p className="mb-1">{composite.acceptedNote ?? "—"}</p>
+          <p className="mb-0">{composite.citation?.quote ?? "—"}</p>
         </AdminEditorSection>
       ) : null}
       {screen ? (
         <AdminEditorSection title="Screen">
           <p className="mb-1">Status {screen.status}. Shortlist {screen.shortlistSize}.</p>
+          <p className="mb-1">{screen.acceptedNote ?? "—"}</p>
           <ul className="mb-0">
             {screen.hardFilters.map((filter) => (
               <li key={filter.id}>{filter.field} {filter.op} {filter.value}</li>
@@ -86,6 +90,18 @@ export function MethodologyPage() {
         </AdminEditorSection>
       ) : null}
     </div>
+  );
+}
+
+function FactorSource({ factor }: { readonly factor: MethodologyFactor }) {
+  const lines = [factor.acceptedNote, factor.citation?.quote].filter((line): line is string => Boolean(line));
+  if (lines.length === 0) return "—";
+  return (
+    <>
+      {lines.map((line) => (
+        <span key={line} className="d-block">{line}</span>
+      ))}
+    </>
   );
 }
 
@@ -111,6 +127,8 @@ function FactorRow({
           <dd className="col-sm-9">{factor.formula}</dd>
           <dt className="col-sm-3">Parameters</dt>
           <dd className="col-sm-9">{parameters(factor)}</dd>
+          <dt className="col-sm-3">Note</dt>
+          <dd className="col-sm-9">{factor.acceptedNote ?? "—"}</dd>
           <dt className="col-sm-3">Citation</dt>
           <dd className="col-sm-9">{factor.citation?.quote ?? "—"}</dd>
         </dl>
@@ -128,7 +146,7 @@ function FactorRow({
       <AdminCell column="formula">{factor.formula}</AdminCell>
       <AdminCell column="parameters">{parameters(factor)}</AdminCell>
       <AdminCell column="status"><span className="badge text-bg-secondary">{factor.status}</span></AdminCell>
-      <AdminCell column="citation">{factor.citation?.quote ?? "—"}</AdminCell>
+      <AdminCell column="citation"><FactorSource factor={factor} /></AdminCell>
     </AdminExpandableRow>
   );
 }

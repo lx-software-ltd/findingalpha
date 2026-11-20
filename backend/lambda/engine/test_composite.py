@@ -30,19 +30,23 @@ def _register(weights: dict[str, float] | None = None) -> dict:
     if weights is not None:
         copied["composite"]["groupWeights"] = weights
     copied["composite"]["minSectorSize"] = 4
-    copied["composite"]["winsorisePercentiles"] = [0, 100]
+    copied["composite"]["winsoriseStdDevs"] = 1000
     return copied
 
 
 class CompositeTest(unittest.TestCase):
-    def test_percentile_and_winsorise(self) -> None:
-        self.assertEqual(composite.percentile([1, 2, 3, 4, 100], 0), 1)
-        self.assertEqual(composite.percentile([1, 2, 3, 4, 100], 100), 100)
-        self.assertEqual(composite.percentile([4, 1, 3], 50), 3)
-        clipped = composite.winsorise([1, 2, 3, 4, 100], 0, 100)
-        self.assertEqual(clipped, [1, 2, 3, 4, 100])
-        inner = composite.winsorise([1, 2, 3, 4, 100], 50, 50)
-        self.assertTrue(all(value == 3 for value in inner if value is not None))
+    def test_winsorise_clips_at_three_standard_deviations_and_keeps_missing(self) -> None:
+        values: list[float | None] = [0.0] * 10 + [10.0, None]
+        present = [0.0] * 10 + [10.0]
+        mean = sum(present) / len(present)
+        deviation = math.sqrt(sum((value - mean) ** 2 for value in present) / len(present))
+        high = mean + 3 * deviation
+        clipped = composite.winsorise(values, 3)
+        self.assertLess(high, 10)
+        self.assertAlmostEqual(clipped[-2] or 0, high)
+        self.assertIsNone(clipped[-1])
+        self.assertEqual(clipped[0], 0.0)
+        self.assertEqual(composite.winsorise([None, None], 3), [None, None])
 
     def test_a_small_sector_uses_the_universe_and_a_constant_is_zero(self) -> None:
         values = [1.0, 3.0, 5.0]

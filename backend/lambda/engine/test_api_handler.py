@@ -42,8 +42,10 @@ class ApiHandlerTest(unittest.TestCase):
         self.assertEqual(response["statusCode"], 200)
         body = json.loads(response["body"])
         self.assertEqual(len(body["hash"]), 16)
-        self.assertGreater(body["counts"]["provisional"], 0)
-        self.assertEqual(body["counts"]["cited"], 0)
+        self.assertEqual(body["counts"]["provisional"], 0)
+        self.assertEqual(body["counts"]["cited"], 1)
+        self.assertEqual(body["counts"]["ownerAccepted"], 16)
+        self.assertEqual(body["counts"]["entries"], 17)
         self.assertIn("roic", {item["id"] for item in body["register"]["factors"]})
 
     def test_unknown_path_is_not_found(self) -> None:
