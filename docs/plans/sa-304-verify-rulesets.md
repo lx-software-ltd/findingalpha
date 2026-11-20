@@ -26,6 +26,7 @@ No other workflow. No run of this workflow from the pull request, from `workflow
 ## Files
 
 - `.github/workflows/verify-rulesets.yml`
+- `docs/architecture/security.md`
 - `docs/plans/sa-304-verify-rulesets.md`
 
 Deleted:
@@ -33,13 +34,35 @@ Deleted:
 - `scripts/verify_github_rulesets.py`
 - `scripts/test_verify_github_rulesets.py`
 
-Search of the tree found no other workflow, test runner, or import that calls those files. `test.yml` discovers `scripts/test_*.py`, so deleting the test removes it from that discover. `docs/architecture/security.md` names the deleted script and does not call it.
+Search of the tree found no other workflow, test runner, or import that calls those files. `test.yml` discovers `scripts/test_*.py`, so deleting the test removes it from that discover. The branch-protection section names the pinned action.
 
 ## Invariants this change preserves
 
 The workflow name stays Verify GitHub Rulesets. The schedule stays cron `0 9 * * 1`. `workflow_dispatch` stays. Permissions stay `contents: read`. The job id stays `verify-branch-protection` with no job name, so the check name stays `verify-branch-protection`. The runner stays `ubuntu-26.04`. The checkout step stays `actions/checkout@v7`.
 
 This workflow does not run on `pull_request`, so the pull request will not execute it.
+
+## Check names this pull request adds
+
+This pull request deletes files under `scripts/`. `lint.yml` and `test.yml` path filters include `scripts/**`. Those workflows run on the pull request because the `pull_request` trigger has no path filter. `verify-rulesets.yml` does not run on `pull_request`, so the pull request will not execute it.
+
+Job names from the job `name` fields:
+
+- Admin Web viewport smoke
+- Build Admin Web
+- Build CDK
+- Build Public Www
+- Check shared contracts
+- Lint Admin Web
+- Lint Public Www
+- Lint Python
+- Test Infrastructure
+- Test Python
+- Validate agent harness
+- lint
+- test
+
+`lint` and `test` stay present.
 
 ## Done when
 
