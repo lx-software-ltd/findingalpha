@@ -16,8 +16,8 @@ export interface AuthConstructProps {
   /**
    * Optional custom Hosted UI hostname (auth.<domain>). When set together
    * with {@link cognitoCustomDomainCertificateArnParameter}, Cognito creates
-   * that custom domain and {@link cognitoOAuthBaseUrl} uses it. The prefix
-   * domain always stays.
+   * that custom domain. The prefix domain always stays, and
+   * {@link cognitoOAuthBaseUrl} (CognitoDomain) always uses the prefix.
    */
   readonly cognitoCustomDomainNameParameter: cdk.CfnParameter;
   /** ACM cert ARN in us-east-1 for the Cognito custom domain (required with custom name). */
@@ -39,8 +39,8 @@ export class AuthConstruct extends Construct {
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
   /**
-   * Effective origin for Cognito OAuth endpoints (`https://...`). The custom
-   * hostname when both custom-domain parameters are set; otherwise the prefix.
+   * Cognito OAuth origin for the CognitoDomain stack output (`https://...`).
+   * Always the prefix Hosted UI URL.
    */
   public readonly cognitoOAuthBaseUrl: string;
   /** True when a custom Hosted UI domain + certificate are configured. */
@@ -211,22 +211,15 @@ export class AuthConstruct extends Construct {
     );
     this.cognitoCustomHostedDomain.cfnOptions.condition = useCustomDomain;
 
-    const prefixOAuthBaseUrl = cdk.Fn.join("", [
+    // CognitoDomain stays on the prefix so Deploy Admin Web and rollback do
+    // not switch the SPA when the custom domain is created or removed.
+    this.cognitoOAuthBaseUrl = cdk.Fn.join("", [
       "https://",
       props.cognitoDomainPrefixParameter.valueAsString,
       ".auth.",
       cdk.Aws.REGION,
       ".amazoncognito.com",
     ]);
-    const customOAuthBaseUrl = cdk.Fn.join("", [
-      "https://",
-      props.cognitoCustomDomainNameParameter.valueAsString,
-    ]);
-    this.cognitoOAuthBaseUrl = cdk.Fn.conditionIf(
-      useCustomDomain.logicalId,
-      customOAuthBaseUrl,
-      prefixOAuthBaseUrl
-    ) as unknown as string;
     this.useCustomAuthDomain = useCustomDomain;
 
     this.adminGroup = new cognito.CfnUserPoolGroup(this, "AdminGroup", {

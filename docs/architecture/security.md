@@ -72,10 +72,10 @@ throttles at 50 requests a second with a burst of 100. API Gateway has
 one invoke permission on `AdminApiFn`.
 
 The dashboard distribution redirects viewers to HTTPS. Its
-content-security policy allows the API origin and the Cognito origin
-passed as `CspCognitoConnectOrigin` (Deploy Backend derives it from the
-same custom-domain variables as `CognitoDomain`). A web ACL is attached
-only when `WafWebAclArn` is set.
+content-security policy allows the API origin and the Cognito origin(s)
+passed as `CspCognitoConnectOrigin` (the prefix URL, and when the custom
+domain is set also `https://auth.<domain>`). A web ACL is attached only
+when `WafWebAclArn` is set.
 
 ## Branch protection
 

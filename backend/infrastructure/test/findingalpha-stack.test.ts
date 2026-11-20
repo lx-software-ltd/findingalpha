@@ -317,7 +317,7 @@ describe("findingalpha stack", () => {
     expect(outputs.ApiCustomDomainUrl.Condition).toBe("UseApiCustomDomain");
   });
 
-  test("the Cognito custom domain coexists with the prefix and CognitoDomain uses it when configured", () => {
+  test("the Cognito custom domain coexists with the prefix and CognitoDomain stays on the prefix", () => {
     synthesized.hasParameter("CognitoCustomDomainName", { Type: "String", Default: "" });
     synthesized.hasParameter("CognitoCustomDomainCertificateArn", { Type: "String", Default: "" });
     expect(synthesized.findParameters("CognitoServeCustomDomain")).toEqual({});
@@ -349,12 +349,10 @@ describe("findingalpha stack", () => {
       "CloudFrontDistribution",
     );
     const cognitoDomain = JSON.stringify(template.Outputs.CognitoDomain.Value);
-    expect(cognitoDomain).toContain("Fn::If");
-    expect(cognitoDomain).toMatch(/AuthUseCustomAuthDomain/);
-    expect(cognitoDomain).not.toMatch(/AuthServeCustomAuthDomain/);
+    expect(cognitoDomain).not.toContain("Fn::If");
     expect(cognitoDomain).toContain("CognitoDomainPrefix");
-    expect(cognitoDomain).toContain("CognitoCustomDomainName");
     expect(cognitoDomain).toContain(".amazoncognito.com");
+    expect(cognitoDomain).not.toContain("CognitoCustomDomainName");
   });
 
   test("public routes are throttled below the stage default", () => {

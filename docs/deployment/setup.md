@@ -112,7 +112,7 @@ Environment `production` variables:
 | `ADMIN_WEB_DOMAIN_NAME` | `admin.<domain>`. Required. The deploy fails when this is empty. |
 | `ADMIN_WEB_CERTIFICATE_ARN` | ACM certificate in us-east-1, status ISSUED. Required. The account id inside this ARN shows in the first settings block. Later lines are masked. |
 | `ADMIN_GOOGLE_CLIENT_ID` | Google OAuth client id. It also appears in the browser during sign-in. |
-| `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | Optional. `auth.<domain>`. Set with the certificate, or leave both empty. When set, Hosted UI and CSP use it. |
+| `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | Optional. `auth.<domain>`. Set with the certificate, or leave both empty. Creates the custom Hosted UI domain; SPA `CognitoDomain` stays on the prefix. |
 | `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | Optional. us-east-1 ACM covering `auth.<domain>`. |
 | `ADMIN_WAF_WEB_ACL_ARN` | Optional. Empty leaves the web ACL off. |
 | `MAIL_SENDING_DOMAIN` | `<domain>`. Empty disables email. |
