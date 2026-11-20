@@ -1,8 +1,8 @@
 # AdminApiFn and EngineFn are both built from this directory, so both
 # bundle these pins. Managed knowledge base calls need
 # botocore >= 1.43.64, and the copy inside the Lambda runtime varies
-# by region. 1.44.3 is the pair checked on 17 November 2026.
-# boto3 1.44.3 accepts any botocore from 1.44.3 up to 1.45, so botocore
-# is pinned at the same release.
-boto3==1.44.3
-botocore==1.44.3
+# by region. 1.44.4 is the current pin (1.44.3 was checked on
+# 17 November 2026). boto3 1.44.x accepts any botocore from the same
+# minor line up to 1.45, so botocore is pinned at the same release.
+boto3==1.44.4
+botocore==1.44.4
