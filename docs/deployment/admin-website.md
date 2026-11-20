@@ -20,10 +20,12 @@ that attempt. A fix to the workflow needs a new run.
    `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`,
    `ADMIN_WEB_DOMAIN_NAME`, `ADMIN_WEB_CERTIFICATE_ARN`,
    `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_COGNITO_ORIGIN`, and optionally
-   `ADMIN_WAF_WEB_ACL_ARN`. Repository variable `AWS_ACCOUNT_ID`.
-   Environment secrets `ADMIN_GOOGLE_CLIENT_SECRET` and
-   `ADMIN_FEDERATED_EMAIL_ALLOWLIST` (comma-separated lower-case emails
-   that receive `admin`). The workflow stops immediately when the
+   `ADMIN_WAF_WEB_ACL_ARN`, `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME`, and
+   `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (both required together
+   for Hosted UI on `auth.<domain>`). Repository variable
+   `AWS_ACCOUNT_ID`. Environment secrets `ADMIN_GOOGLE_CLIENT_SECRET`
+   and `ADMIN_FEDERATED_EMAIL_ALLOWLIST` (comma-separated lower-case
+   emails that receive `admin`). The workflow stops immediately when the
    domain, the certificate, or the account id is empty, or when the
    allow-list is empty as both a secret and a variable. A set secret is
    used. The variable is the fallback. The account id is a variable on
@@ -221,6 +223,19 @@ The DNS record points at the stack output `ApiCustomDomainTarget` (a
 `d-<id>.execute-api.<region>.amazonaws.com` name). It does not point at
 `<api-id>.execute-api.<region>.amazonaws.com`. The record is DNS only,
 not proxied. Create it only after the owner says go.
+
+## Cognito Hosted UI hostname
+
+Sign-in can stay on the Cognito prefix domain, or move to
+`auth.<domain>`. Set both `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and
+`ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 ACM covering
+that hostname). Empty values keep the prefix domain. After the deploy
+that creates the domain, set `ADMIN_COGNITO_ORIGIN` to
+`https://auth.<domain>`, add
+`https://auth.<domain>/oauth2/idpresponse` to the Google OAuth client,
+and point the `auth` CNAME at the stack output
+`CognitoCustomDomainTarget`. The record is DNS only. Create it only
+after the owner says go.
 
 ## Local UI without a stack
 

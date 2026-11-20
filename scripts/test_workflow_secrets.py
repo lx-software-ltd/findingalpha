@@ -54,6 +54,22 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn("github.ref == 'refs/heads/main'", text)
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
 
+    def test_deploy_backend_passes_cognito_custom_domain_like_api(self) -> None:
+        text = _workflow("deploy-backend.yml")
+        expressions = _expressions(text)
+        self.assertIn("vars.API_CUSTOM_DOMAIN_NAME", expressions)
+        self.assertIn("vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN", expressions)
+        self.assertIn("vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME", expressions)
+        self.assertIn("vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN", expressions)
+        self.assertIn(
+            "findingalpha:CognitoCustomDomainName=${P_COGNITO_DOMAIN}",
+            text,
+        )
+        self.assertIn(
+            "findingalpha:CognitoCustomDomainCertificateArn=${P_COGNITO_CERT}",
+            text,
+        )
+
     def test_other_workflows_prefer_the_account_secret(self) -> None:
         for filename in ("deploy-admin-web.yml", "cdk-diff.yml", "manage-api-keys.yml"):
             text = _workflow(filename)

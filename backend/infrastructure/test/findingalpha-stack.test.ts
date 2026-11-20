@@ -318,6 +318,25 @@ describe("findingalpha stack", () => {
     expect(outputs.ApiCustomDomainUrl.Condition).toBe("UseApiCustomDomain");
   });
 
+  test("the Cognito custom domain is created only when both parameters are set", () => {
+    synthesized.hasParameter("CognitoCustomDomainName", { Type: "String", Default: "" });
+    synthesized.hasParameter("CognitoCustomDomainCertificateArn", { Type: "String", Default: "" });
+    const domains = resources("AWS::Cognito::UserPoolDomain");
+    const custom = Object.values(domains).find(
+      (domain) => domain.Properties.CustomDomainConfig !== undefined,
+    );
+    expect(custom).toBeDefined();
+    expect(custom?.Condition).toMatch(/^AuthUseCustomAuthDomain/);
+    const outputs = synthesized.toJSON().Outputs as Record<
+      string,
+      { Condition?: string; Value?: unknown }
+    >;
+    expect(outputs.CognitoCustomDomainTarget.Condition).toBe(custom?.Condition);
+    expect(JSON.stringify(outputs.CognitoCustomDomainTarget.Value)).toContain(
+      "CloudFrontDistribution",
+    );
+  });
+
   test("public routes are throttled below the stage default", () => {
     const stage = Object.values(resources("AWS::ApiGatewayV2::Stage"))[0];
     const settings = stage.Properties.RouteSettings as Record<string, { ThrottlingRateLimit: number; ThrottlingBurstLimit: number }>;

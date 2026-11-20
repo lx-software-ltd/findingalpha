@@ -169,6 +169,8 @@ jobs:
           P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
           P_API_DOMAIN: ${{ vars.API_CUSTOM_DOMAIN_NAME }}
           P_API_CERT: ${{ vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
+          P_COGNITO_CERT: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           P_COGNITO_ORIGIN: ${{ vars.ADMIN_COGNITO_ORIGIN }}
           P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
@@ -222,6 +224,8 @@ jobs:
             --parameters "findingalpha-admin-web:AdminWebDomainName=${P_ADMIN_DOMAIN}" \
             --parameters "findingalpha:ApiCustomDomainName=${P_API_DOMAIN}" \
             --parameters "findingalpha:ApiCustomDomainCertificateArn=${P_API_CERT}" \
+            --parameters "findingalpha:CognitoCustomDomainName=${P_COGNITO_DOMAIN}" \
+            --parameters "findingalpha:CognitoCustomDomainCertificateArn=${P_COGNITO_CERT}" \
             --parameters "findingalpha-admin-web:AdminWebCertificateArn=${P_CERT_ARN}" \
             --parameters "findingalpha-admin-web:CspCognitoConnectOrigin=${P_COGNITO_ORIGIN}" \
             --parameters "findingalpha-admin-web:WafWebAclArn=${P_WAF_ARN}" \

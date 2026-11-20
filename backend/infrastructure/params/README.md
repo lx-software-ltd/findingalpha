@@ -27,8 +27,10 @@ sender local part, the kill switches (all `false`), `BrokerMode` (`paper`),
 and the knowledge-base caps. Leave a value out when it is empty. The
 parameter's CloudFormation default applies.
 
-Do not commit the dashboard hostname, the Google client, the allow-list,
-the bootstrap email or password, mail recipients, or certificate ARNs.
+Do not commit the dashboard hostname, the Cognito custom Hosted UI
+hostname, the Google client, the allow-list, the bootstrap email or
+password, mail recipients, or certificate ARNs. Those come from the
+GitHub `production` environment (same pattern as `api.<domain>`).
 
 ## Local deploy
 

@@ -78,5 +78,13 @@ export class FindingalphaStack extends cdk.Stack {
       kbBucketName: kbBucket.bucketName,
       engineFunctionName: engineFn.functionName,
     });
+    // Same pattern as ApiCustomDomainTarget: only when both custom-domain
+    // parameters are set. The auth DNS CNAME points at this CloudFront host.
+    new cdk.CfnOutput(this, "CognitoCustomDomainTarget", {
+      value: auth.cognitoCustomHostedDomain.attrCloudFrontDistribution,
+      condition: auth.useCustomAuthDomain,
+      description:
+        "CloudFront hostname for the Cognito custom Hosted UI. The auth DNS record points here.",
+    });
   }
 }
