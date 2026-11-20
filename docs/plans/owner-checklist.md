@@ -31,7 +31,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`. Confirm the key-workflow permissions in O05 item 5, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
 | O20 | Request an ACM certificate for `api.<domain>` in `ap-southeast-1` (the stack's region, not `us-east-1`) with DNS validation. Give the validation record to the developer. When ISSUED, set the two `API_CUSTOM_DOMAIN_*` variables | API hostname (M03A) |
 | O21 | Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment | After Google sign-in |
-| O22 | Confirm the apex `<domain>` resolves (Cognito needs a parent A/CNAME). Set `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 cert covering `auth.<domain>`); leave `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN` unset or `false`; deploy. Say go for the `auth` CNAME to `CognitoCustomDomainTarget`. Add `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth client. Then set `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN=true` and redeploy so the SPA and CSP switch | Custom Hosted UI hostname |
+| O22 | Confirm the apex `<domain>` resolves (Cognito needs a parent A/CNAME). Add `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth client first. Set `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 cert covering `auth.<domain>`); deploy. The SPA switches to `auth.<domain>` on that deploy—sign-in is down until the `auth` CNAME to `CognitoCustomDomainTarget` exists (say go for that record). If the `auth` record is already live, there is no DNS wait | Custom Hosted UI hostname |
 
 ## Details
 
@@ -98,7 +98,6 @@ Needed later, or optional:
 | `ADMIN_WAF_WEB_ACL_ARN` | ARN of an existing global web ACL | Optional |
 | `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | `auth.<domain>` | O22 (with the certificate; both or neither) |
 | `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | ARN of the us-east-1 certificate that covers `auth.<domain>` | O22 |
-| `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN` | `true` after the `auth` DNS record is live; otherwise unset or `false` | O22 |
 
 **Environment `production`, secrets:**
 

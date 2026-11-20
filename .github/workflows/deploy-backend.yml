@@ -35,7 +35,6 @@ jobs:
           P_PUBLIC_CERT_ARN: ${{ vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
           P_COGNITO_CERT: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
-          P_COGNITO_SERVE: ${{ vars.ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN }}
           P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
           P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
@@ -93,11 +92,6 @@ jobs:
           if { [ -n "${P_COGNITO_DOMAIN}" ] && [ -z "${P_COGNITO_CERT}" ]; } || \
              { [ -z "${P_COGNITO_DOMAIN}" ] && [ -n "${P_COGNITO_CERT}" ]; }; then
             echo "::error::Set both ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN, or leave both empty."
-            exit 1
-          fi
-          if [ "${P_COGNITO_SERVE}" = "true" ] && \
-             { [ -z "${P_COGNITO_DOMAIN}" ] || [ -z "${P_COGNITO_CERT}" ]; }; then
-            echo "::error::ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN=true requires both ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN."
             exit 1
           fi
 
@@ -182,9 +176,9 @@ jobs:
           P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
           P_API_DOMAIN: ${{ vars.API_CUSTOM_DOMAIN_NAME }}
           P_API_CERT: ${{ vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
           P_COGNITO_CERT: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
-          P_COGNITO_SERVE: ${{ vars.ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN }}
           P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
           P_PUBLIC_CERT_ARN: ${{ vars.PUBLIC_WWW_CERTIFICATE_ARN }}
@@ -223,13 +217,23 @@ jobs:
             fi
           fi
 
-          # CognitoServeCustomDomain defaults to false when the variable is unset.
-          COGNITO_SERVE="${P_COGNITO_SERVE:-false}"
+          # Same inputs as CognitoDomain: both custom-domain vars → custom origin,
+          # otherwise the Cognito prefix URL. Matches contracts/admin-domains.json.
+          # Passed as a stack parameter (not a cross-stack CognitoDomain import)
+          # so clearing the custom-domain vars cannot leave an export lock.
+          COGNITO_PREFIX="findingalpha-admin-auth"
+          if [ -n "${P_COGNITO_DOMAIN}" ] && [ -n "${P_COGNITO_CERT}" ]; then
+            COGNITO_ORIGIN="https://${P_COGNITO_DOMAIN}"
+          else
+            if [ -z "${AWS_REGION}" ]; then
+              echo "::error::AWS_REGION is required to build the Cognito prefix origin for CSP."
+              exit 1
+            fi
+            COGNITO_ORIGIN="https://${COGNITO_PREFIX}.auth.${AWS_REGION}.amazoncognito.com"
+          fi
 
           # Backend + admin SPA first so a public-www failure cannot block them.
           # Public www has no cross-stack imports; deploy it last when vars are set.
-          # CSP Cognito origin imports findingalpha-CognitoDomain in the admin-web
-          # stack, so it stays in step with CognitoDomain without a GitHub variable.
           npx cdk deploy --require-approval never \
             "${BACKEND_PARAM_ARGS[@]}" "${ADMIN_WEB_PARAM_ARGS[@]}" \
             --parameters "findingalpha:AdminWebDomainName=${P_ADMIN_DOMAIN}" \
@@ -244,8 +248,8 @@ jobs:
             --parameters "findingalpha:ApiCustomDomainCertificateArn=${P_API_CERT}" \
             --parameters "findingalpha:CognitoCustomDomainName=${P_COGNITO_DOMAIN}" \
             --parameters "findingalpha:CognitoCustomDomainCertificateArn=${P_COGNITO_CERT}" \
-            --parameters "findingalpha:CognitoServeCustomDomain=${COGNITO_SERVE}" \
             --parameters "findingalpha-admin-web:AdminWebCertificateArn=${P_CERT_ARN}" \
+            --parameters "findingalpha-admin-web:CspCognitoConnectOrigin=${COGNITO_ORIGIN}" \
             --parameters "findingalpha-admin-web:WafWebAclArn=${P_WAF_ARN}" \
             findingalpha findingalpha-admin-web
 
