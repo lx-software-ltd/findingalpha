@@ -347,6 +347,11 @@ they are uploaded to `formula-notes/` and synced. T05 is done when that
 sync completes and a retrieval with the `formula-notes` filter returns
 each note.
 
+The 11 notes were uploaded and synced on 19 November 2026 (11 scanned,
+11 indexed). On 20 November each note was the top result for its own
+query with the `formula-notes` filter, with its formula intact. T05 is
+done.
+
 ### M07-T06 Cite the register
 
 Add a third status to `methodology.validate`: `owner_accepted`, which
