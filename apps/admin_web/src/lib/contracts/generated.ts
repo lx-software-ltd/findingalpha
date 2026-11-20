@@ -1044,7 +1044,7 @@ export const roadmap = {
         {
           "id": "M07-T05",
           "title": "Evaluation",
-          "status": "todo"
+          "status": "done"
         },
         {
           "id": "M07-T06",
