@@ -73,8 +73,8 @@ one invoke permission on `AdminApiFn`.
 
 The dashboard distribution redirects viewers to HTTPS. Its
 content-security policy allows the API origin and the Cognito origin
-passed in `CspCognitoConnectOrigin`. A web ACL is attached only when
-`WafWebAclArn` is set.
+imported from the `findingalpha` stack export `findingalpha-CognitoDomain`.
+A web ACL is attached only when `WafWebAclArn` is set.
 
 ## Branch protection
 

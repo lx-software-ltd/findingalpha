@@ -101,7 +101,6 @@ describe("findingalpha stack", () => {
       "AWS::Logs::ResourcePolicy",
       "AWS::S3::BucketPolicy",
       "AWS::Scheduler::Schedule",
-      "Custom::AWS",
     ]);
   });
 
@@ -316,6 +315,52 @@ describe("findingalpha stack", () => {
     const outputs = synthesized.toJSON().Outputs as Record<string, { Condition?: string }>;
     expect(outputs.ApiCustomDomainTarget.Condition).toBe("UseApiCustomDomain");
     expect(outputs.ApiCustomDomainUrl.Condition).toBe("UseApiCustomDomain");
+  });
+
+  test("the Cognito custom domain coexists with the prefix and CognitoDomain flips only when served", () => {
+    synthesized.hasParameter("CognitoCustomDomainName", { Type: "String", Default: "" });
+    synthesized.hasParameter("CognitoCustomDomainCertificateArn", { Type: "String", Default: "" });
+    synthesized.hasParameter("CognitoServeCustomDomain", {
+      Type: "String",
+      Default: "false",
+      AllowedValues: ["true", "false"],
+    });
+    const domains = resources("AWS::Cognito::UserPoolDomain");
+    const prefix = Object.values(domains).find(
+      (domain) => domain.Properties.CustomDomainConfig === undefined,
+    );
+    const custom = Object.values(domains).find(
+      (domain) => domain.Properties.CustomDomainConfig !== undefined,
+    );
+    expect(prefix).toBeDefined();
+    expect(prefix?.Condition).toBeUndefined();
+    expect(custom).toBeDefined();
+    expect(custom?.Condition).toMatch(/^AuthUseCustomAuthDomain/);
+    const template = synthesized.toJSON() as {
+      Resources: Record<string, { Type: string; Properties?: Record<string, unknown> }>;
+      Outputs: Record<string, { Condition?: string; Value?: unknown }>;
+      Conditions: Record<string, unknown>;
+    };
+    const deleteDomain = Object.values(template.Resources).find((resource) => {
+      if (resource.Type !== "Custom::AWS") {
+        return false;
+      }
+      return JSON.stringify(resource.Properties).includes("deleteUserPoolDomain");
+    });
+    expect(deleteDomain).toBeUndefined();
+    expect(template.Outputs.CognitoCustomDomainTarget.Condition).toBe(custom?.Condition);
+    expect(JSON.stringify(template.Outputs.CognitoCustomDomainTarget.Value)).toContain(
+      "CloudFrontDistribution",
+    );
+    const cognitoDomain = JSON.stringify(template.Outputs.CognitoDomain.Value);
+    expect(cognitoDomain).toContain("Fn::If");
+    expect(cognitoDomain).toMatch(/AuthServeCustomAuthDomain/);
+    expect(cognitoDomain).toContain("CognitoDomainPrefix");
+    expect(cognitoDomain).toContain("CognitoCustomDomainName");
+    expect(cognitoDomain).toContain(".amazoncognito.com");
+    expect(Object.keys(template.Conditions).some((id) => id.startsWith("AuthServeCustomAuthDomain"))).toBe(
+      true,
+    );
   });
 
   test("public routes are throttled below the stage default", () => {

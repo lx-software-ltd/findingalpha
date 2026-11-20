@@ -56,11 +56,13 @@ describe("findingalpha admin web stack", () => {
     expect(oacRead?.Action).toBe("s3:GetObject");
   });
 
-  test("the content security policy allows the API origin and the Cognito origin", () => {
+  test("the content security policy allows the API origin and imports CognitoDomain", () => {
     const headers = template.findResources("AWS::CloudFront::ResponseHeadersPolicy");
     const text = JSON.stringify(headers);
     expect(text).toContain(API_ORIGIN);
-    expect(text).toContain("CspCognitoConnectOrigin");
+    expect(text).toContain("findingalpha-CognitoDomain");
+    expect(text).toContain("Fn::ImportValue");
+    expect(text).not.toContain("CspCognitoConnectOrigin");
     expect(text).toContain("connect-src 'self'");
   });
 

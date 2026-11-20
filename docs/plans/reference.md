@@ -78,8 +78,9 @@ come from the GitHub `production` environment, not from the file.
 | `GoogleClientSecret` | GitHub secret `ADMIN_GOOGLE_CLIENT_SECRET` | none | `noEcho` |
 | `AdminFederatedEmailAllowlist` | GitHub secret `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | none | Comma-separated, lower case. Environment `production` |
 | `CognitoDomainPrefix` | params file | `findingalpha-admin-auth` | |
-| `CognitoCustomDomainName` | params file | empty | Optional `auth.<domain>` |
-| `CognitoCustomDomainCertificateArn` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | us-east-1 |
+| `CognitoCustomDomainName` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | empty | Optional `auth.<domain>`. Empty skips the custom domain. Set with the certificate; both or neither |
+| `CognitoCustomDomainCertificateArn` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | us-east-1 ACM. Empty skips the custom domain |
+| `CognitoServeCustomDomain` | GitHub var `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN` | `false` | `true` only after `auth` DNS is live. Controls `CognitoDomain` and CSP |
 | `MailSendingDomain` | GitHub var `MAIL_SENDING_DOMAIN` | empty | `<domain>`. Empty disables email |
 | `BriefFromLocalPart` | params file | `brief` | Sender is `brief@<domain>` |
 | `BriefRecipientEmail` | GitHub secret `BRIEF_RECIPIENT_EMAIL` | empty | Environment `production` |
@@ -104,7 +105,7 @@ come from the GitHub `production` environment, not from the file.
 | --- | --- | --- |
 | `AdminWebDomainName` | GitHub var `ADMIN_WEB_DOMAIN_NAME` | CloudFront alias |
 | `AdminWebCertificateArn` | GitHub var `ADMIN_WEB_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
-| `CspCognitoConnectOrigin` | GitHub var `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.<region>.amazoncognito.com` or `https://auth.<domain>` |
+| Cognito CSP origin | `Fn::ImportValue` `findingalpha-CognitoDomain` | same as that output | No separate GitHub variable |
 | `WafWebAclArn` | GitHub var `ADMIN_WAF_WEB_ACL_ARN` | Empty disables |
 
 ### `findingalpha-public-www`

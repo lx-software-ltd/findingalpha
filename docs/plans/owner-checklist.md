@@ -31,6 +31,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`. Confirm the key-workflow permissions in O05 item 5, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
 | O20 | Request an ACM certificate for `api.<domain>` in `ap-southeast-1` (the stack's region, not `us-east-1`) with DNS validation. Give the validation record to the developer. When ISSUED, set the two `API_CUSTOM_DOMAIN_*` variables | API hostname (M03A) |
 | O21 | Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment | After Google sign-in |
+| O22 | Confirm the apex `<domain>` resolves (Cognito needs a parent A/CNAME). Set `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 cert covering `auth.<domain>`); leave `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN` unset or `false`; deploy. Say go for the `auth` CNAME to `CognitoCustomDomainTarget`. Add `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth client. Then set `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN=true` and redeploy so the SPA and CSP switch | Custom Hosted UI hostname |
 
 ## Details
 
@@ -85,7 +86,6 @@ Dependabot pull request can read the variable.
 | --- | --- |
 | `ADMIN_WEB_DOMAIN_NAME` | `admin.<domain>` |
 | `ADMIN_WEB_CERTIFICATE_ARN` | ARN of the issued certificate from O06 |
-| `ADMIN_COGNITO_ORIGIN` | `https://findingalpha-admin-auth.auth.ap-southeast-1.amazoncognito.com` |
 | `ADMIN_GOOGLE_CLIENT_ID` | From O07 |
 
 Needed later, or optional:
@@ -96,7 +96,9 @@ Needed later, or optional:
 | `API_CUSTOM_DOMAIN_NAME` | `api.<domain>` | M03A |
 | `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | ARN of the issued certificate from O20, in `ap-southeast-1` | M03A |
 | `ADMIN_WAF_WEB_ACL_ARN` | ARN of an existing global web ACL | Optional |
-| `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | Only if sign-in should run on `auth.<domain>` | Optional |
+| `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | `auth.<domain>` | O22 (with the certificate; both or neither) |
+| `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | ARN of the us-east-1 certificate that covers `auth.<domain>` | O22 |
+| `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN` | `true` after the `auth` DNS record is live; otherwise unset or `false` | O22 |
 
 **Environment `production`, secrets:**
 
@@ -137,6 +139,7 @@ through the Cloudflare API with a token from their environment. Rules:
 | `www` | Worker custom domain + Single Redirect | 301 to `https://<domain>` keeping path and query (proxied `AAAA 100::`) | Same go; www is not a CloudFront alias |
 | ACM validation name for `api.<domain>` | CNAME | The validation value ACM shows | M03A (O20) |
 | `api` | CNAME | The `ApiCustomDomainTarget` output of the `findingalpha` stack | M03A, after the deploy that creates the domain |
+| `auth` | CNAME | The `CognitoCustomDomainTarget` output of the `findingalpha` stack | O22, after the deploy that creates the domain |
 | Three SES DKIM names | CNAME | The three SES values | M10 (O16) |
 | `_dmarc` | TXT | A DMARC policy for the sending domain | M10 |
 
