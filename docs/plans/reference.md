@@ -78,7 +78,7 @@ come from the GitHub `production` environment, not from the file.
 | `GoogleClientSecret` | GitHub secret `ADMIN_GOOGLE_CLIENT_SECRET` | none | `noEcho` |
 | `AdminFederatedEmailAllowlist` | GitHub secret `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | none | Comma-separated, lower case. Environment `production` |
 | `CognitoDomainPrefix` | params file | `findingalpha-admin-auth` | |
-| `CognitoCustomDomainName` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | empty | Optional `auth.<domain>`. Empty skips the custom domain. Set with the certificate; both or neither. `CognitoDomain` stays on the prefix |
+| `CognitoCustomDomainName` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | empty | Optional `auth.<domain>`. Empty skips the custom domain. Set with the certificate; both or neither. When set, `CognitoDomain` uses it |
 | `CognitoCustomDomainCertificateArn` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | us-east-1 ACM. Empty skips the custom domain |
 | `MailSendingDomain` | GitHub var `MAIL_SENDING_DOMAIN` | empty | `<domain>`. Empty disables email |
 | `BriefFromLocalPart` | params file | `brief` | Sender is `brief@<domain>` |

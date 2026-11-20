@@ -27,7 +27,7 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
     const cognitoOrigin = new cdk.CfnParameter(this, "CspCognitoConnectOrigin", {
       type: "String",
       description:
-        "Cognito origin(s) for CSP connect-src: the prefix URL, and when the custom domain is set also https://auth.<domain> (space-separated).",
+        "Cognito origin(s) for CSP connect-src: the prefix URL, and when the custom domain is set also https://auth.<domain> (space-separated). Matches CognitoDomain when only the prefix is used.",
     });
     const wafArn = new cdk.CfnParameter(this, "WafWebAclArn", {
       type: "String",
@@ -73,8 +73,8 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
   return request;
 }`),
     });
-    // Passed by Deploy Backend. CognitoDomain (SPA) stays on the prefix; CSP
-    // may list the prefix and the custom origin. Not an export import.
+    // Passed by Deploy Backend. CognitoDomain (SPA) may be prefix or custom;
+    // CSP may list both. Parameter, not an export import.
     const csp = cdk.Fn.join("; ", [
       "default-src 'self'",
       cdk.Fn.join(" ", [

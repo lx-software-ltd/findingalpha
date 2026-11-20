@@ -217,10 +217,10 @@ jobs:
             fi
           fi
 
-          # CognitoDomain (SPA) is always the prefix URL. CSP allows the prefix
-          # and, when both custom-domain vars are set, also https://auth.<domain>.
-          # Matches contracts/admin-domains.json. Passed as a parameter so
-          # admin-web does not import the CognitoDomain export.
+          # CognitoDomain (SPA) is conditional: custom when both vars are set,
+          # else the prefix. CSP always allows the prefix, and when both
+          # custom-domain vars are set also https://auth.<domain>.
+          # Passed as a parameter; CognitoDomain has no exportName.
           COGNITO_PREFIX="findingalpha-admin-auth"
           if [ -z "${AWS_REGION}" ]; then
             echo "::error::AWS_REGION is required to build the Cognito prefix origin for CSP."

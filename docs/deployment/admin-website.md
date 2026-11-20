@@ -33,10 +33,12 @@ that attempt. A fix to the workflow needs a new run.
    on purpose: the first settings block shows it and later lines are
    masked, with no warning. An email read from a variable warns.
    **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
-   `AdminApiBaseUrl` from the `findingalpha` stack. `CognitoDomain` is
-   always the Cognito prefix URL. Deploy Backend passes
-   `CspCognitoConnectOrigin` as that prefix, and when the custom domain
-   is set also `https://auth.<domain>` (space-separated).
+   `AdminApiBaseUrl` from the `findingalpha` stack via describe-stacks
+   (`CognitoDomain` has no export). When both custom-domain vars are set,
+   `CognitoDomain` is `https://auth.<domain>`; otherwise the Cognito
+   prefix URL. Deploy Backend passes `CspCognitoConnectOrigin` as that
+   prefix, and when the custom domain is set also `https://auth.<domain>`
+   (space-separated).
 2. **Region** — `AWS_REGION` must be the region where the `siutindei`
    bootstrap parameter `/cdk-bootstrap/siutindei/version` exists.
 3. **ACM** — `ADMIN_WEB_CERTIFICATE_ARN` must be an **ISSUED**
@@ -230,26 +232,29 @@ not proxied. Create it only after the owner says go.
 
 ## Cognito Hosted UI hostname
 
-When both custom-domain variables are set, Cognito creates `auth.<domain>`.
-The `CognitoDomain` stack output (and therefore the SPA) stays on the
-Cognito prefix URL. CSP `connect-src` allows the prefix and
-`https://auth.<domain>`. AWS allows both domains on the same pool; this
-stack keeps the prefix so rollback can clear the two variables without
-recreating it.
+When both custom-domain variables are set, Cognito creates `auth.<domain>`
+and `CognitoDomain` (SPA) uses `https://auth.<domain>` on that deploy.
+CSP `connect-src` allows the Cognito prefix and `https://auth.<domain>`.
+AWS allows both domains on the same pool; this stack keeps the prefix so
+rollback can clear the two variables without recreating it.
+`CognitoDomain` is a plain stack output (no export); Deploy Admin Web
+reads it with describe-stacks.
 
 1. Confirm the parent `<domain>` resolves (Cognito requires it before
    creating `auth.<domain>`).
 2. Add `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth
-   client.
+   client **before** the deploy that turns the custom domain on. Without
+   that URI, Google rejects every sign-in after the switch.
 3. Set both `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and
    `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 ACM covering
    that hostname). Deploy.
 4. Point the `auth` CNAME at `CognitoCustomDomainTarget` (DNS only,
-   after the owner says go).
+   after the owner says go). Until that record exists, sign-in is down
+   because the SPA already targets `https://auth.<domain>`. If the
+   record is already live, there is no DNS wait.
 
 To remove the custom domain, clear both custom-domain variables and
-redeploy. CSP follows those variables as a parameter, so there is no
-CognitoDomain export lock on the admin-web stack.
+redeploy.
 
 ## Local UI without a stack
 

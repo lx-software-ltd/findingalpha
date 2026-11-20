@@ -16,7 +16,6 @@ export function defineOutputs(
   const pairs: [string, string][] = [
     ["UserPoolId", values.userPoolId],
     ["UserPoolClientId", values.userPoolClientId],
-    ["CognitoDomain", values.cognitoDomain],
     ["AdminApiBaseUrl", values.adminApiBaseUrl],
     ["RecordsTableName", values.recordsTableName],
     ["DataBucketName", values.dataBucketName],
@@ -26,4 +25,9 @@ export function defineOutputs(
   for (const [key, value] of pairs) {
     new cdk.CfnOutput(scope, key, { value, exportName: `findingalpha-${key}` });
   }
+  // Plain output for describe-stacks (Deploy Admin Web). No exportName —
+  // nothing imports it, and an export would lock changes to the value.
+  new cdk.CfnOutput(scope, "CognitoDomain", {
+    value: values.cognitoDomain,
+  });
 }
