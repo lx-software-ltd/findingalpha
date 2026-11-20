@@ -71,7 +71,7 @@ export function defineKnowledgeBase(
   // One create at a time. Each data source moves from CREATING to
   // AVAILABLE on its own, and the next waits for that to finish.
   for (let index = 1; index < sources.length; index += 1) {
-    sources[index].addDependency(sources[index - 1]);
+    sources[index].addResourceDependency(sources[index - 1]);
   }
   const sourceIds = Object.fromEntries(PREFIXES.map((entry, index) => [entry.prefix, sources[index].attrDataSourceId]));
 
