@@ -56,17 +56,23 @@ parameter. `QUALIFIER` here is `siutindei`:
 }
 ```
 
-For the two stacks (`findingalpha`, `findingalpha-admin-web`) the role
-also needs:
+For the three stacks (`findingalpha`, `findingalpha-admin-web`,
+`findingalpha-public-www`) the role also needs:
 
 - **CloudFormation** `DescribeStacks` on
-  `arn:aws:cloudformation:REGION:ACCOUNT_ID:stack/findingalpha/*` and
-  `arn:aws:cloudformation:REGION:ACCOUNT_ID:stack/findingalpha-admin-web/*`.
+  `arn:aws:cloudformation:REGION:ACCOUNT_ID:stack/findingalpha/*`,
+  `arn:aws:cloudformation:REGION:ACCOUNT_ID:stack/findingalpha-admin-web/*`,
+  and
+  `arn:aws:cloudformation:REGION:ACCOUNT_ID:stack/findingalpha-public-www/*`.
   **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
   `AdminApiBaseUrl` from `findingalpha` before it uploads the SPA.
+  **Deploy Public Website** reads the public bucket and distribution
+  outputs from `findingalpha-public-www`.
 - **S3** `GetObject` / `PutObject` / `DeleteObject` / `ListBucket` on the
-  dashboard bucket (`findingalpha-web-*`).
-- **CloudFront** `CreateInvalidation` on the dashboard distribution.
+  dashboard bucket (`findingalpha-web-*`) and the public www bucket
+  (`findingalpha-public-www-*`).
+- **CloudFront** `CreateInvalidation` on the dashboard and public www
+  distributions.
 
 Resource names this role may create must include the `findingalpha*`
 prefix. That is an owner check, not something this repository can grant.

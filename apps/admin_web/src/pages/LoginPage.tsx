@@ -1,21 +1,20 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useAuth } from "../components/AuthProvider";
 import { LOGIN_DENIED_FLASH_KEY } from "../lib/auth";
 
 const googleSignInButtonStyle = {
-  "--bs-btn-bg": "#fff",
-  "--bs-btn-color": "#000",
-  "--bs-btn-border-color": "var(--bs-primary)",
-  "--bs-btn-border-width": "2px",
-  "--bs-btn-hover-bg": "#fff",
-  "--bs-btn-hover-color": "#000",
-  "--bs-btn-hover-border-color": "var(--bs-primary)",
-  "--bs-btn-active-bg": "#fff",
-  "--bs-btn-active-color": "#000",
-  "--bs-btn-active-border-color": "var(--bs-primary)",
-  "--bs-btn-disabled-bg": "#fff",
+  "--bs-btn-bg": "#ffffff",
+  "--bs-btn-color": "#000000",
+  "--bs-btn-border-color": "#ffffff",
+  "--bs-btn-hover-bg": "#f2f2f2",
+  "--bs-btn-hover-color": "#000000",
+  "--bs-btn-hover-border-color": "#f2f2f2",
+  "--bs-btn-active-bg": "#e8e8e8",
+  "--bs-btn-active-color": "#000000",
+  "--bs-btn-active-border-color": "#e8e8e8",
+  "--bs-btn-disabled-bg": "#ffffff",
   "--bs-btn-disabled-color": "rgba(0, 0, 0, 0.45)",
-  "--bs-btn-disabled-border-color": "var(--bs-primary)",
+  "--bs-btn-disabled-border-color": "#ffffff",
 } as CSSProperties;
 
 function GoogleGLogo({ className }: { className?: string }) {
@@ -23,8 +22,8 @@ function GoogleGLogo({ className }: { className?: string }) {
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 24 24"
-      width={22}
-      height={22}
+      width={28}
+      height={28}
       className={className}
       aria-hidden
     >
@@ -62,28 +61,56 @@ export function LoginPage() {
     consumeLoginDeniedFlash(),
   );
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const previousScheme = root.style.colorScheme;
+    const previousTheme = root.getAttribute("data-bs-theme");
+    const meta = document.querySelector('meta[name="color-scheme"]');
+    const previousMeta = meta?.getAttribute("content") ?? null;
+    root.style.colorScheme = "dark";
+    root.setAttribute("data-bs-theme", "dark");
+    meta?.setAttribute("content", "dark");
+    return () => {
+      root.style.colorScheme = previousScheme;
+      if (previousTheme === null) {
+        root.removeAttribute("data-bs-theme");
+      } else {
+        root.setAttribute("data-bs-theme", previousTheme);
+      }
+      if (meta) {
+        if (previousMeta === null) {
+          meta.removeAttribute("content");
+        } else {
+          meta.setAttribute("content", previousMeta);
+        }
+      }
+    };
+  }, []);
+
   return (
     <div className="admin-login">
-      <div className="admin-login-card">
-        {deniedMessage ? (
-          <div className="alert alert-danger small mb-3" role="alert">
-            {deniedMessage}
-          </div>
-        ) : null}
-        <h1 className="h4 mb-3">findingalpha</h1>
-        <div className="d-grid gap-2">
-          <button
-            type="button"
-            className="btn btn-primary btn-lg d-inline-flex align-items-center justify-content-center gap-2"
-            style={googleSignInButtonStyle}
-            onClick={() => void loginWithGoogle()}
-            aria-label="Sign in with Google"
-          >
-            <span>Sign in with</span>
-            <GoogleGLogo />
-          </button>
+      {deniedMessage ? (
+        <div className="alert alert-danger small admin-login-alert" role="alert">
+          {deniedMessage}
         </div>
-      </div>
+      ) : null}
+      <img
+        className="admin-login-icon"
+        src="/icon.png"
+        alt="Finding Alpha"
+        width={96}
+        height={96}
+        decoding="async"
+      />
+      <button
+        type="button"
+        className="btn admin-login-google"
+        style={googleSignInButtonStyle}
+        onClick={() => void loginWithGoogle()}
+        aria-label="Sign in with Google"
+      >
+        <GoogleGLogo />
+      </button>
     </div>
   );
 }

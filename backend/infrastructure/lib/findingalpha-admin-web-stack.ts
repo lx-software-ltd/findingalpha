@@ -46,7 +46,10 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
       objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_PREFERRED,
-      lifecycleRules: [{ id: "ExpireOldLogs", expiration: cdk.Duration.days(90) }],
+      lifecycleRules: [
+        { id: "ExpireOldLogs", expiration: cdk.Duration.days(90) },
+        { id: "ExpireNoncurrentLogs", noncurrentVersionExpiration: cdk.Duration.days(90) },
+      ],
     });
     const bucket = new s3.Bucket(this, "AdminWebBucket", {
       bucketName: `findingalpha-web-${account}-${region}`,

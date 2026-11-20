@@ -30,6 +30,7 @@ or update tests first, then implement.
 
 - Remaining `backend/lambda/**`
 - `apps/admin_web/src/**`
+- `apps/public_www/**` (logo-only public site; pushes to `main` deploy)
 
 ## Green
 

@@ -1,0 +1,110 @@
+name: Deploy Public Website
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/public_www/**"
+      - "scripts/deploy/deploy-public-website.sh"
+      - ".github/workflows/deploy-public-website.yml"
+  # After a successful backend deploy the public stack may have been created
+  # or updated. Rebuild and upload from current main. Skip when the stack is
+  # not deployed yet (vars unset or first backend-only merge).
+  workflow_run:
+    workflows: ["Deploy Backend"]
+    types: [completed]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-public-website
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    # The production environment should also limit branches to main.
+    # This job refuses every other ref even if that setting is open.
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
+    runs-on: ubuntu-26.04
+    environment: production
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Skip when the app does not exist yet
+        id: exists
+        run: test -f apps/public_www/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
+
+      - name: Require the account id
+        if: steps.exists.outputs.present == 'true'
+        env:
+          P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
+        run: |
+          if [ -n "${P_ACCOUNT_ID}" ]; then
+            echo "::add-mask::${P_ACCOUNT_ID}"
+          fi
+          if [ -z "${P_ACCOUNT_ID}" ]; then
+            echo "::error::Set AWS_ACCOUNT_ID as a repository secret or a variable before deploying."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        if: steps.exists.outputs.present == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: apps/public_www/package-lock.json
+
+      - name: Install dependencies
+        if: steps.exists.outputs.present == 'true'
+        run: npm ci
+        working-directory: apps/public_www
+
+      - name: Build public website
+        if: steps.exists.outputs.present == 'true'
+        run: npm run build
+        working-directory: apps/public_www
+
+      - name: Configure AWS credentials
+        if: steps.exists.outputs.present == 'true'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+
+      - name: Skip when the stack is not deployed yet
+        id: stack
+        if: steps.exists.outputs.present == 'true'
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          stack=findingalpha-public-www
+          err="$(mktemp)"
+          if aws cloudformation describe-stacks --stack-name "$stack" --output json >/dev/null 2>"$err"; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            rm -f "$err"
+            exit 0
+          fi
+          if grep -q 'AccessDenied' "$err"; then
+            echo "::error::GitHubActionsRole needs cloudformation:DescribeStacks on stack ${stack} in ${AWS_REGION}."
+            cat "$err" >&2
+            rm -f "$err"
+            exit 1
+          fi
+          echo "present=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::${stack} is not deployed yet; skipping upload. Set PUBLIC_WWW_DOMAIN_NAME and PUBLIC_WWW_CERTIFICATE_ARN, then re-run Deploy Backend."
+          cat "$err" >&2 || true
+          rm -f "$err"
+
+      - name: Deploy public website
+        if: steps.exists.outputs.present == 'true' && steps.stack.outputs.present == 'true'
+        run: bash scripts/deploy/deploy-public-website.sh
+        env:
+          PUBLIC_WEBSITE_STACK_NAME: findingalpha-public-www

@@ -31,6 +31,8 @@ jobs:
         env:
           P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
           P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
+          P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
+          P_PUBLIC_CERT_ARN: ${{ vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
           P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
@@ -73,6 +75,9 @@ jobs:
           if [ -z "${P_ADMIN_DOMAIN}" ] || [ -z "${P_CERT_ARN}" ]; then
             echo "::error::Set ADMIN_WEB_DOMAIN_NAME and ADMIN_WEB_CERTIFICATE_ARN on the production environment before deploying."
             exit 1
+          fi
+          if [ -z "${P_PUBLIC_DOMAIN}" ] || [ -z "${P_PUBLIC_CERT_ARN}" ]; then
+            echo "::notice::PUBLIC_WWW_DOMAIN_NAME or PUBLIC_WWW_CERTIFICATE_ARN is unset; findingalpha-public-www will be skipped."
           fi
           if [ -z "${P_ACCOUNT_ID}" ]; then
             echo "::error::Set AWS_ACCOUNT_ID as a repository secret or a variable before deploying."
@@ -166,12 +171,16 @@ jobs:
           P_API_CERT: ${{ vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           P_COGNITO_ORIGIN: ${{ vars.ADMIN_COGNITO_ORIGIN }}
           P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
+          P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
+          P_PUBLIC_CERT_ARN: ${{ vars.PUBLIC_WWW_CERTIFICATE_ARN }}
+          P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
         run: |
           set -eo pipefail
           npx cdk acknowledge 34892 || true
 
           BACKEND_PARAM_ARGS=()
           ADMIN_WEB_PARAM_ARGS=()
+          PUBLIC_WWW_PARAM_ARGS=()
           resolve_param_file() {
             local path="$1"
             if [ -z "$path" ]; then
@@ -199,8 +208,8 @@ jobs:
             fi
           fi
 
-          # Both stacks in one command, in dependency order. Do not pass
-          # --exclusively: the web stack imports the API origin.
+          # Backend + admin SPA first so a public-www failure cannot block them.
+          # Public www has no cross-stack imports; deploy it last when vars are set.
           npx cdk deploy --require-approval never \
             "${BACKEND_PARAM_ARGS[@]}" "${ADMIN_WEB_PARAM_ARGS[@]}" \
             --parameters "findingalpha:AdminWebDomainName=${P_ADMIN_DOMAIN}" \
@@ -217,3 +226,14 @@ jobs:
             --parameters "findingalpha-admin-web:CspCognitoConnectOrigin=${P_COGNITO_ORIGIN}" \
             --parameters "findingalpha-admin-web:WafWebAclArn=${P_WAF_ARN}" \
             findingalpha findingalpha-admin-web
+
+          if [ -n "${P_PUBLIC_DOMAIN}" ] && [ -n "${P_PUBLIC_CERT_ARN}" ]; then
+            npx cdk deploy --require-approval never \
+              "${PUBLIC_WWW_PARAM_ARGS[@]}" \
+              --parameters "findingalpha-public-www:PublicWebsiteDomainName=${P_PUBLIC_DOMAIN}" \
+              --parameters "findingalpha-public-www:PublicWebsiteCertificateArn=${P_PUBLIC_CERT_ARN}" \
+              --parameters "findingalpha-public-www:WafWebAclArn=${P_PUBLIC_WAF_ARN}" \
+              findingalpha-public-www
+          else
+            echo "::notice::Skipping findingalpha-public-www (PUBLIC_WWW_DOMAIN_NAME or PUBLIC_WWW_CERTIFICATE_ARN unset)."
+          fi

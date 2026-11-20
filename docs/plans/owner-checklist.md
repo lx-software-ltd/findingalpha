@@ -131,6 +131,8 @@ through the Cloudflare API with a token from their environment. Rules:
 | --- | --- | --- | --- |
 | ACM validation name for `admin.<domain>` | CNAME | The validation value ACM shows | Before the first deploy (O06) |
 | `admin` | CNAME | The `AdminWebDistributionDomain` output of the `findingalpha-admin-web` stack | After the first deploy (O08) |
+| ACM validation name for `www.<domain>` (or the public hostname) | CNAME | The validation value ACM shows | Before the public www stack deploy |
+| `www` (or the public hostname) | CNAME | The `PublicWebsiteDistributionDomain` output of the `findingalpha-public-www` stack | After the public www stack deploy |
 | ACM validation name for `api.<domain>` | CNAME | The validation value ACM shows | M03A (O20) |
 | `api` | CNAME | The `ApiCustomDomainTarget` output of the `findingalpha` stack | M03A, after the deploy that creates the domain |
 | Three SES DKIM names | CNAME | The three SES values | M10 (O16) |

@@ -5,6 +5,7 @@ points at it. Keys are `<stack>:<Parameter>`.
 
 - `findingalpha:` goes to the backend stack.
 - `findingalpha-admin-web:` goes to the dashboard stack.
+- `findingalpha-public-www:` goes to the public logo site stack.
 - A key with no prefix, or with any other prefix, is an error.
 
 Values that identify the owner or the account are not in this file. They

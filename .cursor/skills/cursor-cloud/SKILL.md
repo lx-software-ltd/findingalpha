@@ -9,6 +9,7 @@ description: Run the admin console in the cloud-agent VM without AWS credentials
 
 | Service | Command | Port |
 | --- | --- | --- |
+| Public www | `cd apps/public_www && npm run dev` | 5173 |
 | Admin console | `cd apps/admin_web && npm run dev` | 5174 |
 | Admin fixtures | `cd apps/admin_web && npm run dev:mock` | 5174 |
 

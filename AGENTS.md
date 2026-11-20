@@ -21,12 +21,13 @@ Autonomy follows blast radius. The map is `docs/architecture/zones.md`. The stri
 
 | Service | Path | Dev command | Port |
 | --- | --- | --- | --- |
+| Public www | `apps/public_www/` | `npm run dev` | 5173 |
 | Admin console | `apps/admin_web/` | `npm run dev` | 5174 |
 | Admin fixtures | `apps/admin_web/` | `npm run dev:mock` | 5174 |
 
 Copy `apps/admin_web/.env.example` to `.env` for a real API. `npm run dev:mock` needs no AWS. Read `.cursor/skills/cursor-cloud/SKILL.md` before running services.
 
-Lint and test with `npm run lint`, `npm test`, and `npm run build` in `apps/admin_web` and `backend/infrastructure`. Admin `npm test` runs Vitest. `npm run test:e2e` is the Playwright smoke.
+Lint and test with `npm run lint`, `npm test`, and `npm run build` in `apps/public_www`, `apps/admin_web`, and `backend/infrastructure`. Admin `npm test` runs Vitest. `npm run test:e2e` is the Playwright smoke.
 
 ## Evidence
 

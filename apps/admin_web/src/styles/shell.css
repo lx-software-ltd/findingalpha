@@ -310,22 +310,42 @@
 }
 
 .admin-login {
+  --admin-login-bg: #1a1a1b;
+  color-scheme: dark;
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-content: center;
+  gap: 1.75rem;
   padding: 1.5rem;
   background:
-    radial-gradient(ellipse at top, color-mix(in srgb, var(--admin-accent) 16%, transparent), transparent 55%),
-    var(--admin-canvas);
+    radial-gradient(ellipse at center, #242426 0%, var(--admin-login-bg) 68%);
+  color: #ffffff;
 }
 
-.admin-login-card {
-  width: min(24rem, 100%);
-  background: var(--admin-surface);
-  border: 1px solid var(--admin-line);
-  border-radius: 16px;
-  padding: 1.75rem 1.5rem 1.5rem;
+.admin-login-alert {
+  width: min(22rem, 100%);
+  margin: 0;
+}
+
+.admin-login-icon {
+  display: block;
+  width: min(6rem, 28vw);
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.admin-login-google {
+  width: 3.5rem;
+  height: 3.5rem;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 @media (min-width: 768px) {

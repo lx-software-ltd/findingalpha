@@ -9,6 +9,7 @@ on:
     branches:
       - main
     paths:
+      - "apps/public_www/**"
       - "apps/admin_web/**"
       - "backend/infrastructure/**"
       - "backend/lambda/**"
@@ -16,6 +17,28 @@ on:
       - "pyproject.toml"
 
 jobs:
+  lint-public-www:
+    name: Lint Public Www
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: apps/public_www/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/public_www
+
+      - name: Run lint
+        run: npm run lint --if-present
+        working-directory: apps/public_www
+
   lint-admin-web:
     name: Lint Admin Web
     runs-on: ubuntu-26.04
@@ -103,6 +126,7 @@ jobs:
     name: lint
     runs-on: ubuntu-26.04
     needs:
+      - lint-public-www
       - lint-admin-web
       - build-cdk
       - lint-python
@@ -111,6 +135,7 @@ jobs:
     steps:
       - name: Require every lint job
         env:
+          LINT_PUBLIC_WWW: ${{ needs.lint-public-www.result }}
           LINT_ADMIN_WEB: ${{ needs.lint-admin-web.result }}
           BUILD_CDK: ${{ needs.build-cdk.result }}
           LINT_PYTHON: ${{ needs.lint-python.result }}
@@ -121,6 +146,7 @@ jobs:
           import sys
 
           jobs = {
+              "lint-public-www": os.environ["LINT_PUBLIC_WWW"],
               "lint-admin-web": os.environ["LINT_ADMIN_WEB"],
               "build-cdk": os.environ["BUILD_CDK"],
               "lint-python": os.environ["LINT_PYTHON"],

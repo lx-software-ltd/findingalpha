@@ -9,6 +9,7 @@ on:
     branches:
       - main
     paths:
+      - "apps/public_www/**"
       - "apps/admin_web/**"
       - "backend/infrastructure/**"
       - "backend/lambda/**"
@@ -47,6 +48,32 @@ jobs:
               python3 -m unittest discover -s "$dir" -p 'test_*.py' -v
             fi
           done
+
+  build-public-www:
+    name: Build Public Www
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+          cache-dependency-path: apps/public_www/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/public_www
+
+      - name: Build public website
+        run: npm run build
+        working-directory: apps/public_www
+
+      - name: Test public website
+        run: npm test
+        working-directory: apps/public_www
 
   build-admin-web:
     name: Build Admin Web
@@ -152,6 +179,7 @@ jobs:
     needs:
       - check-contracts
       - test-python
+      - build-public-www
       - build-admin-web
       - e2e-admin-web
       - test-infrastructure
@@ -161,6 +189,7 @@ jobs:
         env:
           CHECK_CONTRACTS: ${{ needs.check-contracts.result }}
           TEST_PYTHON: ${{ needs.test-python.result }}
+          BUILD_PUBLIC_WWW: ${{ needs.build-public-www.result }}
           BUILD_ADMIN_WEB: ${{ needs.build-admin-web.result }}
           E2E_ADMIN_WEB: ${{ needs.e2e-admin-web.result }}
           TEST_INFRASTRUCTURE: ${{ needs.test-infrastructure.result }}
@@ -172,6 +201,7 @@ jobs:
           jobs = {
               "check-contracts": os.environ["CHECK_CONTRACTS"],
               "test-python": os.environ["TEST_PYTHON"],
+              "build-public-www": os.environ["BUILD_PUBLIC_WWW"],
               "build-admin-web": os.environ["BUILD_ADMIN_WEB"],
               "e2e-admin-web": os.environ["E2E_ADMIN_WEB"],
               "test-infrastructure": os.environ["TEST_INFRASTRUCTURE"],
