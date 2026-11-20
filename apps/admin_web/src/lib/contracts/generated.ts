@@ -257,9 +257,8 @@ export const jobs = {
 } as const;
 
 export const methodology = {
-  "version": 5,
+  "version": 6,
   "universe": {
-    "status": "provisional",
     "confirmed": [
       "excludeSicRanges",
       "minFundamentalsYears"
@@ -287,6 +286,8 @@ export const methodology = {
     "minFundamentalsYears": 3,
     "maxAnnualReportAgeDays": 500,
     "maxMemberDropFraction": 0.5,
+    "status": "owner_accepted",
+    "acceptedNote": "Owner choice. No book prescribes these thresholds.",
     "citation": null
   },
   "factors": [
@@ -306,8 +307,13 @@ export const methodology = {
         "defaultTaxRate": 0.21
       },
       "implementation": "factors_quality.roic",
-      "status": "provisional",
-      "citation": null
+      "status": "owner_accepted",
+      "acceptedNote": "The book uses EBIT \u00d7 (1 - tax) over total capital. The register nets cash and averages invested capital, as is common practice.",
+      "citation": {
+        "document": "Investment Analysis And Portfolio Management.pdf",
+        "locator": "553",
+        "quote": "ROIC = EBIT (1 \u2013 Tax Rate)/Total Capital"
+      }
     },
     {
       "id": "grossProfitability",
@@ -317,7 +323,8 @@ export const methodology = {
       "formula": "grossProfit_ttm / avg(totalAssets). If grossProfit is missing use revenue_ttm - costOfRevenue_ttm",
       "parameters": {},
       "implementation": "factors_quality.gross_profitability",
-      "status": "provisional",
+      "status": "owner_accepted",
+      "acceptedNote": "No book in the knowledge base defines it.",
       "citation": null
     },
     {
@@ -328,7 +335,8 @@ export const methodology = {
       "formula": "(operatingCashFlow_ttm - capex_ttm) / revenue_ttm",
       "parameters": {},
       "implementation": "factors_quality.fcf_margin",
-      "status": "provisional",
+      "status": "owner_accepted",
+      "acceptedNote": "Free cash flow follows Reilly & Brown page 315. No book defines the margin.",
       "citation": null
     },
     {
@@ -339,7 +347,8 @@ export const methodology = {
       "formula": "(netIncome_ttm - operatingCashFlow_ttm) / avg(totalAssets)",
       "parameters": {},
       "implementation": "factors_quality.accruals",
-      "status": "provisional",
+      "status": "owner_accepted",
+      "acceptedNote": "No book in the knowledge base defines it.",
       "citation": null
     },
     {
@@ -350,7 +359,8 @@ export const methodology = {
       "formula": "(longTermDebt + shortTermDebt - cash) / (operatingIncome_ttm + depreciationAmortization_ttm). None when the denominator is not positive",
       "parameters": {},
       "implementation": "factors_quality.net_debt_to_ebitda",
-      "status": "provisional",
+      "status": "owner_accepted",
+      "acceptedNote": "BKM page 497 lists total debt to EBITDA by rating class only. No book defines the net form.",
       "citation": null
     },
     {
@@ -363,8 +373,13 @@ export const methodology = {
         "coverageCap": 100
       },
       "implementation": "factors_quality.interest_coverage",
-      "status": "provisional",
-      "citation": null
+      "status": "owner_accepted",
+      "acceptedNote": "The book uses EBIT. Operating income stands in for it, and the cap handles zero interest.",
+      "citation": {
+        "document": "BKM - Investment and Portfolio Management - Edition 9.pdf",
+        "locator": "669",
+        "quote": "Interest coverage = EBIT/Interest expense"
+      }
     },
     {
       "id": "earningsYield",
@@ -374,8 +389,13 @@ export const methodology = {
       "formula": "operatingIncome_ttm / enterpriseValue, where enterpriseValue = marketCap + longTermDebt + shortTermDebt - cash. None when enterprise value is not positive",
       "parameters": {},
       "implementation": "factors_value.earnings_yield",
-      "status": "provisional",
-      "citation": null
+      "status": "owner_accepted",
+      "acceptedNote": "The book uses earnings per share over price. Operating income over enterprise value keeps firms with different debt comparable.",
+      "citation": {
+        "document": "Security Analysis, Graham & Dodd.pdf",
+        "locator": "437",
+        "quote": "the ratio of the annual earnings to the market price"
+      }
     },
     {
       "id": "fcfYield",
@@ -385,7 +405,8 @@ export const methodology = {
       "formula": "(operatingCashFlow_ttm - capex_ttm) / enterpriseValue",
       "parameters": {},
       "implementation": "factors_value.fcf_yield",
-      "status": "provisional",
+      "status": "owner_accepted",
+      "acceptedNote": "Graham & Dodd page 41 names free cash flow yield without a formula.",
       "citation": null
     },
     {
@@ -396,8 +417,13 @@ export const methodology = {
       "formula": "close[t-21] / close[t-252] - 1",
       "parameters": {},
       "implementation": "factors_trend.momentum_12_1",
-      "status": "provisional",
-      "citation": null
+      "status": "owner_accepted",
+      "acceptedNote": "The books use the past 3 to 12 months. Skipping the latest month avoids short-term reversal, the standard academic construction.",
+      "citation": {
+        "document": "Lectures on Financial Economics, Antonio Mele.pdf",
+        "locator": "222",
+        "quote": "Stocks with the highest returns in the previous twelve months will outperform in the next future."
+      }
     },
     {
       "id": "aboveSma200",
@@ -407,8 +433,13 @@ export const methodology = {
       "formula": "close[t] / mean(close[t-199..t]) - 1",
       "parameters": {},
       "implementation": "factors_trend.above_sma200",
-      "status": "provisional",
-      "citation": null
+      "status": "owner_accepted",
+      "acceptedNote": "The book treats a cross up through the moving average as a bullish signal. The register scores how far the price is above the 200-session average.",
+      "citation": {
+        "document": "BKM - Investment and Portfolio Management - Edition 9.pdf",
+        "locator": "429",
+        "quote": "When the market price breaks through the moving average line from below, as at point A in Figure 12.5, it is taken as a bullish signal"
+      }
     },
     {
       "id": "volatility252",
@@ -418,8 +449,13 @@ export const methodology = {
       "formula": "Standard deviation of daily log returns over 252 sessions, times sqrt(252)",
       "parameters": {},
       "implementation": "factors_trend.volatility_252",
-      "status": "provisional",
-      "citation": null
+      "status": "owner_accepted",
+      "acceptedNote": "The book uses the sample standard deviation, dividing by N-1. The register divides by N. The annualisation factor is 252.",
+      "citation": {
+        "document": "Inside Volatility Arbitrage-Javaheri.pdf",
+        "locator": "28",
+        "quote": "we needed the factor 252, supposing that there are approximately 252 business days in a year"
+      }
     },
     {
       "id": "freeCashFlow_ttm",
@@ -429,16 +465,16 @@ export const methodology = {
       "formula": "operatingCashFlow_ttm - capex_ttm",
       "parameters": {},
       "implementation": "factors_quality.free_cash_flow_ttm",
-      "status": "provisional",
-      "citation": null
+      "status": "cited",
+      "citation": {
+        "document": "Investment Analysis And Portfolio Management.pdf",
+        "locator": "315",
+        "quote": "some analysts only subtract capital expenditures, and those who are conservative also subtract dividends"
+      }
     }
   ],
   "composite": {
-    "status": "provisional",
-    "winsorisePercentiles": [
-      2.5,
-      97.5
-    ],
+    "winsoriseStdDevs": 3,
     "standardise": "zscore_within_sector",
     "minSectorSize": 10,
     "groupWeights": {
@@ -447,10 +483,15 @@ export const methodology = {
       "trend": 0.3
     },
     "minFactorsPerGroupShare": 0.5,
-    "citation": null
+    "status": "owner_accepted",
+    "acceptedNote": "Outliers are limited to \u00b13 standard deviations about the mean, as the book does. Within-sector z-scores and the group weights are an owner choice.",
+    "citation": {
+      "document": "Active Portfolio Management, Grinold & Kahn.pdf",
+      "locator": "255",
+      "quote": "One rule of thumb is to pull in all outliers in the Xn,k(t) to \u00b13 standard deviations about the mean."
+    }
   },
   "screen": {
-    "status": "provisional",
     "hardFilters": [
       {
         "id": "positiveOperatingIncome",
@@ -473,15 +514,17 @@ export const methodology = {
       }
     ],
     "shortlistSize": 60,
+    "status": "owner_accepted",
+    "acceptedNote": "Owner choice. No book prescribes these thresholds.",
     "citation": null
   },
   "fundamentals": {
-    "status": "provisional",
     "unreportedDebt": "zero",
+    "status": "owner_accepted",
+    "acceptedNote": "Owner choice. BKM page 686 warns that some obligations go unreported. A debt not filed is treated as zero.",
     "citation": null
   },
   "backtest": {
-    "status": "provisional",
     "firstScreenMonth": "2017-02",
     "portfolioSize": 20,
     "portfolioSizeMin": 10,
@@ -493,6 +536,8 @@ export const methodology = {
     "dividendWithholdingRate": 0.3,
     "benchmark": "SPY",
     "cashProxy": "BIL",
+    "status": "owner_accepted",
+    "acceptedNote": "Owner choice. No book prescribes these thresholds.",
     "citation": null
   }
 } as const;

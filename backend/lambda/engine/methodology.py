@@ -15,7 +15,8 @@ _PATH = Path(__file__).resolve().parent / "contracts" / "methodology.json"
 _FUNDAMENTALS = _PATH.parent / "fundamentals.json"
 _KEYS = {"version", "universe", "factors", "composite", "screen", "fundamentals", "backtest"}
 _FACTOR_KEYS = {"id", "group", "direction", "formula", "implementation", "status"}
-_STATUSES = {"provisional", "cited"}
+_STATUSES = {"provisional", "cited", "owner_accepted"}
+_NOTE_MAX = 300
 _DIRECTIONS = {"higher", "lower"}
 _CITATION_KEYS = ("document", "locator", "quote")
 _FACTOR_MODULES = ("factors_quality", "factors_value", "factors_trend")
@@ -76,14 +77,11 @@ def validate(doc: dict[str, Any]) -> None:
     total = sum(float(value) for value in weights.values())
     if abs(total - 1.0) > 1e-9:
         raise MethodologyError("group weights must sum to 1")
-    percentiles = doc["composite"].get("winsorisePercentiles")
-    if not isinstance(percentiles, list) or len(percentiles) != 2:
-        raise MethodologyError("percentiles")
-    for value in percentiles:
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= float(value) <= 100:
-            raise MethodologyError("percentile outside 0 to 100")
-    if float(percentiles[0]) >= float(percentiles[1]):
-        raise MethodologyError("percentiles")
+    std_devs = doc["composite"].get("winsoriseStdDevs")
+    if isinstance(std_devs, bool) or not isinstance(std_devs, (int, float)) or not float(std_devs) > 0:
+        raise MethodologyError("winsoriseStdDevs")
+    if float(std_devs) == float("inf"):
+        raise MethodologyError("winsoriseStdDevs")
     _share(doc["composite"].get("minFactorsPerGroupShare"))
     _whole(doc["composite"].get("minSectorSize"), "minSectorSize")
     groups = {str(factor["group"]) for factor in factors}
@@ -305,14 +303,25 @@ def _status(item: dict[str, Any], label: str) -> None:
     status = item.get("status") if isinstance(item, dict) else None
     if status not in _STATUSES:
         raise MethodologyError(f"{label} status")
-    if status != "cited":
+    if status == "owner_accepted":
+        note = item.get("acceptedNote") if isinstance(item, dict) else None
+        if not isinstance(note, str) or not note.strip() or len(note) > _NOTE_MAX:
+            raise MethodologyError(f"{label} accepted note")
+        if item.get("citation") is not None:
+            _citation(item, label, cited=False)
         return
+    if status == "cited":
+        _citation(item, label, cited=True)
+
+
+def _citation(item: dict[str, Any], label: str, *, cited: bool) -> None:
     citation = item.get("citation")
+    missing = f"{label} cited without a citation" if cited else f"{label} citation"
     if not isinstance(citation, dict):
-        raise MethodologyError(f"{label} cited without a citation")
+        raise MethodologyError(missing)
     for key in _CITATION_KEYS:
         value = citation.get(key)
         if not isinstance(value, str) or not value.strip():
-            raise MethodologyError(f"{label} cited without a citation")
+            raise MethodologyError(missing)
     if len(citation["quote"]) > 200:
         raise MethodologyError(f"{label} citation quote")
