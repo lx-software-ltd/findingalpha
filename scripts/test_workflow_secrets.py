@@ -63,7 +63,6 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn("vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN", expressions)
         self.assertNotIn("vars.ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN", expressions)
         self.assertNotIn("vars.ADMIN_COGNITO_ORIGIN", expressions)
-        self.assertNotIn("CspCognitoConnectOrigin", text)
         self.assertNotIn("CognitoServeCustomDomain", text)
         self.assertIn(
             "findingalpha:CognitoCustomDomainName=${P_COGNITO_DOMAIN}",
@@ -71,6 +70,15 @@ class WorkflowSecretTest(unittest.TestCase):
         )
         self.assertIn(
             "findingalpha:CognitoCustomDomainCertificateArn=${P_COGNITO_CERT}",
+            text,
+        )
+        self.assertIn(
+            "findingalpha-admin-web:CspCognitoConnectOrigin=${COGNITO_ORIGIN}",
+            text,
+        )
+        self.assertIn('COGNITO_ORIGIN="https://${P_COGNITO_DOMAIN}"', text)
+        self.assertIn(
+            'COGNITO_ORIGIN="https://${COGNITO_PREFIX}.auth.${AWS_REGION}.amazoncognito.com"',
             text,
         )
         self.assertIn(

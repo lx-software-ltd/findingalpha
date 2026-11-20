@@ -24,6 +24,11 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
       type: "String",
       description: "ACM certificate in us-east-1.",
     });
+    const cognitoOrigin = new cdk.CfnParameter(this, "CspCognitoConnectOrigin", {
+      type: "String",
+      description:
+        "Cognito OAuth origin for CSP connect-src. Same value Deploy Backend derives for CognitoDomain (https://auth.<domain> or the prefix URL).",
+    });
     const wafArn = new cdk.CfnParameter(this, "WafWebAclArn", {
       type: "String",
       default: "",
@@ -68,12 +73,15 @@ export class FindingalphaAdminWebStack extends cdk.Stack {
   return request;
 }`),
     });
-    // Import the exported CognitoDomain so CSP tracks prefix vs custom without
-    // a separate GitHub variable, and without crossing Fn::If conditions.
-    const cognitoOrigin = cdk.Fn.importValue("findingalpha-CognitoDomain");
+    // Passed by Deploy Backend from the same custom-domain vars as CognitoDomain,
+    // so clearing those vars cannot leave an export lock on findingalpha-admin-web.
     const csp = cdk.Fn.join("; ", [
       "default-src 'self'",
-      cdk.Fn.join(" ", ["connect-src 'self'", props.cspApiConnectOrigin, cognitoOrigin]),
+      cdk.Fn.join(" ", [
+        "connect-src 'self'",
+        props.cspApiConnectOrigin,
+        cognitoOrigin.valueAsString,
+      ]),
       "img-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self'",

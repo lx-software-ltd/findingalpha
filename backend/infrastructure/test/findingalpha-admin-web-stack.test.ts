@@ -56,14 +56,21 @@ describe("findingalpha admin web stack", () => {
     expect(oacRead?.Action).toBe("s3:GetObject");
   });
 
-  test("the content security policy allows the API origin and imports CognitoDomain", () => {
+  test("the content security policy allows the API origin and a Cognito parameter", () => {
     const headers = template.findResources("AWS::CloudFront::ResponseHeadersPolicy");
     const text = JSON.stringify(headers);
     expect(text).toContain(API_ORIGIN);
-    expect(text).toContain("findingalpha-CognitoDomain");
-    expect(text).toContain("Fn::ImportValue");
-    expect(text).not.toContain("CspCognitoConnectOrigin");
+    expect(text).toContain("CspCognitoConnectOrigin");
     expect(text).toContain("connect-src 'self'");
+    expect(text).not.toContain("findingalpha-CognitoDomain");
+    expect(text).not.toContain("Fn::ImportValue");
+    template.hasParameter("CspCognitoConnectOrigin", { Type: "String" });
+  });
+
+  test("the admin-web stack does not import findingalpha-CognitoDomain", () => {
+    const templateJson = JSON.stringify(template.toJSON());
+    expect(templateJson).not.toContain("findingalpha-CognitoDomain");
+    expect(templateJson).not.toMatch(/"Fn::ImportValue"\s*:\s*"findingalpha-CognitoDomain"/);
   });
 
   test("both buckets are private and TLS-only", () => {

@@ -34,8 +34,8 @@ that attempt. A fix to the workflow needs a new run.
    shows it and later lines are masked, with no warning. An email read
    from a variable warns. **Deploy Admin Web** reads `UserPoolClientId`,
    `CognitoDomain`, and `AdminApiBaseUrl` from the `findingalpha` stack.
-   The admin CloudFront CSP Cognito origin imports that same
-   `CognitoDomain` export.
+   Deploy Backend also passes `CspCognitoConnectOrigin` from the same
+   custom-domain variables (no cross-stack CognitoDomain import).
 2. **Region** — `AWS_REGION` must be the region where the `siutindei`
    bootstrap parameter `/cdk-bootstrap/siutindei/version` exists.
 3. **ACM** — `ADMIN_WEB_CERTIFICATE_ARN` must be an **ISSUED**
@@ -230,23 +230,27 @@ not proxied. Create it only after the owner says go.
 ## Cognito Hosted UI hostname
 
 When both custom-domain variables are set, Cognito creates `auth.<domain>`
-and `CognitoDomain` (SPA + CSP) use it. AWS allows the prefix domain and
-a custom domain on the same pool; this stack keeps the prefix so rollback
-can clear the two variables and return to the prefix without recreating
-it.
+and `CognitoDomain` (SPA + CSP) use it on that same deploy. AWS allows
+the prefix domain and a custom domain on the same pool; this stack keeps
+the prefix so rollback can clear the two variables and return to the
+prefix without recreating it.
 
 1. Confirm the parent `<domain>` resolves (Cognito requires it before
    creating `auth.<domain>`).
-2. Set both `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and
+2. Add `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth
+   client **before** the deploy that turns the custom domain on. Without
+   that URI, Google rejects every sign-in after the switch.
+3. Set both `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and
    `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 ACM covering
    that hostname). Deploy.
-3. Point the `auth` CNAME at `CognitoCustomDomainTarget` (DNS only,
-   after the owner says go). Add
-   `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth
-   client.
+4. Point the `auth` CNAME at `CognitoCustomDomainTarget` (DNS only,
+   after the owner says go). Until that record exists, sign-in is down
+   because the SPA already targets `https://auth.<domain>`. If the
+   record is already live (as in production), there is no DNS wait.
 
 To roll back to the prefix Hosted UI, clear both custom-domain variables
-and redeploy.
+and redeploy. CSP follows those same variables, so there is no Cognito
+export lock on the admin-web stack.
 
 ## Local UI without a stack
 

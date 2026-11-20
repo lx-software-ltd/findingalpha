@@ -104,7 +104,7 @@ come from the GitHub `production` environment, not from the file.
 | --- | --- | --- |
 | `AdminWebDomainName` | GitHub var `ADMIN_WEB_DOMAIN_NAME` | CloudFront alias |
 | `AdminWebCertificateArn` | GitHub var `ADMIN_WEB_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
-| Cognito CSP origin | `Fn::ImportValue` `findingalpha-CognitoDomain` | same as that output | No separate GitHub variable |
+| `CspCognitoConnectOrigin` | Deploy Backend derives it | `https://auth.<domain>` or the prefix URL | Same rule as `CognitoDomain`; passed as a stack parameter (not an export import) |
 | `WafWebAclArn` | GitHub var `ADMIN_WAF_WEB_ACL_ARN` | Empty disables |
 
 ### `findingalpha-public-www`

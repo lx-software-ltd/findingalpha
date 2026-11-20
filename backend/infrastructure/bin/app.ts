@@ -45,13 +45,11 @@ const backend = new FindingalphaStack(app, "findingalpha", {
   synthesizer,
 });
 
-const adminWeb = new FindingalphaAdminWebStack(app, "findingalpha-admin-web", {
+new FindingalphaAdminWebStack(app, "findingalpha-admin-web", {
   description: "findingalpha admin dashboard delivery.",
   env,
   synthesizer,
   cspApiConnectOrigin: backend.httpApiEndpoint,
 });
-// CSP Cognito origin imports findingalpha-CognitoDomain; keep deploy order.
-adminWeb.addStackDependency(backend);
 
 cdk.Aspects.of(app).add(new CheckovSuppressionAspect());
