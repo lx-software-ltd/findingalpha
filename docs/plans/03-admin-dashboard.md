@@ -101,7 +101,7 @@ backend/infrastructure/lib/api-routes.ts               (red: new routes)
    ```
    cd ../../backend/lambda/engine && python3 -m unittest discover -p 'test_*.py' -v && cd ../pre_token_generation && python3 -m unittest discover -p 'test_*.py' -v
    ```
-3. `index.html`: title `findingalpha | Admin`, description
+3. `index.html`: title `Finding Alpha | Admin`, description
    `findingalpha admin console.`, one SVG favicon.
 4. `npm install`, commit `package-lock.json`.
 5. Remove the M01 guards from `lint-admin-web`, `build-admin-web` and
