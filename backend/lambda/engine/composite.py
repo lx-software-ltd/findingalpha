@@ -8,32 +8,18 @@ from typing import Any
 from methodology import register_hash
 
 
-def percentile(values: list[float], percent: float) -> float:
-    """Linear percentile. ``values`` need not be sorted."""
-    if not values:
-        raise ValueError("empty")
-    return _percentile(sorted(values), percent)
+def winsorise(values: list[float | None], std_devs: float) -> list[float | None]:
+    """Clip present values to the mean ± ``std_devs`` population standard deviations.
 
-
-def _percentile(sorted_values: list[float], percent: float) -> float:
-    if len(sorted_values) == 1:
-        return sorted_values[0]
-    rank = (percent / 100) * (len(sorted_values) - 1)
-    low = math.floor(rank)
-    high = math.ceil(rank)
-    if low == high:
-        return sorted_values[low]
-    weight = rank - low
-    return sorted_values[low] * (1 - weight) + sorted_values[high] * weight
-
-
-def winsorise(values: list[float | None], low_percent: float, high_percent: float) -> list[float | None]:
-    """Clip to the percentiles of the values that are present."""
-    present = sorted(value for value in values if value is not None)
+    The deviation is taken across the values that are present. Missing values stay missing.
+    """
+    present = [value for value in values if value is not None]
     if not present:
         return list(values)
-    low = _percentile(present, low_percent)
-    high = _percentile(present, high_percent)
+    mean = _mean(present)
+    deviation = _population_std(present)
+    low = mean - std_devs * deviation
+    high = mean + std_devs * deviation
     return [None if value is None else min(max(value, low), high) for value in values]
 
 
@@ -123,13 +109,13 @@ def composite(rows: list[dict[str, Any]], register: dict[str, Any]) -> list[dict
     spec = register["composite"]
     weights = spec["groupWeights"]
     factors = [factor for factor in register["factors"] if factor.get("group") in weights]
-    low, high = spec["winsorisePercentiles"]
+    std_devs = float(spec["winsoriseStdDevs"])
     min_sector = int(spec["minSectorSize"])
     min_share = float(spec["minFactorsPerGroupShare"])
     sectors = [str(row.get("sector") or "") for row in rows]
     signed: dict[str, list[float | None]] = {}
     for factor in factors:
-        clipped = winsorise([row.get(factor["id"]) for row in rows], float(low), float(high))
+        clipped = winsorise([row.get(factor["id"]) for row in rows], std_devs)
         scores = zscores(clipped, sectors, min_sector_size=min_sector)
         sign = -1 if factor.get("direction") == "lower" else 1
         signed[str(factor["id"])] = [None if score is None else sign * score for score in scores]

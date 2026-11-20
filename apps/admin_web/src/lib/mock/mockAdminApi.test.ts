@@ -17,7 +17,8 @@ describe("mock admin api", () => {
     expect(status.jobs.map((job: { job: string }) => job.job)).toContain("tick");
     expect(status.jobs.some((job: { lastRun: unknown }) => job.lastRun === null)).toBe(true);
     const methodology = await (await mockAdminFetch("/methodology")).json();
-    expect(methodology.register.factors[0].status).toBe("provisional");
+    expect(methodology.register.factors[0].status).toBe("owner_accepted");
+    expect(methodology.counts.ownerAccepted).toBe(4);
     const screen = await (await mockAdminFetch("/screens/latest")).json();
     expect(screen.rows[0].symbol).toBe("AAA");
     const backtests = await (await mockAdminFetch("/backtests")).json();

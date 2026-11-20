@@ -36,7 +36,7 @@ def _me(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_methodology(_event: dict[str, Any]) -> dict[str, Any]:
-    """The register, its hash, and how many entries are still provisional."""
+    """The register, its hash, and how many entries are provisional, cited, or owner accepted."""
     import methodology
 
     doc = methodology.load()
@@ -57,6 +57,7 @@ def get_methodology(_event: dict[str, Any]) -> dict[str, Any]:
                 "entries": len(entries),
                 "provisional": sum(item.get("status") == "provisional" for item in entries),
                 "cited": sum(item.get("status") == "cited" for item in entries),
+                "ownerAccepted": sum(item.get("status") == "owner_accepted" for item in entries),
             },
         },
     )
