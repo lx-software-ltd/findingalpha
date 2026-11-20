@@ -24,8 +24,13 @@ test("methodology lists owner-accepted factors", async ({ page }, testInfo) => {
   await expect(page.getByText("Status owner_accepted").first()).toBeVisible();
   await expect(page.getByText("Owner accepted")).toBeVisible();
   await expect(page.getByText(/Winsorise at ±3 standard deviations/)).toBeVisible();
-  await expect(page.getByText("No book in the knowledge base defines it.")).toBeVisible();
   await expect(page.getByText(/Register hash abc123abc123abcd/)).toBeVisible();
+  if (testInfo.project.name === "desktop") {
+    await expect(page.getByText("No book in the knowledge base defines it.")).toBeVisible();
+  } else {
+    await page.getByRole("button", { name: "Accruals" }).click();
+    await expect(page.locator(".admin-expand.is-open")).toContainText("No book in the knowledge base defines it.");
+  }
   if (testInfo.project.name === "phone") {
     await expect(
       page.locator("td[data-column='name'] .admin-table-cell-meta").filter({ hasText: "NOPAT_ttm / average(investedCapital)" }),
