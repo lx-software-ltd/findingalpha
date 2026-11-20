@@ -122,7 +122,8 @@ DNS for `<domain>` is on Cloudflare. The developer creates records
 through the Cloudflare API with a token from their environment. Rules:
 
 - only in this project's zone, even if the token can see other zones;
-- every record is DNS only (proxy off);
+- every record is DNS only (proxy off), except the public `www`
+  redirect host below;
 - each record is created after the owner says go in chat and is listed
   in the pull request or the chat message;
 - the token is never written to git, to GitHub, or to a log.
@@ -131,8 +132,9 @@ through the Cloudflare API with a token from their environment. Rules:
 | --- | --- | --- | --- |
 | ACM validation name for `admin.<domain>` | CNAME | The validation value ACM shows | Before the first deploy (O06) |
 | `admin` | CNAME | The `AdminWebDistributionDomain` output of the `findingalpha-admin-web` stack | After the first deploy (O08) |
-| ACM validation name for `www.<domain>` (or the public hostname) | CNAME | The validation value ACM shows | Before the public www stack deploy |
-| `www` (or the public hostname) | CNAME | The `PublicWebsiteDistributionDomain` output of the `findingalpha-public-www` stack | After the public www stack deploy |
+| ACM validation name for the public hostname | CNAME | The validation value ACM shows | Before the public www stack deploy |
+| Apex (when it is the public hostname) | CNAME | The `PublicWebsiteDistributionDomain` output of the `findingalpha-public-www` stack (Cloudflare flattens the apex) | After the public www stack deploy, owner go |
+| `www` | Worker custom domain + Single Redirect | 301 to `https://<domain>` keeping path and query (proxied `AAAA 100::`) | Same go; www is not a CloudFront alias |
 | ACM validation name for `api.<domain>` | CNAME | The validation value ACM shows | M03A (O20) |
 | `api` | CNAME | The `ApiCustomDomainTarget` output of the `findingalpha` stack | M03A, after the deploy that creates the domain |
 | Three SES DKIM names | CNAME | The three SES values | M10 (O16) |
@@ -146,6 +148,11 @@ dashboard; this file does not change that tick.
 The `api` record was added on 16 Nov 2026, DNS only. Its target is the
 `ApiCustomDomainTarget` output. The hostname is not stored here. Tick
 O20 on the dashboard; this file does not change that tick.
+
+The public apex CNAME (DNS only) and the `www` → apex 301 redirect
+(Worker custom domain, route, and Single Redirect) were added on
+20 Nov 2026 after the owner said go. The CloudFront target and the
+Worker script name are not stored here.
 
 The ACM and SES values are not secret. The owner can paste them in
 chat.
