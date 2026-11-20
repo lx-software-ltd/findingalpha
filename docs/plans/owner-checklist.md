@@ -12,7 +12,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | --- | --- | --- |
 | O01 | Choose and register the new domain. Add it to Cloudflare DNS. **Done** | First deploy (M02), email (M10) |
 | O02 | Protect `main`: pull request required, required checks `lint` and `test`, no force-push | Merging M01 safely |
-| O03 | Produce the PII denylist hashes (step in M01) and hand over the hash file | M01 |
+| O03 | Produce the PII denylist hashes (step in M01) and hand over the hash file. **Done 20 Nov 2026**: the 31 organisation digests are in `scripts/pii-denylist.sha256`. Add further values the same way, digests only | M01 |
 | O04 | Create the GitHub variables, the environment `production` and its secrets (list below) | First deploy (M02) |
 | O05 | Confirm AWS access for GitHub Actions (details below) | First deploy (M02) |
 | O06 | Request an ACM certificate for `admin.<domain>` in `us-east-1` with DNS validation. Give the validation record to the developer, who adds it in Cloudflare (see DNS below). Wait for ISSUED | First deploy (M02) |
@@ -50,6 +50,11 @@ and puts one digest per line in `scripts/pii-denylist.sha256`.
 Normalisation rules are at the top of `scripts/check_pii.py`: lower
 case, apostrophes removed, phone numbers as digits only, names as words
 separated by single spaces.
+
+On 20 Nov 2026 the owner approved copying the 31 digests already used
+by `evolvesprouts` and `siutindei` (gate G2, this file only). That is
+the list in the file now. Further findingalpha values are added the
+same way. Do not commit the plaintext.
 
 ### O04 GitHub variables and secrets
 
