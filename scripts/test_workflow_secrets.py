@@ -76,11 +76,15 @@ class WorkflowSecretTest(unittest.TestCase):
             "findingalpha-admin-web:CspCognitoConnectOrigin=${COGNITO_ORIGIN}",
             text,
         )
-        self.assertIn('COGNITO_ORIGIN="https://${P_COGNITO_DOMAIN}"', text)
         self.assertIn(
-            'COGNITO_ORIGIN="https://${COGNITO_PREFIX}.auth.${AWS_REGION}.amazoncognito.com"',
+            'COGNITO_PREFIX_ORIGIN="https://${COGNITO_PREFIX}.auth.${AWS_REGION}.amazoncognito.com"',
             text,
         )
+        self.assertIn(
+            'COGNITO_ORIGIN="${COGNITO_PREFIX_ORIGIN} https://${P_COGNITO_DOMAIN}"',
+            text,
+        )
+        self.assertIn('COGNITO_ORIGIN="${COGNITO_PREFIX_ORIGIN}"', text)
         self.assertIn(
             "Set both ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN, or leave both empty.",
             text,
