@@ -15,18 +15,13 @@ export interface AuthConstructProps {
   readonly cognitoDomainPrefixParameter: cdk.CfnParameter;
   /**
    * Optional custom Hosted UI hostname (auth.<domain>). When set together
-   * with {@link cognitoCustomDomainCertificateArnParameter}, Cognito also
-   * creates that custom domain. The prefix domain always stays.
+   * with {@link cognitoCustomDomainCertificateArnParameter}, Cognito creates
+   * that custom domain and {@link cognitoOAuthBaseUrl} uses it. The prefix
+   * domain always stays.
    */
   readonly cognitoCustomDomainNameParameter: cdk.CfnParameter;
   /** ACM cert ARN in us-east-1 for the Cognito custom domain (required with custom name). */
   readonly cognitoCustomDomainCertificateArnParameter: cdk.CfnParameter;
-  /**
-   * When `true` and both custom-domain parameters are set, {@link cognitoOAuthBaseUrl}
-   * (and the CognitoDomain stack output) use the custom hostname. Stay `false`
-   * until DNS for auth.<domain> points at CognitoCustomDomainTarget.
-   */
-  readonly cognitoServeCustomDomainParameter: cdk.CfnParameter;
   /** Comma-separated emails that receive the admin group via Pre Token Generation (federated users). */
   readonly adminFederatedEmailAllowlistParameter: cdk.CfnParameter;
   /** Shared CMK for Lambda env vars + log group encryption (CKV_AWS_173/158). */
@@ -44,15 +39,12 @@ export class AuthConstruct extends Construct {
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
   /**
-   * Effective origin for Cognito OAuth endpoints (`https://...`). The prefix
-   * domain until {@link cognitoServeCustomDomainParameter} is true with a
-   * custom domain configured; then the custom hostname.
+   * Effective origin for Cognito OAuth endpoints (`https://...`). The custom
+   * hostname when both custom-domain parameters are set; otherwise the prefix.
    */
   public readonly cognitoOAuthBaseUrl: string;
   /** True when a custom Hosted UI domain + certificate are configured. */
   public readonly useCustomAuthDomain: cdk.CfnCondition;
-  /** True when the SPA and CSP should use the custom Hosted UI hostname. */
-  public readonly serveCustomAuthDomain: cdk.CfnCondition;
   /** L1 domain resource for custom Hosted UI; only created when {@link useCustomAuthDomain} applies. */
   public readonly cognitoCustomHostedDomain: cognito.CfnUserPoolDomain;
   public readonly adminGroup: cognito.CfnUserPoolGroup;
@@ -200,16 +192,6 @@ export class AuthConstruct extends Construct {
       ),
     });
 
-    const serveCustomDomain = new cdk.CfnCondition(this, "ServeCustomAuthDomain", {
-      expression: cdk.Fn.conditionAnd(
-        useCustomDomain,
-        cdk.Fn.conditionEquals(
-          props.cognitoServeCustomDomainParameter.valueAsString,
-          "true"
-        )
-      ),
-    });
-
     new cognito.CfnUserPoolDomain(this, "HostedUIDomainPrefix", {
       userPoolId: this.userPool.userPoolId,
       domain: props.cognitoDomainPrefixParameter.valueAsString,
@@ -241,12 +223,11 @@ export class AuthConstruct extends Construct {
       props.cognitoCustomDomainNameParameter.valueAsString,
     ]);
     this.cognitoOAuthBaseUrl = cdk.Fn.conditionIf(
-      serveCustomDomain.logicalId,
+      useCustomDomain.logicalId,
       customOAuthBaseUrl,
       prefixOAuthBaseUrl
     ) as unknown as string;
     this.useCustomAuthDomain = useCustomDomain;
-    this.serveCustomAuthDomain = serveCustomDomain;
 
     this.adminGroup = new cognito.CfnUserPoolGroup(this, "AdminGroup", {
       userPoolId: this.userPool.userPoolId,
