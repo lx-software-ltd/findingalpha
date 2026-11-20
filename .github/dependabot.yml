@@ -11,9 +11,6 @@ updates:
       day: "monday"
     commit-message:
       prefix: "ci"
-    labels:
-      - "dependencies"
-      - "ci"
     groups:
       github-actions:
         patterns:
@@ -26,9 +23,6 @@ updates:
       day: "monday"
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "admin"
     groups:
       minor-and-patch:
         patterns:
@@ -47,9 +41,6 @@ updates:
       day: "monday"
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "public-www"
     groups:
       minor-and-patch:
         patterns:
@@ -68,9 +59,6 @@ updates:
       day: "monday"
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "infrastructure"
     groups:
       aws-cdk:
         patterns:
@@ -98,9 +86,6 @@ updates:
       day: "monday"
     commit-message:
       prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "lambda"
     groups:
       pip:
         patterns:
