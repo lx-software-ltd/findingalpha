@@ -46,7 +46,7 @@ scripts/            checks, contract sync, deploy helpers, offline tools
 | Web logs bucket | `findingalpha-web-logs-<account>-<region>` |
 | Public www bucket | `findingalpha-public-www-<account>-<region>` |
 | Public www logs bucket | `findingalpha-public-www-logs-<account>-<region>` |
-| Public hostname | `www.<domain>` (or the apex hostname the owner sets) |
+| Public hostname | Apex `<domain>` (canonical). `www.<domain>` 301s to the apex |
 | Public response headers | `findingalpha-public-www-security-headers` |
 | HTTP API | `findingalpha-admin-api` |
 | Dashboard hostname | `admin.<domain>` |

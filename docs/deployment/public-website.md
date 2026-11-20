@@ -46,7 +46,28 @@ npm run preview
 2. Set `PUBLIC_WWW_DOMAIN_NAME` and `PUBLIC_WWW_CERTIFICATE_ARN`.
 3. Merge or re-run **Deploy Backend** so it creates
    `findingalpha-public-www` (after the backend and admin stacks).
-4. Create the Cloudflare DNS CNAME (DNS only) after the owner says go.
+4. Create the Cloudflare DNS records after the owner says go (see
+   below).
 5. **Deploy Public Website** uploads `dist/` automatically after a
    successful backend deploy, or on push to `apps/public_www/**` on
    `main`.
+
+## DNS (Cloudflare)
+
+The stack parameter is the canonical public hostname. When that value
+is the apex (`PUBLIC_WWW_DOMAIN_NAME=<domain>`):
+
+1. **Apex** — CNAME to `PublicWebsiteDistributionDomain`, DNS only
+   (grey cloud). Cloudflare flattens the apex. Do not proxy the apex;
+   CloudFront terminates TLS with the ACM certificate.
+2. **`www`** — not a CloudFront alias. Attach a Worker custom domain on
+   `www.<domain>` (proxied `AAAA 100::`), a Worker route
+   `www.<domain>/*`, and a Single Redirect that 301s to
+   `https://<domain>` while keeping the path and query. The Worker is
+   the fallback when the Single Redirect is absent.
+
+When the canonical hostname is `www.<domain>` instead, invert the
+pattern (www CNAME DNS-only to CloudFront; apex redirects to www), as
+on the sibling public site.
+
+Do not write the live domain or the CloudFront hostname in git.

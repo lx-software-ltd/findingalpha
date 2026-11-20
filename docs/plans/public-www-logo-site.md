@@ -61,8 +61,7 @@ leave the stack in place and stop the deploy workflow; do not
 
 ## Open questions
 
-- Owner must set GitHub vars `PUBLIC_WWW_DOMAIN_NAME` and
-  `PUBLIC_WWW_CERTIFICATE_ARN`, then approve a Cloudflare DNS CNAME
-  for the public hostname after the first stack deploy. Until those
-  vars are set, **Deploy Backend** skips `findingalpha-public-www`
-  so backend/admin deploys stay unblocked.
+- Resolved: `PUBLIC_WWW_DOMAIN_NAME` and `PUBLIC_WWW_CERTIFICATE_ARN`
+  are set, `findingalpha-public-www` is deployed, and the owner said go
+  for Cloudflare. Apex is a DNS-only CNAME to CloudFront; `www` 301s
+  to the apex (Worker custom domain + Single Redirect).
