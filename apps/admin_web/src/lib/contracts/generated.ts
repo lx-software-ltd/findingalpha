@@ -1478,7 +1478,7 @@ export const roadmap = {
     },
     {
       "id": "O22",
-      "title": "Custom Hosted UI on auth.<domain>: confirm the apex resolves; add Google redirect https://auth.<domain>/oauth2/idpresponse; set ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN (us-east-1 cert covering auth.<domain>); deploy; add the auth DNS CNAME to CognitoCustomDomainTarget (SPA keeps the Cognito prefix; CSP allows both)",
+      "title": "Custom Hosted UI on auth.<domain>: confirm the apex resolves; add Google redirect https://auth.<domain>/oauth2/idpresponse first; set ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN (us-east-1 cert covering auth.<domain>); deploy (SPA switches immediately\u2014sign-in is down until the auth DNS CNAME to CognitoCustomDomainTarget exists; CSP allows the prefix and auth.<domain>)",
       "blocks": []
     }
   ]

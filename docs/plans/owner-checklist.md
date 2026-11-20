@@ -31,7 +31,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | O19 | Add the secret `PUBLIC_API_KEY_GPG_PASSPHRASE`. Confirm the key-workflow permissions in O05 item 5, then mint the first admin API key with the **Manage Public API Keys** workflow | M03A test |
 | O20 | Request an ACM certificate for `api.<domain>` in `ap-southeast-1` (the stack's region, not `us-east-1`) with DNS validation. Give the validation record to the developer. When ISSUED, set the two `API_CUSTOM_DOMAIN_*` variables | API hostname (M03A) |
 | O21 | Delete the unused password user in the Cognito console, after Google sign-in works. Sign-in is Google only, with no authenticator-app enrolment | After Google sign-in |
-| O22 | Confirm the apex `<domain>` resolves (Cognito needs a parent A/CNAME). Add `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth client. Set `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 cert covering `auth.<domain>`); deploy. Say go for the `auth` CNAME to `CognitoCustomDomainTarget`. The SPA keeps using the Cognito prefix (`CognitoDomain`); CSP allows the prefix and `auth.<domain>` | Custom Hosted UI hostname |
+| O22 | Confirm the apex `<domain>` resolves (Cognito needs a parent A/CNAME). Add `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth client first. Set `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 cert covering `auth.<domain>`); deploy. The SPA switches to `auth.<domain>` on that deploy—sign-in is down until the `auth` CNAME to `CognitoCustomDomainTarget` exists (say go for that record). CSP allows the prefix and `auth.<domain>` | Custom Hosted UI hostname |
 
 ## Details
 
