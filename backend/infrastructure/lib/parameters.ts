@@ -39,6 +39,12 @@ export function defineParameters(scope: cdk.Stack) {
       "Optional us-east-1 certificate for the custom Hosted UI domain.",
       { default: "" },
     ),
+    cognitoServeCustomDomain: text(
+      scope,
+      "CognitoServeCustomDomain",
+      "When true with both custom-domain parameters set, CognitoDomain uses auth.<domain>. Stay false until DNS is live.",
+      { allowedValues: ["true", "false"], default: "false" },
+    ),
     mailSendingDomain: text(scope, "MailSendingDomain", "Domain SES sends from. Empty disables email.", {
       default: "",
     }),

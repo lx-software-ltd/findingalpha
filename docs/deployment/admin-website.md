@@ -19,20 +19,24 @@ that attempt. A fix to the workflow needs a new run.
 1. **GitHub environment** — variables `AWS_REGION`,
    `CDK_BOOTSTRAP_QUALIFIER` (`siutindei`), `CDK_PARAM_FILE`,
    `ADMIN_WEB_DOMAIN_NAME`, `ADMIN_WEB_CERTIFICATE_ARN`,
-   `ADMIN_GOOGLE_CLIENT_ID`, `ADMIN_COGNITO_ORIGIN`, and optionally
-   `ADMIN_WAF_WEB_ACL_ARN`, `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME`, and
+   `ADMIN_GOOGLE_CLIENT_ID`, and optionally `ADMIN_WAF_WEB_ACL_ARN`,
+   `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME`,
    `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (both required together
-   for Hosted UI on `auth.<domain>`). Repository variable
-   `AWS_ACCOUNT_ID`. Environment secrets `ADMIN_GOOGLE_CLIENT_SECRET`
-   and `ADMIN_FEDERATED_EMAIL_ALLOWLIST` (comma-separated lower-case
-   emails that receive `admin`). The workflow stops immediately when the
-   domain, the certificate, or the account id is empty, or when the
-   allow-list is empty as both a secret and a variable. A set secret is
-   used. The variable is the fallback. The account id is a variable on
-   purpose: the first settings block shows it and later lines are
-   masked, with no warning. An email read from a variable warns.
-   **Deploy Admin Web** reads `UserPoolClientId`, `CognitoDomain`, and
-   `AdminApiBaseUrl` from the `findingalpha` stack.
+   to create Hosted UI on `auth.<domain>`), and
+   `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN` (`true` only after that DNS is
+   live). Repository variable `AWS_ACCOUNT_ID`. Environment secrets
+   `ADMIN_GOOGLE_CLIENT_SECRET` and `ADMIN_FEDERATED_EMAIL_ALLOWLIST`
+   (comma-separated lower-case emails that receive `admin`). The
+   workflow stops immediately when the domain, the certificate, or the
+   account id is empty, when the allow-list is empty as both a secret
+   and a variable, or when exactly one of the two Cognito custom-domain
+   variables is set. A set secret is used. The variable is the fallback.
+   The account id is a variable on purpose: the first settings block
+   shows it and later lines are masked, with no warning. An email read
+   from a variable warns. **Deploy Admin Web** reads `UserPoolClientId`,
+   `CognitoDomain`, and `AdminApiBaseUrl` from the `findingalpha` stack.
+   The admin CloudFront CSP Cognito origin imports that same
+   `CognitoDomain` export.
 2. **Region** — `AWS_REGION` must be the region where the `siutindei`
    bootstrap parameter `/cdk-bootstrap/siutindei/version` exists.
 3. **ACM** — `ADMIN_WEB_CERTIFICATE_ARN` must be an **ISSUED**
@@ -226,16 +230,26 @@ not proxied. Create it only after the owner says go.
 
 ## Cognito Hosted UI hostname
 
-Sign-in can stay on the Cognito prefix domain, or move to
-`auth.<domain>`. Set both `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and
-`ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 ACM covering
-that hostname). Empty values keep the prefix domain. After the deploy
-that creates the domain, set `ADMIN_COGNITO_ORIGIN` to
-`https://auth.<domain>`, add
-`https://auth.<domain>/oauth2/idpresponse` to the Google OAuth client,
-and point the `auth` CNAME at the stack output
-`CognitoCustomDomainTarget`. The record is DNS only. Create it only
-after the owner says go.
+Sign-in stays on the Cognito prefix domain until you flip serve. AWS
+allows the prefix domain and a custom domain on the same pool; this
+stack keeps the prefix for the whole cutover.
+
+1. Confirm the parent `<domain>` resolves (Cognito requires it before
+   creating `auth.<domain>`).
+2. Set both `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` and
+   `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` (us-east-1 ACM covering
+   that hostname). Leave `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN` unset or
+   `false`. Deploy. The custom domain is created; `CognitoDomain` and
+   the SPA CSP still use the prefix.
+3. Point the `auth` CNAME at `CognitoCustomDomainTarget` (DNS only,
+   after the owner says go). Add
+   `https://auth.<domain>/oauth2/idpresponse` to the Google OAuth
+   client.
+4. Set `ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN=true` and redeploy. The SPA
+   and CSP switch to `https://auth.<domain>`.
+
+To roll back sign-in without removing the custom domain resource, set
+`ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN=false` and redeploy.
 
 ## Local UI without a stack
 

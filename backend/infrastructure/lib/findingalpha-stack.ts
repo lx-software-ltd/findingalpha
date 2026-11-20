@@ -14,6 +14,8 @@ import { tagStack } from "./tags";
 
 export class FindingalphaStack extends cdk.Stack {
   public readonly httpApiEndpoint: string;
+  /** Effective Cognito OAuth origin; same value as the CognitoDomain output. */
+  public readonly cognitoOAuthBaseUrl: string;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -36,10 +38,12 @@ export class FindingalphaStack extends cdk.Stack {
       cognitoDomainPrefixParameter: parameters.cognitoDomainPrefix,
       cognitoCustomDomainNameParameter: parameters.cognitoCustomDomainName,
       cognitoCustomDomainCertificateArnParameter: parameters.cognitoCustomDomainCertificateArn,
+      cognitoServeCustomDomainParameter: parameters.cognitoServeCustomDomain,
       adminFederatedEmailAllowlistParameter: parameters.adminFederatedEmailAllowlist,
       sharedEncryptionKey,
       sharedDeadLetterQueue: lambdaDeadLetterQueue,
     });
+    this.cognitoOAuthBaseUrl = auth.cognitoOAuthBaseUrl;
     const { recordsTable, auditLogTable } = defineTables(this, sharedEncryptionKey);
     const { dataBucket, kbBucket } = defineBuckets(this);
     const secrets = defineSecrets(this, sharedEncryptionKey);
