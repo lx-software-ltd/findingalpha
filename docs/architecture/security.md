@@ -84,15 +84,12 @@ blocks deletion and force-push, and requires status checks whose
 contexts match a job name in `.github/workflows`. The aggregator jobs
 are `test` and `lint`.
 
-`scripts/verify_github_rulesets.py` is the weekly **Verify GitHub
-Rulesets** workflow. A ruleset that targets `main` while its
-enforcement is not `active` fails that job. A required context with no
-matching job name fails it too.
-
-Approving reviews are reported and do not fail the script. Pull
-requests are opened by the maintainer account, and GitHub does not let
-an author approve their own pull request, so a required review count of
-1 blocks every merge until a second reviewer exists. Status checks are
-the merge gate until then.
+The weekly **Verify GitHub Rulesets** workflow calls
+`lx-software-ltd/actions/verify-rulesets` at
+`61d2a581a1d880533982bada88923ad1b6431700`. It fails unless the
+approving-review count is exactly 0 and the required checks are exactly
+`lint` and `test`. A ruleset that targets `main` while its enforcement
+is not `active` fails that job. A required context with no matching job
+name fails it too.
 
 Release tags `v*` need an active ruleset, or classic tag protection.
