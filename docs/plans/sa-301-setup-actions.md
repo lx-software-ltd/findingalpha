@@ -50,6 +50,26 @@ The four workflow files contain no `actions/setup-node@v7`, no `actions/setup-py
 
 This pull request must keep those names. Checkov, CodeQL, and Semgrep OSS from `github-advanced-security` may appear only on the pull request.
 
+## Check names this pull request adds
+
+The pull request changes lint.yml and test.yml, so those jobs run here. They did not run on that main commit. Their names:
+
+- Admin Web viewport smoke
+- Build Admin Web
+- Build CDK
+- Build Public Www
+- Check shared contracts
+- Lint Admin Web
+- Lint Public Www
+- Lint Python
+- Test Infrastructure
+- Test Python
+- Validate agent harness
+- lint
+- test
+
+Together with the eight names above, that is the github-actions set for this head. Checkov, CodeQL, and Semgrep OSS from github-advanced-security may appear only on the pull request.
+
 ## Rollback
 
 Revert the pull request. The `@v7` setup steps and the `1a3cca7` gate pin return.
