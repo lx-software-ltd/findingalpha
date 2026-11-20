@@ -35,11 +35,6 @@ def _register(weights: dict[str, float] | None = None) -> dict:
 
 
 class CompositeTest(unittest.TestCase):
-    def test_percentile(self) -> None:
-        self.assertEqual(composite.percentile([1, 2, 3, 4, 100], 0), 1)
-        self.assertEqual(composite.percentile([1, 2, 3, 4, 100], 100), 100)
-        self.assertEqual(composite.percentile([4, 1, 3], 50), 3)
-
     def test_winsorise_clips_at_three_standard_deviations_and_keeps_missing(self) -> None:
         values: list[float | None] = [0.0] * 10 + [10.0, None]
         present = [0.0] * 10 + [10.0]

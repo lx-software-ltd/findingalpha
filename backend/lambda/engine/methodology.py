@@ -8,6 +8,7 @@ import hashlib
 import importlib
 import inspect
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -78,9 +79,12 @@ def validate(doc: dict[str, Any]) -> None:
     if abs(total - 1.0) > 1e-9:
         raise MethodologyError("group weights must sum to 1")
     std_devs = doc["composite"].get("winsoriseStdDevs")
-    if isinstance(std_devs, bool) or not isinstance(std_devs, (int, float)) or not float(std_devs) > 0:
-        raise MethodologyError("winsoriseStdDevs")
-    if float(std_devs) == float("inf"):
+    if (
+        isinstance(std_devs, bool)
+        or not isinstance(std_devs, (int, float))
+        or not math.isfinite(std_devs)
+        or float(std_devs) <= 0
+    ):
         raise MethodologyError("winsoriseStdDevs")
     _share(doc["composite"].get("minFactorsPerGroupShare"))
     _whole(doc["composite"].get("minSectorSize"), "minSectorSize")

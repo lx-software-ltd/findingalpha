@@ -8,25 +8,6 @@ from typing import Any
 from methodology import register_hash
 
 
-def percentile(values: list[float], percent: float) -> float:
-    """Linear percentile. ``values`` need not be sorted."""
-    if not values:
-        raise ValueError("empty")
-    return _percentile(sorted(values), percent)
-
-
-def _percentile(sorted_values: list[float], percent: float) -> float:
-    if len(sorted_values) == 1:
-        return sorted_values[0]
-    rank = (percent / 100) * (len(sorted_values) - 1)
-    low = math.floor(rank)
-    high = math.ceil(rank)
-    if low == high:
-        return sorted_values[low]
-    weight = rank - low
-    return sorted_values[low] * (1 - weight) + sorted_values[high] * weight
-
-
 def winsorise(values: list[float | None], std_devs: float) -> list[float | None]:
     """Clip present values to the mean ± ``std_devs`` population standard deviations.
 

@@ -259,6 +259,7 @@ export const jobs = {
 export const methodology = {
   "version": 6,
   "universe": {
+    "status": "owner_accepted",
     "confirmed": [
       "excludeSicRanges",
       "minFundamentalsYears"
@@ -286,7 +287,6 @@ export const methodology = {
     "minFundamentalsYears": 3,
     "maxAnnualReportAgeDays": 500,
     "maxMemberDropFraction": 0.5,
-    "status": "owner_accepted",
     "acceptedNote": "Owner choice. No book prescribes these thresholds.",
     "citation": null
   },
@@ -474,6 +474,7 @@ export const methodology = {
     }
   ],
   "composite": {
+    "status": "owner_accepted",
     "winsoriseStdDevs": 3,
     "standardise": "zscore_within_sector",
     "minSectorSize": 10,
@@ -483,7 +484,6 @@ export const methodology = {
       "trend": 0.3
     },
     "minFactorsPerGroupShare": 0.5,
-    "status": "owner_accepted",
     "acceptedNote": "Outliers are limited to \u00b13 standard deviations about the mean, as the book does. Within-sector z-scores and the group weights are an owner choice.",
     "citation": {
       "document": "Active Portfolio Management, Grinold & Kahn.pdf",
@@ -492,6 +492,7 @@ export const methodology = {
     }
   },
   "screen": {
+    "status": "owner_accepted",
     "hardFilters": [
       {
         "id": "positiveOperatingIncome",
@@ -514,17 +515,17 @@ export const methodology = {
       }
     ],
     "shortlistSize": 60,
-    "status": "owner_accepted",
     "acceptedNote": "Owner choice. No book prescribes these thresholds.",
     "citation": null
   },
   "fundamentals": {
-    "unreportedDebt": "zero",
     "status": "owner_accepted",
+    "unreportedDebt": "zero",
     "acceptedNote": "Owner choice. BKM page 686 warns that some obligations go unreported. A debt not filed is treated as zero.",
     "citation": null
   },
   "backtest": {
+    "status": "owner_accepted",
     "firstScreenMonth": "2017-02",
     "portfolioSize": 20,
     "portfolioSizeMin": 10,
@@ -536,7 +537,6 @@ export const methodology = {
     "dividendWithholdingRate": 0.3,
     "benchmark": "SPY",
     "cashProxy": "BIL",
-    "status": "owner_accepted",
     "acceptedNote": "Owner choice. No book prescribes these thresholds.",
     "citation": null
   }
