@@ -62,7 +62,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [javascript, python]
+        # javascript-typescript replaces the javascript category. Alerts
+        # under the old category stay open until the owner dismisses them.
+        language: [javascript-typescript, python]
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
