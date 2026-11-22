@@ -93,14 +93,14 @@ class WorkflowSecretTest(unittest.TestCase):
     def test_cdk_diff_calls_aws_oidc(self) -> None:
         text = _workflow("cdk-diff.yml")
         expressions = _expressions(text)
-        self.assertTrue(_accepts_secret_or_variable(expressions, "AWS_ACCOUNT_ID"))
+        self.assertIn("secrets.AWS_ACCOUNT_ID", expressions)
+        self.assertNotIn("vars.AWS_ACCOUNT_ID", expressions)
         self.assertIn("vars.AWS_REGION", expressions)
-        self.assertRegex(text, r"uses: lx-software-ltd/actions/aws-oidc@[0-9a-f]{40}\b")
-        self.assertIn(
-            "subject: repo:lx-software-ltd@321652495/findingalpha@1456774357:*",
+        self.assertRegex(
             text,
+            r"uses: lx-software-ltd/actions/aws-oidc@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
         )
-        self.assertNotIn("repo:lx-software-ltd/findingalpha:", text)
+        self.assertNotIn("subject:", text)
         self.assertNotIn("::add-mask::", text)
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
 

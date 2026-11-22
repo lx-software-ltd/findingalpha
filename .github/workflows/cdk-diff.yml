@@ -5,6 +5,7 @@ on:
     paths:
       - "backend/**"
       - "contracts/**"
+      - ".github/workflows/cdk-diff.yml"
   workflow_dispatch:
     inputs:
       stacks:
@@ -29,12 +30,11 @@ jobs:
 
       - name: Configure AWS credentials
         id: aws
-        uses: lx-software-ltd/actions/aws-oidc@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/aws-oidc@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
-          account-id: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
           required: "false"
-          subject: repo:lx-software-ltd@321652495/findingalpha@1456774357:*
 
       - name: Set up Node.js
         if: steps.aws.outputs.ready == 'true'

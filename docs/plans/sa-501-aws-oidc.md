@@ -7,7 +7,7 @@
 
 ## Goal
 
-Call `aws-oidc` from `cdk-diff.yml`. The account id is still `secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID`. The subject is the ID form `repo:lx-software-ltd@321652495/findingalpha@1456774357:*`. `required` stays false, so a missing account or region warns and skips the diff.
+Call `aws-oidc` from `cdk-diff.yml`. The account id is `secrets.AWS_ACCOUNT_ID` only. The action reads the job token's `sub` claim. `required` stays false, so a missing account or region warns and skips the diff. The workflow path is in `pull_request.paths`, so a change to this file runs the diff. The pin is `839efa2c91be72e748867031dc6b285011fbf627`, the merge commit of actions#30, with a `# main 2026-11-22` comment.
 
 ## Non-goals
 

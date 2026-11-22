@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/setup-node@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
           cache: npm
           working-directory: apps/public_www
@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/setup-node@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
           cache: npm
           working-directory: apps/admin_web
@@ -62,7 +62,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/setup-node@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
           cache: npm
           working-directory: backend/infrastructure
@@ -79,7 +79,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/setup-python@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
           python-version: "3.12"
 
@@ -99,12 +99,12 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/setup-python@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
           python-version: "3.12"
 
       - name: Run harness checks
-        uses: lx-software-ltd/actions/agent-harness@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/agent-harness@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
 
       - name: Test harness ratchets
         run: python3 -m unittest scripts/test_agent_hooks.py -v
@@ -117,7 +117,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check workflows
-        uses: lx-software-ltd/actions/workflow-conformance@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/workflow-conformance@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
           mode: enforce
           profile: product
@@ -130,7 +130,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/setup-node@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
 
       - name: Type-check Node apps
         run: |
@@ -155,6 +155,6 @@ jobs:
     if: always()
     steps:
       - name: Require every lint job
-        uses: lx-software-ltd/actions/require-jobs@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
+        uses: lx-software-ltd/actions/require-jobs@839efa2c91be72e748867031dc6b285011fbf627 # main 2026-11-22
         with:
           needs-json: ${{ toJson(needs) }}
