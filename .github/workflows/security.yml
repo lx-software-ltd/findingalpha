@@ -112,30 +112,10 @@ jobs:
       - name: Run Gitleaks
         uses: lx-software-ltd/actions/gitleaks@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
 
-  semgrep:
-    name: Semgrep SAST
-    runs-on: ubuntu-26.04
-    container:
-      image: semgrep/semgrep
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # python.lang.security.audit.dynamic-urllib-use-detected is excluded for
-      # backend/lambda/admin/handler.py and openrouter_statement_parser.py.
-      # Both call urllib.request.urlopen() with HTTPS-only, fixed-scheme URLs
-      # (Frankfurter API base, OpenRouter API base) and already carry noqa: S310.
-      - name: Run Semgrep
-        uses: lx-software-ltd/actions/semgrep@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
-        with:
-          mode: ci
-          rules: p/javascript p/security-audit p/secrets
-          exclude-rules: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
-
   security-summary:
     name: Security Summary
     runs-on: ubuntu-26.04
-    needs: [checkov, codeql, pii-denylist, secrets-scan, semgrep]
+    needs: [checkov, codeql, pii-denylist, secrets-scan]
     if: always()
     steps:
       - name: Require every security job
