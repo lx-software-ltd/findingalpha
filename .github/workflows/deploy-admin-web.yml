@@ -37,88 +37,64 @@ jobs:
         id: exists
         run: test -f apps/admin_web/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
 
-      - name: Require the account id
+      - name: Configure AWS credentials
+        id: aws
         if: steps.exists.outputs.present == 'true'
-        env:
-          P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
-        run: |
-          if [ -n "${P_ACCOUNT_ID}" ]; then
-            echo "::add-mask::${P_ACCOUNT_ID}"
-          fi
-          if [ -z "${P_ACCOUNT_ID}" ]; then
-            echo "::error::Set AWS_ACCOUNT_ID as a repository secret or a variable before deploying."
-            exit 1
-          fi
+        uses: lx-software-ltd/actions/aws-oidc@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
+        with:
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          region: ${{ vars.AWS_REGION }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         with:
           node-version: "26"
           cache: "npm"
           cache-dependency-path: apps/admin_web/package-lock.json
 
       - run: npm ci
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         working-directory: apps/admin_web
 
-      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        if: steps.exists.outputs.present == 'true'
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-          aws-region: ${{ vars.AWS_REGION }}
-
       - name: Read admin SPA settings from the findingalpha stack
+        id: stack_outputs
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
+        uses: lx-software-ltd/actions/cfn-stack-outputs@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
+        with:
+          stack: findingalpha
+          outputs: UserPoolClientId CognitoDomain AdminApiBaseUrl
+          region: ${{ vars.AWS_REGION }}
+
+      - name: Check admin SPA settings
         id: admin_spa
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
+          JSON: ${{ steps.stack_outputs.outputs.json }}
         run: |
           set -euo pipefail
-          stack=findingalpha
-          err="$(mktemp)"
-          if ! json="$(aws cloudformation describe-stacks --stack-name "$stack" --output json 2>"$err")"; then
-            if grep -q 'AccessDenied' "$err"; then
-              echo "::error::GitHubActionsRole needs cloudformation:DescribeStacks on stack ${stack} in ${AWS_REGION}."
-            fi
-            cat "$err" >&2
-            rm -f "$err"
-            exit 1
-          fi
-          rm -f "$err"
-          read_output() {
-            jq -r --arg key "$1" '
-              (.Stacks[0].Outputs // [])[] | select(.OutputKey == $key) | .OutputValue
-            ' <<<"$json"
-          }
-          client_id="$(read_output UserPoolClientId)"
-          domain="$(read_output CognitoDomain)"
-          api_url="$(read_output AdminApiBaseUrl)"
-          if [ -z "$client_id" ] || [ -z "$domain" ] || [ -z "$api_url" ]; then
-            echo "::error::Stack $stack is missing UserPoolClientId, CognitoDomain, or AdminApiBaseUrl"
-            exit 1
-          fi
-          case "$domain" in
-            https://*) ;;
-            *)
-              echo "::error::CognitoDomain on $stack must be an https origin"
-              exit 1
-              ;;
-          esac
-          case "$api_url" in
-            https://*) ;;
-            *)
-              echo "::error::AdminApiBaseUrl on $stack must be an https origin"
-              exit 1
-              ;;
-          esac
-          {
-            echo "client_id=$client_id"
-            echo "domain=$domain"
-            echo "api_url=$api_url"
-          } >> "$GITHUB_OUTPUT"
+          python3 - << 'PY'
+          import json
+          import os
+          import sys
+
+          data = json.loads(os.environ["JSON"])
+          domain = data["CognitoDomain"]
+          api_url = data["AdminApiBaseUrl"]
+          client_id = data["UserPoolClientId"]
+          if not domain.startswith("https://"):
+              print("::error::CognitoDomain on findingalpha must be an https origin", file=sys.stderr)
+              sys.exit(1)
+          if not api_url.startswith("https://"):
+              print("::error::AdminApiBaseUrl on findingalpha must be an https origin", file=sys.stderr)
+              sys.exit(1)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"client_id={client_id}\n")
+              handle.write(f"domain={domain}\n")
+              handle.write(f"api_url={api_url}\n")
+          PY
 
       - run: npm run build
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         working-directory: apps/admin_web
         env:
           VITE_COGNITO_CLIENT_ID: ${{ steps.admin_spa.outputs.client_id }}
@@ -128,7 +104,7 @@ jobs:
           VITE_API_BASE_URL: ${{ steps.admin_spa.outputs.api_url }}
 
       - name: Upload the admin site
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         run: bash scripts/deploy/deploy-admin-www.sh
         env:
           ADMIN_WEB_STACK_NAME: findingalpha-admin-web
