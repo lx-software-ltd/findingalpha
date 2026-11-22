@@ -26,7 +26,7 @@ Call `aws-oidc` from `deploy-backend.yml`, `deploy-admin-web.yml`, and `deploy-p
 - Each deploy job still runs only on `main`, in the production environment, with `id-token: write`.
 - Email allowlists and the brief and SEC contacts still accept a secret or a variable. A variable still warns.
 - Admin web still refuses a Cognito domain or API URL that is not `https://`.
-- The public website still skips the upload when its stack is not deployed, and still fails on `AccessDenied`.
+- The public website still skips the upload when its stack is not deployed, and still fails on `AccessDenied`. `npm ci` and the build run before `aws-oidc`, so install scripts do not see the deploy role.
 - Backend deploy still checks the domains, certificates, and email allowlist before it assumes the role. The inline bootstrap read stays.
 
 ## Done when

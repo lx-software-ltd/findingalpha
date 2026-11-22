@@ -150,6 +150,9 @@ class WorkflowSecretTest(unittest.TestCase):
         public = _workflow("deploy-public-website.yml")
         self.assertIn("findingalpha-public-www", public)
         self.assertIn("Skip when the stack is not deployed yet", public)
+        self.assertLess(public.index("npm ci"), public.index("actions/aws-oidc@"))
+        self.assertLess(public.index("Build public website"), public.index("actions/aws-oidc@"))
+        self.assertLess(public.index("actions/aws-oidc@"), public.index("Skip when the stack is not deployed yet"))
 
     def test_account_id_is_masked_without_a_warning(self) -> None:
         for filename in ("deploy-backend.yml", "deploy-admin-web.yml"):

@@ -39,16 +39,8 @@ jobs:
         id: exists
         run: test -f apps/public_www/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
 
-      - name: Configure AWS credentials
-        id: aws
-        if: steps.exists.outputs.present == 'true'
-        uses: lx-software-ltd/actions/aws-oidc@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
-        with:
-          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
-          region: ${{ vars.AWS_REGION }}
-
       - name: Set up Node.js
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
+        if: steps.exists.outputs.present == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
@@ -56,14 +48,23 @@ jobs:
           cache-dependency-path: apps/public_www/package-lock.json
 
       - name: Install dependencies
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
+        if: steps.exists.outputs.present == 'true'
         run: npm ci
         working-directory: apps/public_www
 
       - name: Build public website
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
+        if: steps.exists.outputs.present == 'true'
         run: npm run build
         working-directory: apps/public_www
+
+      # After the build. npm ci and the build must not see the deploy role.
+      - name: Configure AWS credentials
+        id: aws
+        if: steps.exists.outputs.present == 'true'
+        uses: lx-software-ltd/actions/aws-oidc@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
+        with:
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          region: ${{ vars.AWS_REGION }}
 
       - name: Skip when the stack is not deployed yet
         id: stack
