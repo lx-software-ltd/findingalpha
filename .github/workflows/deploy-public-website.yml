@@ -39,21 +39,16 @@ jobs:
         id: exists
         run: test -f apps/public_www/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
 
-      - name: Require the account id
+      - name: Configure AWS credentials
+        id: aws
         if: steps.exists.outputs.present == 'true'
-        env:
-          P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}
-        run: |
-          if [ -n "${P_ACCOUNT_ID}" ]; then
-            echo "::add-mask::${P_ACCOUNT_ID}"
-          fi
-          if [ -z "${P_ACCOUNT_ID}" ]; then
-            echo "::error::Set AWS_ACCOUNT_ID as a repository secret or a variable before deploying."
-            exit 1
-          fi
+        uses: lx-software-ltd/actions/aws-oidc@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
+        with:
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          region: ${{ vars.AWS_REGION }}
 
       - name: Set up Node.js
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26"
@@ -61,26 +56,18 @@ jobs:
           cache-dependency-path: apps/public_www/package-lock.json
 
       - name: Install dependencies
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         run: npm ci
         working-directory: apps/public_www
 
       - name: Build public website
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         run: npm run build
         working-directory: apps/public_www
 
-      - name: Configure AWS credentials
-        if: steps.exists.outputs.present == 'true'
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-          aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: GitHubActions-${{ github.run_id }}
-
       - name: Skip when the stack is not deployed yet
         id: stack
-        if: steps.exists.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
         run: |
@@ -104,7 +91,7 @@ jobs:
           rm -f "$err"
 
       - name: Deploy public website
-        if: steps.exists.outputs.present == 'true' && steps.stack.outputs.present == 'true'
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
         run: bash scripts/deploy/deploy-public-website.sh
         env:
           PUBLIC_WEBSITE_STACK_NAME: findingalpha-public-www
