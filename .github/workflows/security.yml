@@ -62,9 +62,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # javascript-typescript replaces the javascript category. Alerts
-        # under the old category stay open until the owner dismisses them.
-        language: [javascript-typescript, python]
+        include:
+          # javascript-typescript is the analyzed language. The category stays
+          # /language:javascript, which is where the existing alerts are filed.
+          - language: javascript-typescript
+            category: "/language:javascript"
+          - language: python
+            category: "/language:python"
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,7 +84,7 @@ jobs:
         with:
           language: ${{ matrix.language }}
           queries: security-extended
-          category: /language:${{ matrix.language }}
+          category: ${{ matrix.category }}
 
   pii-denylist:
     name: PII denylist
@@ -141,14 +145,14 @@ jobs:
           python-version: "3.12"
 
       # Measured 22 Nov 2026. backend/lambda has no high or medium findings.
-      # B101 is assert used as a type narrowing. B105 and B106 are Secrets
-      # Manager names and test fixtures. B311 is a seeded Random in a unit test.
+      # B101 is assert used as a type narrowing. B311 is a seeded Random in a
+      # unit test. B105 and B106 are marked on the line they match.
       # scripts/ is not scanned: probe_data_sources.py says it is not part of CI.
       - name: Run Bandit
         uses: lx-software-ltd/actions/bandit@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
           paths: backend/lambda
-          skip: B101,B105,B106,B311
+          skip: B101,B311
 
   npm-audit:
     name: npm audit

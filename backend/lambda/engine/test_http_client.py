@@ -137,7 +137,7 @@ class HttpClientTest(unittest.TestCase):
     def test_a_dropped_connection_is_retried(self) -> None:
         calls = {"n": 0}
         slept: list[float] = []
-        secret = "secret-query"
+        secret = "secret-query"  # nosec B105
 
         def opener(_request: object, timeout: float) -> _Response:
             del timeout
@@ -205,7 +205,7 @@ class HttpClientTest(unittest.TestCase):
         logger = logging.getLogger("http_client")
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
-        secret = "header-value-do-not-log"
+        secret = "header-value-do-not-log"  # nosec B105
 
         def opener(_request: object, timeout: float) -> _Response:
             del timeout
