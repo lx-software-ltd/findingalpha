@@ -18,7 +18,7 @@ change limits.
   `holds.py`
 - `contracts/**` except `contracts/roadmap.json`
 - `scripts/deploy/**`
-- `scripts/check-pii.sh`, `scripts/check_pii.py`, `scripts/pii-denylist.sha256`
+- `scripts/pii-denylist.sha256`
 - `.github/workflows/deploy-*.yml`
 - `.cursor/hooks.json`, `.cursor/hooks/**`
 - `.pre-commit-config.yaml`

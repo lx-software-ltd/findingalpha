@@ -24,7 +24,7 @@ import secrets_read
 
 _FIXTURES = Path(__file__).resolve().parent / "test_fixtures"
 _KEY = "kid"
-_SECRET = "sek"
+_SECRET = "sek"  # nosec B105
 
 
 class _Response:
@@ -293,7 +293,7 @@ class AlpacaDataTest(unittest.TestCase):
             return _Response(bars_for(symbols))
 
         client = alpaca_data.AlpacaData(
-            key_id="kid", secret_key="sek", opener=opener, limiter=_Limiter(), ingest_enabled=_allow
+            key_id="kid", secret_key="sek", opener=opener, limiter=_Limiter(), ingest_enabled=_allow  # nosec B106
         )
         names = ["AAA", "BAD", "SPY", "ZZZ"]
         found = [row["symbol"] for row in client.daily_bars(names, "2016-01-04", "2016-01-29", "raw")]
@@ -305,7 +305,7 @@ class AlpacaDataTest(unittest.TestCase):
             raise _status(400, b'{"message":"end is before start","url":"https://data.example/x?token=secret-query"}')
 
         broken = alpaca_data.AlpacaData(
-            key_id="kid", secret_key="sek", opener=reject, limiter=_Limiter(), ingest_enabled=_allow
+            key_id="kid", secret_key="sek", opener=reject, limiter=_Limiter(), ingest_enabled=_allow  # nosec B106
         )
         with self.assertRaises(http_client.HttpStatusError) as raised:
             list(broken.daily_bars(["AAA", "SPY"], "2016-01-04", "2016-01-29", "raw"))
@@ -332,7 +332,7 @@ class AlpacaDataTest(unittest.TestCase):
             return _Response(json.dumps({"bars": rows}).encode())
 
         client = alpaca_data.AlpacaData(
-            key_id="kid", secret_key="sek", opener=opener, limiter=_Limiter(), ingest_enabled=_allow
+            key_id="kid", secret_key="sek", opener=opener, limiter=_Limiter(), ingest_enabled=_allow  # nosec B106
         )
         with self.assertRaises(http_client.HttpStatusError) as raised:
             list(client.daily_bars(sorted(bad | {"SPY"}), "2016-01-04", "2016-01-29", "raw"))
@@ -492,13 +492,13 @@ class AlpacaDataTest(unittest.TestCase):
             raise AssertionError("requested")
 
         with self.assertRaises(secrets_read.NotConfigured):
-            alpaca_data.AlpacaData(key_id="", secret_key="sek", opener=refuse)
+            alpaca_data.AlpacaData(key_id="", secret_key="sek", opener=refuse)  # nosec B106
         with self.assertRaises(secrets_read.NotConfigured):
-            alpaca_data.AlpacaData(key_id="kid", secret_key="se\nk", opener=refuse)
+            alpaca_data.AlpacaData(key_id="kid", secret_key="se\nk", opener=refuse)  # nosec B106
         secrets_read.clear_cache()
         with self.assertRaises(secrets_read.NotConfigured):
             alpaca_data.client_from_secret(secret_client=_SecretClient('{"key_id":"kid"}'), opener=refuse)
-        os.environ["ALPACA_SECRET_ID"] = "findingalpha/other"
+        os.environ["ALPACA_SECRET_ID"] = "findingalpha/other"  # nosec B105
         secrets_read.clear_cache()
         other = _SecretClient('{"key_id":"kid","secret_key":"sek"}')
         alpaca_data.client_from_secret(secret_client=other, opener=opener, limiter=_Limiter())

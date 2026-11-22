@@ -15,7 +15,8 @@ import alpaca_bars
 import http_client
 import secrets_read
 
-_SECRET_ID = "findingalpha/alpaca-paper"
+# Secrets Manager name, not a password.
+_SECRET_ID = "findingalpha/alpaca-paper"  # nosec B105
 _PAPER = "https://paper-api.alpaca.markets"
 _DATA = "https://data.alpaca.markets"
 _BATCH = 200

@@ -24,14 +24,14 @@ jobs:
     name: Check shared contracts
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - name: Verify contract artifacts
         run: python3 scripts/check-contracts.py
 
       - name: Check hashed PII denylist
-        uses: lx-software-ltd/actions/pii-denylist@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/pii-denylist@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
 
       - name: Test scripts
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
@@ -40,9 +40,9 @@ jobs:
     name: Test Python
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/setup-python@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
           python-version: "3.12"
       - run: python3 -m pip install boto3
@@ -58,12 +58,12 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/setup-node@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
-          node-version: "lts/*"
+          node-version: "26"
           cache: npm
           working-directory: apps/public_www
 
@@ -80,12 +80,12 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/setup-node@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
-          node-version: "lts/*"
+          node-version: "26"
           cache: npm
           working-directory: apps/admin_web
 
@@ -99,7 +99,7 @@ jobs:
           VITE_API_BASE_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/setup-python@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
           python-version: "3.12"
 
@@ -120,18 +120,20 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/setup-node@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
-          node-version: "lts/*"
+          node-version: "26"
           cache: npm
           working-directory: apps/admin_web
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-        working-directory: apps/admin_web
+        uses: lx-software-ltd/actions/playwright-install@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
+        with:
+          working-directory: apps/admin_web
+          browsers: chromium
 
       - name: Run viewport smoke tests
         run: npm run test:e2e
@@ -142,12 +144,12 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/setup-node@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
-          node-version: "lts/*"
+          node-version: "26"
           cache: npm
           working-directory: backend/infrastructure
 
@@ -174,6 +176,6 @@ jobs:
     if: always()
     steps:
       - name: Require every test job
-        uses: lx-software-ltd/actions/require-jobs@aab84b76383d5a44838f9617ac47b23cfff7fdaf # main 2026-11-21
+        uses: lx-software-ltd/actions/require-jobs@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
         with:
           needs-json: ${{ toJson(needs) }}

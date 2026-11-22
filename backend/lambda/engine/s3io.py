@@ -86,7 +86,8 @@ def exists(bucket: str, key: str, *, client: Any = None) -> bool:
 def list_keys(bucket: str, prefix: str, *, client: Any = None) -> list[str]:
     s3 = _client(client)
     keys: list[str] = []
-    token = ""
+    # Empty pagination cursor, not a password.
+    token = ""  # nosec B105
     while True:
         kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
         if token:

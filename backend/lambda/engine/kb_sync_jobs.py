@@ -445,7 +445,8 @@ def _running_job(agent: Any, knowledge_base: str, source_id: str) -> str:
 
 def _failed_keys(agent: Any, knowledge_base: str, source_id: str) -> list[str]:
     found: list[str] = []
-    token = ""
+    # Empty pagination cursor, not a password.
+    token = ""  # nosec B105
     while True:
         kwargs: dict[str, Any] = {"knowledgeBaseId": knowledge_base, "dataSourceId": source_id, "maxResults": 100}
         if token:
