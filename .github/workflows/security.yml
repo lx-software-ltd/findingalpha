@@ -23,13 +23,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-node@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           cache: npm
           working-directory: backend/infrastructure
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-python@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           python-version: "3.12"
 
@@ -49,7 +49,7 @@ jobs:
           npx cdk synth --quiet --output cdk.out
 
       - name: Run Checkov
-        uses: lx-software-ltd/actions/checkov-cloudformation@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/checkov-cloudformation@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           directory: backend/infrastructure/cdk.out
           config-file: backend/infrastructure/.checkov.yaml
@@ -74,12 +74,12 @@ jobs:
 
       - name: Set up Python
         if: matrix.language == 'python'
-        uses: lx-software-ltd/actions/setup-python@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-python@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           python-version: "3.12"
 
       - name: Analyze
-        uses: lx-software-ltd/actions/codeql@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/codeql@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           language: ${{ matrix.language }}
           queries: security-extended
@@ -93,12 +93,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-python@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           python-version: "3.12"
 
       - name: Check hashed PII denylist
-        uses: lx-software-ltd/actions/pii-denylist@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/pii-denylist@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
 
   secrets-scan:
     name: Secret Scanning
@@ -110,7 +110,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: lx-software-ltd/actions/gitleaks@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/gitleaks@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
 
   dependency-audit:
     name: Dependency audit
@@ -120,14 +120,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-python@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           python-version: "3.12"
 
       # 22 Nov 2026: ignore-vulns is the hatch for an upstream advisory
       # with no fix. A dated reason goes on this step when one is ignored.
       - name: Audit Python requirements
-        uses: lx-software-ltd/actions/pip-audit@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/pip-audit@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           requirements: |
             backend/lambda/engine/requirements.txt
@@ -141,7 +141,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-python@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           python-version: "3.12"
 
@@ -150,7 +150,7 @@ jobs:
       # unit test. B105 and B106 are marked on the line they match.
       # scripts/ is not scanned: probe_data_sources.py says it is not part of CI.
       - name: Run Bandit
-        uses: lx-software-ltd/actions/bandit@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/bandit@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           paths: backend/lambda
           skip: B101,B311
@@ -163,12 +163,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-node@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
 
       # 22 Nov 2026: audit-level is the hatch for an upstream advisory
       # with no fix. A dated reason goes on this step when the level changes.
       - name: Audit npm lockfiles
-        uses: lx-software-ltd/actions/npm-audit@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/npm-audit@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           directories: |
             apps/public_www
@@ -182,6 +182,6 @@ jobs:
     if: always()
     steps:
       - name: Require every security job
-        uses: lx-software-ltd/actions/require-jobs@9235676200771b2f93bc01ac85f3de1392133182 # main 2026-11-22
+        uses: lx-software-ltd/actions/require-jobs@3cd1f2fe9988aff44e34d76ab1f89aeaa929a5b2 # sa-501 2026-11-22
         with:
           needs-json: ${{ toJson(needs) }}
