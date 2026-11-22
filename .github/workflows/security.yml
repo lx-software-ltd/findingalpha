@@ -112,10 +112,51 @@ jobs:
       - name: Run Gitleaks
         uses: lx-software-ltd/actions/gitleaks@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
 
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: lx-software-ltd/actions/setup-python@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
+        with:
+          python-version: "3.12"
+
+      - name: Audit Python requirements
+        uses: lx-software-ltd/actions/pip-audit@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
+        with:
+          requirements: |
+            backend/lambda/engine/requirements.txt
+            backend/lambda/public_api_authorizer/requirements.txt
+
+  bandit:
+    name: Bandit
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: lx-software-ltd/actions/setup-python@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
+        with:
+          python-version: "3.12"
+
+      # Measured 22 Nov 2026. backend/lambda has no high or medium findings.
+      # B101 is assert used as a type narrowing. B105 and B106 are Secrets
+      # Manager names and test fixtures. B311 is a seeded Random in a unit test.
+      # scripts/ is not scanned: probe_data_sources.py says it is not part of CI.
+      - name: Run Bandit
+        uses: lx-software-ltd/actions/bandit@61b67ed4f686659433f6ca4cb10c80707e365cd0 # main 2026-11-22
+        with:
+          paths: backend/lambda
+          skip: B101,B105,B106,B311
+
   security-summary:
     name: Security Summary
     runs-on: ubuntu-26.04
-    needs: [checkov, codeql, pii-denylist, secrets-scan]
+    needs: [checkov, codeql, pii-denylist, secrets-scan, dependency-audit, bandit]
     if: always()
     steps:
       - name: Require every security job
