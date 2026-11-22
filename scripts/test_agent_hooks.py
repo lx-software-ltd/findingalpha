@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import json
 import unittest
 from pathlib import Path
 
@@ -143,6 +145,40 @@ class HarnessConfigTest(unittest.TestCase):
     def test_unquoted_colon_in_a_yaml_value_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             _plain_yaml_values('entry: echo "app: run"')
+
+
+class StopGateTest(unittest.TestCase):
+    def test_missing_pre_commit_returns_a_followup(self) -> None:
+        stop = _load("stop_gate", ROOT / ".cursor" / "hooks" / "stop_gate.py")
+
+        def fake_run(command, **kwargs):
+            if command[0] == "git":
+                return subprocess_result(" M file.py\n")
+            if command[0] == stop.sys.executable:
+                return subprocess_result("", 0)
+            raise FileNotFoundError(command[0])
+
+        stop.subprocess.run = fake_run
+        stop.sys.stdin = io.StringIO(json.dumps({"status": "completed"}))
+        stop.sys.stdout = io.StringIO()
+        self.assertEqual(stop.main(), 0)
+        payload = json.loads(stop.sys.stdout.getvalue())
+        message = payload["followup_message"]
+        self.assertEqual(message.count("pre-commit is not on PATH"), 1)
+        self.assertIn("lx-software-ltd/actions", message)
+        self.assertIn("network", message)
+
+
+class _Completed:
+    def __init__(self, stdout: str, returncode: int) -> None:
+        self.stdout = stdout
+        self.stderr = ""
+        self.returncode = returncode
+
+
+def subprocess_result(stdout: str, returncode: int = 0) -> _Completed:
+    return _Completed(stdout, returncode)
+
 
 if __name__ == "__main__":
     unittest.main()

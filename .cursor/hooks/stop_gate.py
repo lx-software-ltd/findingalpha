@@ -42,8 +42,24 @@ def main() -> int:
         print("{}")
         return 0
     failures: list[str] = []
+    missing_pre_commit = False
     for command in CHECKS:
-        result = subprocess.run(command, cwd=ROOT, check=False, capture_output=True, text=True)
+        if missing_pre_commit and command[0] == "pre-commit":
+            continue
+        try:
+            result = subprocess.run(command, cwd=ROOT, check=False, capture_output=True, text=True)
+        except FileNotFoundError:
+            if command[0] == "pre-commit":
+                missing_pre_commit = True
+                failures.append(
+                    "$ pre-commit run\n"
+                    "pre-commit is not on PATH. The harness hooks live in "
+                    "lx-software-ltd/actions and run through pre-commit. "
+                    "The first run needs network to clone that repository."
+                )
+            else:
+                failures.append(f"$ {' '.join(command)}\n{command[0]} is not on PATH.")
+            continue
         if result.returncode != 0:
             output = (result.stdout + "\n" + result.stderr).strip()
             failures.append(f"$ {' '.join(command)}\n{output}")
