@@ -53,6 +53,7 @@ jobs:
             cd backend/infrastructure
             npm ci
           else
+            echo "::warning::Missing backend/infrastructure/package.json"
             echo "Missing backend/infrastructure/package.json"
           fi
 
@@ -76,6 +77,7 @@ jobs:
         if: steps.aws.outputs.ready == 'true'
         run: |
           if [ ! -f "backend/infrastructure/package.json" ]; then
+            echo "::warning::Missing backend/infrastructure/package.json"
             echo "Missing backend/infrastructure/package.json"
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
