@@ -100,6 +100,14 @@ class WorkflowSecretTest(unittest.TestCase):
             text,
             r"uses: lx-software-ltd/actions/aws-oidc@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
         )
+        self.assertRegex(
+            text,
+            r"uses: lx-software-ltd/actions/cdk-bootstrap-check@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
+        )
+        self.assertRegex(
+            text,
+            r"uses: lx-software-ltd/actions/cdk-diff@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
+        )
         self.assertNotIn("subject:", text)
         self.assertNotIn("::add-mask::", text)
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
@@ -133,5 +141,7 @@ class WorkflowSecretTest(unittest.TestCase):
 
     def test_cdk_diff_strips_the_account_from_the_summary(self) -> None:
         text = _workflow("cdk-diff.yml")
-        self.assertIn('sed "s/${AWS_ACCOUNT_ID}/***/g"', text)
+        self.assertIn("account-id: ${{ secrets.AWS_ACCOUNT_ID }}", text)
+        self.assertNotIn('sed "s/${AWS_ACCOUNT_ID}/***/g"', text)
+        self.assertNotIn("secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID", text)
         self.assertNotIn("AWS_ACCOUNT_ID is unset", text)
