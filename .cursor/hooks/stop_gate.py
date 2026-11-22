@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Re-prompt the agent when local harness checks fail at the end of a turn.
 
-Cloud agents do not fire the stop hook. CI runs the same scripts.
+Cloud agents do not fire the stop hook. CI runs the shared actions.
 """
 
 from __future__ import annotations
@@ -13,11 +13,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKS = (
-    [sys.executable, str(ROOT / "scripts" / "validate_agent_rules.py")],
-    [sys.executable, str(ROOT / "scripts" / "check_file_length.py")],
-    [sys.executable, str(ROOT / "scripts" / "check_test_focus.py")],
+    ["pre-commit", "run", "validate-agent-rules", "--all-files"],
+    ["pre-commit", "run", "check-file-length", "--all-files"],
+    ["pre-commit", "run", "check-test-focus", "--all-files"],
     [sys.executable, str(ROOT / "scripts" / "check-contracts.py")],
-    [sys.executable, str(ROOT / "scripts" / "check_pii.py")],
+    ["pre-commit", "run", "check-pii", "--all-files"],
 )
 
 

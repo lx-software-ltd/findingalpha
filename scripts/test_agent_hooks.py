@@ -20,7 +20,6 @@ def _load(name: str, path: Path):
 
 guard = _load("guard_shell", ROOT / ".cursor" / "hooks" / "guard_shell.py")
 post_edit = _load("post_edit", ROOT / ".cursor" / "hooks" / "post_edit.py")
-rules = _load("validate_agent_rules", ROOT / "scripts" / "validate_agent_rules.py")
 
 
 class GuardShellTest(unittest.TestCase):
@@ -144,15 +143,6 @@ class HarnessConfigTest(unittest.TestCase):
     def test_unquoted_colon_in_a_yaml_value_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             _plain_yaml_values('entry: echo "app: run"')
-
-class AgentRulesTest(unittest.TestCase):
-    def test_repository_rules_pass(self) -> None:
-        self.assertEqual(rules.validate(), [])
-
-    def test_convention_tag_is_accepted_and_unknown_sha_is_not(self) -> None:
-        self.assertTrue(rules._why_is_real("convention"))
-        self.assertFalse(rules._why_is_real("deadbee is not a commit"))
-
 
 if __name__ == "__main__":
     unittest.main()
