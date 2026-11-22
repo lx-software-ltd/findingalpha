@@ -90,8 +90,22 @@ class WorkflowSecretTest(unittest.TestCase):
             text,
         )
 
+    def test_cdk_diff_calls_aws_oidc(self) -> None:
+        text = _workflow("cdk-diff.yml")
+        expressions = _expressions(text)
+        self.assertIn("secrets.AWS_ACCOUNT_ID", expressions)
+        self.assertNotIn("vars.AWS_ACCOUNT_ID", expressions)
+        self.assertIn("vars.AWS_REGION", expressions)
+        self.assertRegex(
+            text,
+            r"uses: lx-software-ltd/actions/aws-oidc@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
+        )
+        self.assertNotIn("subject:", text)
+        self.assertNotIn("::add-mask::", text)
+        self.assertNotIn("$AWS_ACCOUNT_ID", text)
+
     def test_other_workflows_prefer_the_account_secret(self) -> None:
-        for filename in ("deploy-admin-web.yml", "cdk-diff.yml", "manage-api-keys.yml"):
+        for filename in ("deploy-admin-web.yml", "manage-api-keys.yml"):
             text = _workflow(filename)
             expressions = _expressions(text)
             self.assertTrue(_accepts_secret_or_variable(expressions, "AWS_ACCOUNT_ID"), filename)
@@ -104,7 +118,7 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertNotIn("Require the account secret", admin)
 
     def test_account_id_is_masked_without_a_warning(self) -> None:
-        for filename in ("deploy-backend.yml", "deploy-admin-web.yml", "cdk-diff.yml"):
+        for filename in ("deploy-backend.yml", "deploy-admin-web.yml"):
             text = _workflow(filename)
             self.assertIn("::add-mask::", text, filename)
             self.assertNotIn("AWS_ACCOUNT_ID is read from a variable", text, filename)
