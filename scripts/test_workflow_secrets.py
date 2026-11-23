@@ -159,6 +159,16 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertLess(public.index("npm ci"), public.index("actions/aws-oidc@"))
         self.assertLess(public.index("Build public website"), public.index("actions/aws-oidc@"))
         self.assertLess(public.index("actions/aws-oidc@"), public.index("Skip when the stack is not deployed yet"))
+        self.assertLess(
+            public.index("Compare the dry run with the current deploy"),
+            public.index("Deploy public website"),
+        )
+        self.assertIn("continue-on-error: true", public)
+        self.assertIn('"#!/usr/bin/env bash\\n"', public)
+        self.assertIn("DRY_RUN=true", public)
+        self.assertIn("bash scripts/deploy/deploy-public-website.sh", public)
+        self.assertNotIn("s3-cloudfront-deploy@", public)
+        self.assertNotIn("create-invalidation", public)
 
     def test_account_id_is_masked_without_a_warning(self) -> None:
         for filename in ("deploy-backend.yml", "deploy-admin-web.yml"):
