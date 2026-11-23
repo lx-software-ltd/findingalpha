@@ -122,7 +122,7 @@ jobs:
 
       - name: Configure AWS credentials
         id: aws
-        uses: lx-software-ltd/actions/aws-oidc@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
+        uses: lx-software-ltd/actions/aws-oidc@daa2fd06bb4a9580a3d3302f9127a66da39d940e # main 2026-11-23
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
@@ -147,7 +147,7 @@ jobs:
           platforms: arm64
 
       - name: Check CDK bootstrap
-        uses: lx-software-ltd/actions/cdk-bootstrap-check@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
+        uses: lx-software-ltd/actions/cdk-bootstrap-check@daa2fd06bb4a9580a3d3302f9127a66da39d940e # main 2026-11-23
         with:
           qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
           region: ${{ vars.AWS_REGION }}
@@ -156,111 +156,24 @@ jobs:
         working-directory: backend/infrastructure
         run: npx cdk acknowledge 34892 || true
 
-      - name: Build the CDK plan
-        id: plan
+      - name: Set the Cognito CSP origin
         env:
-          CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
-          CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
-          P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
-          P_GOOGLE_CLIENT_ID: ${{ vars.ADMIN_GOOGLE_CLIENT_ID }}
-          P_GOOGLE_CLIENT_SECRET: ${{ secrets.ADMIN_GOOGLE_CLIENT_SECRET }}
-          # Secret wins. The settings step masks a variable fallback for the rest of this job.
-          P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
-          P_MAIL_DOMAIN: ${{ vars.MAIL_SENDING_DOMAIN }}
-          P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
-          P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
-          P_CERT_ARN: ${{ secrets.ADMIN_WEB_CERTIFICATE_ARN || vars.ADMIN_WEB_CERTIFICATE_ARN }}
-          P_API_DOMAIN: ${{ vars.API_CUSTOM_DOMAIN_NAME }}
-          P_API_CERT: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
           P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
-          P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
-          P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
-          P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
-          P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
         run: |
-          python3 - << 'PY'
-          import json as _json
-          import os
-          from pathlib import Path
-
-          def build_plan():
-              region = os.environ.get("AWS_REGION", "")
-              if not region:
-                  raise SystemExit("AWS_REGION is required to build the Cognito prefix origin for CSP.")
-              prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"
-              domain = os.environ.get("P_COGNITO_DOMAIN", "")
-              cert = os.environ.get("P_COGNITO_CERT", "")
-              if domain and cert:
-                  origin = prefix_origin + " https://" + domain
-              else:
-                  origin = prefix_origin
-
-              def pair(name, value):
-                  return ["--parameters", f"{name}={value}"]
-
-              admin = []
-              admin += pair("findingalpha:AdminWebDomainName", os.environ.get("P_ADMIN_DOMAIN", ""))
-              admin += pair("findingalpha:GoogleClientId", os.environ.get("P_GOOGLE_CLIENT_ID", ""))
-              admin += pair("findingalpha:GoogleClientSecret", os.environ.get("P_GOOGLE_CLIENT_SECRET", ""))
-              admin += pair("findingalpha:AdminFederatedEmailAllowlist", os.environ.get("P_EMAIL_ALLOWLIST", ""))
-              admin += pair("findingalpha:MailSendingDomain", os.environ.get("P_MAIL_DOMAIN", ""))
-              admin += pair("findingalpha:BriefRecipientEmail", os.environ.get("P_BRIEF_RECIPIENT", ""))
-              admin += pair("findingalpha:SecContactEmail", os.environ.get("P_SEC_CONTACT", ""))
-              admin += pair("findingalpha-admin-web:AdminWebDomainName", os.environ.get("P_ADMIN_DOMAIN", ""))
-              admin += pair("findingalpha:ApiCustomDomainName", os.environ.get("P_API_DOMAIN", ""))
-              admin += pair("findingalpha:ApiCustomDomainCertificateArn", os.environ.get("P_API_CERT", ""))
-              admin += pair("findingalpha:CognitoCustomDomainName", domain)
-              admin += pair("findingalpha:CognitoCustomDomainCertificateArn", cert)
-              admin += pair("findingalpha-admin-web:AdminWebCertificateArn", os.environ.get("P_CERT_ARN", ""))
-              admin += pair("findingalpha-admin-web:CspCognitoConnectOrigin", origin)
-              admin += pair("findingalpha-admin-web:WafWebAclArn", os.environ.get("P_WAF_ARN", ""))
-              public = []
-              public += pair("findingalpha-public-www:PublicWebsiteDomainName", os.environ.get("P_PUBLIC_DOMAIN", ""))
-              public += pair("findingalpha-public-www:PublicWebsiteCertificateArn", os.environ.get("P_PUBLIC_CERT_ARN", ""))
-              public += pair("findingalpha-public-www:WafWebAclArn", os.environ.get("P_PUBLIC_WAF_ARN", ""))
-              return {
-                  "groups": [
-                      {
-                          "stacks": ["findingalpha", "findingalpha-admin-web"],
-                          "prefixes": ["findingalpha:", "findingalpha-admin-web:"],
-                          "extra-args": admin,
-                      },
-                      {
-                          "stacks": ["findingalpha-public-www"],
-                          "prefixes": ["findingalpha-public-www:"],
-                          "when-all-env": ["P_PUBLIC_DOMAIN", "P_PUBLIC_CERT_ARN"],
-                          "extra-args": public,
-                      },
-                  ]
-              }
-
-          plan = _json.dumps(build_plan())
-          for name in (
-              "P_GOOGLE_CLIENT_SECRET",
-              "P_EMAIL_ALLOWLIST",
-              "P_BRIEF_RECIPIENT",
-              "P_SEC_CONTACT",
-              "P_CERT_ARN",
-              "P_API_CERT",
-              "P_COGNITO_CERT",
-              "P_PUBLIC_CERT_ARN",
-          ):
-              value = os.environ.get(name, "")
-              if value:
-                  print(f"::add-mask::{value}")
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
-              handle.write("plan<<PLANJSON\n")
-              handle.write(plan + "\n")
-              handle.write("PLANJSON\n")
-          PY
+          region="${AWS_REGION:?AWS_REGION is required to build the Cognito prefix origin for CSP.}"
+          origin="https://findingalpha-admin-auth.auth.${region}.amazoncognito.com"
+          if [ -n "${P_COGNITO_DOMAIN}" ] && [ -n "${P_COGNITO_CERT}" ]; then
+            origin="${origin} https://${P_COGNITO_DOMAIN}"
+          fi
+          echo "CSP_ORIGIN=${origin}" >> "$GITHUB_ENV"
 
       - name: Deploy CDK stacks
-        uses: lx-software-ltd/actions/cdk-deploy@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
+        uses: lx-software-ltd/actions/cdk-deploy@daa2fd06bb4a9580a3d3302f9127a66da39d940e # main 2026-11-23
         with:
           working-directory: backend/infrastructure
-          plan: ${{ steps.plan.outputs.plan }}
+          plan-file: backend/infrastructure/cdk-plan.json
           param-file: ${{ vars.CDK_PARAM_FILE }}
           format: prefixed-json
           attempts: "1"
