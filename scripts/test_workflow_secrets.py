@@ -89,6 +89,18 @@ class WorkflowSecretTest(unittest.TestCase):
             text,
         )
 
+    def test_cdk_deploy_dry_run_keeps_the_real_step(self) -> None:
+        text = _workflow("deploy-backend.yml")
+        self.assertLess(
+            text.index("Compare the dry run with the current deploy"),
+            text.index("name: Deploy CDK stacks"),
+        )
+        self.assertIn("continue-on-error: true", text)
+        self.assertIn('"#!/usr/bin/env bash"', text)
+        self.assertIn("npx cdk deploy --require-approval never \\", text)
+        self.assertNotIn("cdk-deploy@", text)
+        self.assertIn("REAL_NPX=/bin/false", text)
+
     def test_cdk_diff_calls_aws_oidc(self) -> None:
         text = _workflow("cdk-diff.yml")
         expressions = _expressions(text)
