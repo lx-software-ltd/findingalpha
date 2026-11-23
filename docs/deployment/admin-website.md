@@ -123,14 +123,11 @@ attempt. It builds
 - `VITE_COGNITO_LOGOUT_URI` = `https://admin.<domain>/`
 
 The domain comes from `ADMIN_WEB_DOMAIN_NAME`. Then
-`scripts/deploy/deploy-admin-www.sh` uploads hashed `dist/assets/**`
-with a long immutable cache, uploads `index.html` with `no-cache`, and
-invalidates CloudFront. Before that upload, the workflow dry-runs
-`s3-cloudfront-deploy` with profile `admin-hashed` and compares the
-planned S3 changes. That comparison is `continue-on-error`, so a
-mismatch is reported and the script still uploads. The script reads `AdminWebBucketName` and
-`AdminWebDistributionId` from `findingalpha-admin-web` (override with
-`ADMIN_WEB_STACK_NAME`).
+`s3-cloudfront-deploy` with profile `admin-hashed` uploads hashed
+`dist/assets/**` with a long immutable cache, uploads `index.html` with
+`no-cache`, and invalidates CloudFront. The workflow reads
+`AdminWebBucketName` and `AdminWebDistributionId` from
+`findingalpha-admin-web`. Root dotfiles are not uploaded.
 
 ## 5. Smoke tests
 
