@@ -114,7 +114,12 @@ def _part_rows(
         symbol_splits = splits.get(symbol) or []
         company = str(who.get("cik") or "")
 
-        def shares_on(end: str) -> float | None:
+        def shares_on(
+            end: str,
+            pit: list[dict[str, Any]] = pit,
+            symbol_splits: list[tuple[str, float]] = symbol_splits,
+            company: str = company,
+        ) -> float | None:
             return backtest_inputs.shares_on(
                 pit,
                 symbol_splits,
