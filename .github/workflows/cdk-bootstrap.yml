@@ -1,0 +1,58 @@
+name: CDK Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cdk-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: "npm"
+          cache-dependency-path: backend/infrastructure/package-lock.json
+
+      - name: Configure AWS credentials
+        id: aws
+        uses: lx-software-ltd/actions/aws-oidc@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
+        with:
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          region: ${{ vars.AWS_REGION }}
+
+      - name: Bootstrap CDK
+        run: |
+          if [ -z "$AWS_ACCOUNT_ID" ] || [ -z "$AWS_REGION" ]; then
+            echo "Set AWS_ACCOUNT_ID as a repository secret and AWS_REGION as a variable"
+            exit 1
+          fi
+          if [ ! -f "backend/infrastructure/package.json" ]; then
+            echo "Missing backend/infrastructure/package.json"
+            exit 1
+          fi
+          cd backend/infrastructure
+          npm ci
+          npm run build --if-present
+          if [ -n "$CDK_BOOTSTRAP_QUALIFIER" ]; then
+            npx cdk bootstrap --qualifier "$CDK_BOOTSTRAP_QUALIFIER" "aws://$AWS_ACCOUNT_ID/$AWS_REGION"
+          else
+            npx cdk bootstrap "aws://$AWS_ACCOUNT_ID/$AWS_REGION"
+          fi
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}

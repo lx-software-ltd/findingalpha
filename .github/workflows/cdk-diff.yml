@@ -15,7 +15,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: cdk-diff
@@ -23,6 +22,9 @@ concurrency:
 
 jobs:
   diff:
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-26.04
     env:
       CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}

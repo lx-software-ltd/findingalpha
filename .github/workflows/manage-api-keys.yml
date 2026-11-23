@@ -47,11 +47,13 @@ on:
         type: string
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   keys:
+    permissions:
+      id-token: write
+      contents: read
     name: Manage keys
     runs-on: ubuntu-26.04
     environment: production
