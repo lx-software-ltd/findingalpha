@@ -55,22 +55,10 @@ jobs:
 
       - name: Set up Node.js
         if: steps.aws.outputs.ready == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: lx-software-ltd/actions/setup-node@a1816561097c19870cc3a4af1407b6ac2caddfe6 # main 2026-11-23
         with:
-          node-version: "26"
-          cache: "npm"
-          cache-dependency-path: backend/infrastructure/package-lock.json
-
-      - name: Install CDK dependencies
-        if: steps.aws.outputs.ready == 'true'
-        run: |
-          if [ -f "backend/infrastructure/package.json" ]; then
-            cd backend/infrastructure
-            npm ci
-          else
-            echo "::warning::Missing backend/infrastructure/package.json"
-            echo "Missing backend/infrastructure/package.json"
-          fi
+          cache: npm
+          working-directory: backend/infrastructure
 
       # `cdk diff` synthesizes with asset bundling. The arm64 image needs
       # QEMU on an x86-64 runner.
