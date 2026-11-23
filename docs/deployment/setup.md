@@ -110,7 +110,7 @@ Environment `production` variables:
 | `CDK_BOOTSTRAP_QUALIFIER` | `siutindei`. |
 | `CDK_PARAM_FILE` | `backend/infrastructure/params/production.json`. |
 | `ADMIN_WEB_DOMAIN_NAME` | `admin.<domain>`. Required. The deploy fails when this is empty. |
-| `ADMIN_WEB_CERTIFICATE_ARN` | ACM certificate in us-east-1, status ISSUED. Required. The account id inside this ARN shows in the first settings block. Later lines are masked. |
+| `ADMIN_WEB_CERTIFICATE_ARN` | ACM certificate in us-east-1, status ISSUED. Required. Set it as a production secret. A variable of the same name still works and the log warns until that variable is deleted. |
 | `ADMIN_GOOGLE_CLIENT_ID` | Google OAuth client id. It also appears in the browser during sign-in. |
 | `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | Optional. `auth.<domain>`. Set with the certificate, or leave both empty. When set, Hosted UI and SPA `CognitoDomain` use it. |
 | `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | Optional. us-east-1 ACM covering `auth.<domain>`. |

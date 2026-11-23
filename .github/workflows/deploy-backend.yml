@@ -30,11 +30,12 @@ jobs:
       - name: Require deploy settings
         env:
           P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
-          P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
+          P_CERT_ARN: ${{ secrets.ADMIN_WEB_CERTIFICATE_ARN || vars.ADMIN_WEB_CERTIFICATE_ARN }}
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
-          P_PUBLIC_CERT_ARN: ${{ vars.PUBLIC_WWW_CERTIFICATE_ARN }}
+          P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
-          P_COGNITO_CERT: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_API_CERT: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
@@ -42,6 +43,10 @@ jobs:
           ALLOWLIST_FROM_VARIABLE: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST == '' && vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST != '' }}
           BRIEF_FROM_VARIABLE: ${{ secrets.BRIEF_RECIPIENT_EMAIL == '' && vars.BRIEF_RECIPIENT_EMAIL != '' }}
           SEC_FROM_VARIABLE: ${{ secrets.SEC_CONTACT_EMAIL == '' && vars.SEC_CONTACT_EMAIL != '' }}
+          ADMIN_CERT_FROM_VARIABLE: ${{ secrets.ADMIN_WEB_CERTIFICATE_ARN == '' && vars.ADMIN_WEB_CERTIFICATE_ARN != '' }}
+          PUBLIC_CERT_FROM_VARIABLE: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN == '' && vars.PUBLIC_WWW_CERTIFICATE_ARN != '' }}
+          COGNITO_CERT_FROM_VARIABLE: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN == '' && vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN != '' }}
+          API_CERT_FROM_VARIABLE: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN == '' && vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN != '' }}
         run: |
           # This step's settings block is printed before any mask. Register
           # the values now so later steps show *** instead of repeating them.
@@ -71,9 +76,17 @@ jobs:
           mask_list "${P_EMAIL_ALLOWLIST}"
           mask_list "${P_BRIEF_RECIPIENT}"
           mask_list "${P_SEC_CONTACT}"
+          mask_list "${P_CERT_ARN}"
+          mask_list "${P_PUBLIC_CERT_ARN}"
+          mask_list "${P_COGNITO_CERT}"
+          mask_list "${P_API_CERT}"
           warn_if_variable "${ALLOWLIST_FROM_VARIABLE}" "ADMIN_FEDERATED_EMAIL_ALLOWLIST"
           warn_if_variable "${BRIEF_FROM_VARIABLE}" "BRIEF_RECIPIENT_EMAIL"
           warn_if_variable "${SEC_FROM_VARIABLE}" "SEC_CONTACT_EMAIL"
+          warn_if_variable "${ADMIN_CERT_FROM_VARIABLE}" "ADMIN_WEB_CERTIFICATE_ARN"
+          warn_if_variable "${PUBLIC_CERT_FROM_VARIABLE}" "PUBLIC_WWW_CERTIFICATE_ARN"
+          warn_if_variable "${COGNITO_CERT_FROM_VARIABLE}" "ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN"
+          warn_if_variable "${API_CERT_FROM_VARIABLE}" "API_CUSTOM_DOMAIN_CERTIFICATE_ARN"
           if [ -z "${P_ADMIN_DOMAIN}" ] || [ -z "${P_CERT_ARN}" ]; then
             echo "::error::Set ADMIN_WEB_DOMAIN_NAME and ADMIN_WEB_CERTIFICATE_ARN on the production environment before deploying."
             exit 1
@@ -181,15 +194,15 @@ jobs:
           P_MAIL_DOMAIN: ${{ vars.MAIL_SENDING_DOMAIN }}
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
           P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
-          P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
+          P_CERT_ARN: ${{ secrets.ADMIN_WEB_CERTIFICATE_ARN || vars.ADMIN_WEB_CERTIFICATE_ARN }}
           P_API_DOMAIN: ${{ vars.API_CUSTOM_DOMAIN_NAME }}
-          P_API_CERT: ${{ vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_API_CERT: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
-          P_COGNITO_CERT: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
-          P_PUBLIC_CERT_ARN: ${{ vars.PUBLIC_WWW_CERTIFICATE_ARN }}
+          P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
         run: |
           set -euo pipefail
@@ -499,15 +512,15 @@ jobs:
           P_MAIL_DOMAIN: ${{ vars.MAIL_SENDING_DOMAIN }}
           P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
           P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
-          P_CERT_ARN: ${{ vars.ADMIN_WEB_CERTIFICATE_ARN }}
+          P_CERT_ARN: ${{ secrets.ADMIN_WEB_CERTIFICATE_ARN || vars.ADMIN_WEB_CERTIFICATE_ARN }}
           P_API_DOMAIN: ${{ vars.API_CUSTOM_DOMAIN_NAME }}
-          P_API_CERT: ${{ vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_API_CERT: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           AWS_REGION: ${{ vars.AWS_REGION }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
-          P_COGNITO_CERT: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
-          P_PUBLIC_CERT_ARN: ${{ vars.PUBLIC_WWW_CERTIFICATE_ARN }}
+          P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
         run: |
           set -eo pipefail

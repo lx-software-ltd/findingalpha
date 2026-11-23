@@ -18,7 +18,7 @@ Parameters (GitHub `production` environment, not git):
 | Parameter | Variable |
 | --- | --- |
 | `PublicWebsiteDomainName` | `PUBLIC_WWW_DOMAIN_NAME` |
-| `PublicWebsiteCertificateArn` | `PUBLIC_WWW_CERTIFICATE_ARN` (ACM in us-east-1) |
+| `PublicWebsiteCertificateArn` | production secret `PUBLIC_WWW_CERTIFICATE_ARN` (ACM in us-east-1) |
 | `WafWebAclArn` | `PUBLIC_WWW_WAF_WEB_ACL_ARN` (optional) |
 
 **Deploy Backend** deploys `findingalpha` and `findingalpha-admin-web`
