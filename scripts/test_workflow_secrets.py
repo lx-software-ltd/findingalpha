@@ -71,43 +71,32 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertNotIn("vars.ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN", expressions)
         self.assertNotIn("vars.ADMIN_COGNITO_ORIGIN", expressions)
         self.assertNotIn("CognitoServeCustomDomain", text)
+        self.assertIn("findingalpha:CognitoCustomDomainName", text)
+        self.assertIn("findingalpha:CognitoCustomDomainCertificateArn", text)
+        self.assertIn("findingalpha-admin-web:CspCognitoConnectOrigin", text)
         self.assertIn(
-            "findingalpha:CognitoCustomDomainName=${P_COGNITO_DOMAIN}",
+            'prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"',
             text,
         )
-        self.assertIn(
-            "findingalpha:CognitoCustomDomainCertificateArn=${P_COGNITO_CERT}",
-            text,
-        )
-        self.assertIn(
-            "findingalpha-admin-web:CspCognitoConnectOrigin=${COGNITO_ORIGIN}",
-            text,
-        )
-        self.assertIn(
-            'COGNITO_PREFIX_ORIGIN="https://${COGNITO_PREFIX}.auth.${AWS_REGION}.amazoncognito.com"',
-            text,
-        )
-        self.assertIn(
-            'COGNITO_ORIGIN="${COGNITO_PREFIX_ORIGIN} https://${P_COGNITO_DOMAIN}"',
-            text,
-        )
-        self.assertIn('COGNITO_ORIGIN="${COGNITO_PREFIX_ORIGIN}"', text)
+        self.assertIn('origin = prefix_origin + " https://" + domain', text)
+        self.assertIn("origin = prefix_origin", text)
         self.assertIn(
             "Set both ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN, or leave both empty.",
             text,
         )
 
-    def test_cdk_deploy_dry_run_keeps_the_real_step(self) -> None:
+    def test_cdk_deploy_action_replaces_the_shell(self) -> None:
         text = _workflow("deploy-backend.yml")
-        self.assertLess(
-            text.index("Compare the dry run with the current deploy"),
-            text.index("name: Deploy CDK stacks"),
+        self.assertLess(text.index("Build the CDK plan"), text.index("name: Deploy CDK stacks"))
+        self.assertIn(
+            "uses: lx-software-ltd/actions/cdk-deploy@e6be2629d7206b0d5c079662f364772bc816acc1 # main 2026-11-23",
+            text,
         )
-        self.assertIn("continue-on-error: true", text)
-        self.assertIn('"#!/usr/bin/env bash"', text)
-        self.assertIn("npx cdk deploy --require-approval never \\", text)
-        self.assertNotIn("cdk-deploy@", text)
-        self.assertIn("REAL_NPX=/bin/false", text)
+        self.assertIn('attempts: "1"', text)
+        self.assertIn("working-directory: backend/infrastructure", text)
+        self.assertIn('when-all-env": ["P_PUBLIC_DOMAIN", "P_PUBLIC_CERT_ARN"]', text)
+        self.assertNotIn("npx cdk deploy --require-approval never", text)
+        self.assertNotIn("Compare the dry run with the current deploy", text)
 
     def test_cdk_diff_calls_aws_oidc(self) -> None:
         text = _workflow("cdk-diff.yml")
