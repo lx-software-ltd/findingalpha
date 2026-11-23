@@ -92,7 +92,11 @@ class WorkflowSecretTest(unittest.TestCase):
             "uses: lx-software-ltd/actions/cdk-deploy@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23",
             text,
         )
-        self.assertIn('attempts: "1"', text)
+        self.assertNotIn('attempts: "1"', text)
+        self.assertNotIn('no-notices: "false"', text)
+        self.assertNotIn('escape-newlines: "false"', text)
+        self.assertNotIn("format: prefixed-json", text)
+        self.assertNotIn("rollback-match:", text)
         self.assertIn("working-directory: backend/infrastructure", text)
         self.assertIn('when-all-env": ["P_PUBLIC_DOMAIN", "P_PUBLIC_CERT_ARN"]', text)
         self.assertNotIn("npx cdk deploy --require-approval never", text)

@@ -82,14 +82,14 @@ when `WafWebAclArn` is set.
 `main` is gated by an active ruleset on `refs/heads/main`. The ruleset
 blocks deletion and force-push, and requires status checks whose
 contexts match a job name in `.github/workflows`. The aggregator jobs
-are `test` and `lint`.
+are `lint`, `test`, and `security-summary`.
 
 The weekly **Verify GitHub Rulesets** workflow calls
 `lx-software-ltd/actions/verify-rulesets` at
-`61d2a581a1d880533982bada88923ad1b6431700`. It fails unless the
+`ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f`. It fails unless the
 approving-review count is exactly 0 and the required checks are exactly
-`lint` and `test`. A ruleset that targets `main` while its enforcement
-is not `active` fails that job. A required context with no matching job
-name fails it too.
+`lint`, `test`, and `security-summary`. A ruleset that targets `main`
+while its enforcement is not `active` fails that job. A required
+context with no matching job name fails it too.
 
 Release tags `v*` need an active ruleset, or classic tag protection.
