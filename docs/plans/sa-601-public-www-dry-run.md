@@ -5,11 +5,11 @@
 
 ## Goal
 
-Call `s3-cloudfront-deploy` for the findingalpha public site. Workflow conformance allows one `lx-software-ltd/actions` commit, so every pin and the pre-commit `rev` move from `c210c3223782894251ba37b4fc71a0c245619d39` to `e6be2629d7206b0d5c079662f364772bc816acc1`. The actions between those commits add deploy actions. They do not change the actions this repository already calls. The first run on `main` is a dry run. It prints the planned S3 changes from the shared action and from the current deploy script, and fails when those lists differ. It does not upload and it does not invalidate CloudFront.
+Call `s3-cloudfront-deploy` for the findingalpha public site. Workflow conformance allows one `lx-software-ltd/actions` commit, so every pin and the pre-commit `rev` move from `c210c3223782894251ba37b4fc71a0c245619d39` to `e6be2629d7206b0d5c079662f364772bc816acc1`. The actions between those commits add deploy actions. They do not change the actions this repository already calls. Before the existing deploy step, a comparison dry-runs the shared action and the current script. That step is `continue-on-error: true`, so a mismatch is reported and the script still uploads.
 
 ## Non-goals
 
-- No real switch. `dry-run` stays true until the `main` run is compared.
+- No real switch. The upload step stays `scripts/deploy/deploy-public-website.sh`.
 - No other site, and no Amplify caller.
 - No edit to `scripts/deploy/deploy-public-website.sh`. The workflow wraps `aws` so that script's S3 commands are `--dryrun` and its invalidation is skipped.
 
@@ -25,7 +25,7 @@ Call `s3-cloudfront-deploy` for the findingalpha public site. Workflow conforman
 
 ## Done when
 
-`python3 -m unittest scripts/test_workflow_secrets.py` passes. After merge, the `main` dry run's planned changes match. Only then does a follow-up set `dry-run` to false and stop calling the shell script.
+`python3 -m unittest scripts/test_workflow_secrets.py` passes. After merge, a hand run of Deploy Public Website on `main` prints `Dry run matches the current deploy (N planned S3 changes)` and the script still uploads. Only then does a follow-up replace the script with the action.
 
 ## Rollback
 
