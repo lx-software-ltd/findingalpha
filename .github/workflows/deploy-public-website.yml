@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "apps/public_www/**"
+      - "scripts/deploy/deploy-public-website.sh"
       - ".github/workflows/deploy-public-website.yml"
   # After a successful backend deploy the public stack may have been created
   # or updated. Rebuild and upload from current main. Skip when the stack is
@@ -62,7 +63,7 @@ jobs:
       - name: Configure AWS credentials
         id: aws
         if: steps.exists.outputs.present == 'true'
-        uses: lx-software-ltd/actions/aws-oidc@daa2fd06bb4a9580a3d3302f9127a66da39d940e # main 2026-11-23
+        uses: lx-software-ltd/actions/aws-oidc@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
@@ -92,12 +93,32 @@ jobs:
           cat "$err" >&2 || true
           rm -f "$err"
 
+      - name: Read the public website outputs
+        id: site
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          stack=findingalpha-public-www
+          bucket="$(aws cloudformation describe-stacks --stack-name "$stack" --query "Stacks[0].Outputs[?OutputKey=='PublicWebsiteBucketName'].OutputValue" --output text)"
+          distribution="$(aws cloudformation describe-stacks --stack-name "$stack" --query "Stacks[0].Outputs[?OutputKey=='PublicWebsiteDistributionId'].OutputValue" --output text)"
+          if [ -z "$bucket" ] || [ "$bucket" = "None" ]; then
+            echo "Public website bucket output not found for $stack" >&2
+            exit 1
+          fi
+          if [ "$distribution" = "None" ]; then
+            distribution=""
+          fi
+          echo "bucket=$bucket" >> "$GITHUB_OUTPUT"
+          echo "distribution=$distribution" >> "$GITHUB_OUTPUT"
+
       - name: Deploy public website
         if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
-        uses: lx-software-ltd/actions/s3-cloudfront-deploy@daa2fd06bb4a9580a3d3302f9127a66da39d940e # main 2026-11-23
+        uses: lx-software-ltd/actions/s3-cloudfront-deploy@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
         with:
           source: apps/public_www/dist
-          stack: findingalpha-public-www
-          region: ${{ vars.AWS_REGION }}
+          bucket: ${{ steps.site.outputs.bucket }}
+          distribution-id: ${{ steps.site.outputs.distribution }}
           profile: public-hashed
           dry-run: "false"
