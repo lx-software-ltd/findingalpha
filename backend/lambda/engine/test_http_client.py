@@ -10,8 +10,18 @@ import ssl
 import unittest
 import urllib.error
 from email.message import Message
+from typing import Literal
 
 import http_client
+
+
+class _Capture(logging.Handler):
+    def __init__(self, records: list[logging.LogRecord]) -> None:
+        super().__init__()
+        self.records = records
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
 
 
 class _Response:
@@ -24,7 +34,7 @@ class _Response:
     def __enter__(self) -> _Response:
         return self
 
-    def __exit__(self, *_exc: object) -> bool:
+    def __exit__(self, *_exc: object) -> Literal[False]:
         return False
 
 
@@ -200,8 +210,7 @@ class HttpClientTest(unittest.TestCase):
 
     def test_headers_are_not_logged(self) -> None:
         records: list[logging.LogRecord] = []
-        handler = logging.Handler()
-        handler.emit = records.append  # type: ignore[method-assign]
+        handler = _Capture(records)
         logger = logging.getLogger("http_client")
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)

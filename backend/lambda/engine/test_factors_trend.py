@@ -9,7 +9,9 @@ import factors_trend
 
 class TrendFactorTest(unittest.TestCase):
     def test_momentum_and_the_moving_average(self) -> None:
-        closes: list[float | None] = [100.0] * 252 + [121.0]
+        closes: list[float | None] = []
+        closes.extend([100.0] * 252)
+        closes.append(121.0)
         # t-252 and t-21 are both 100. Momentum is 0.
         self.assertEqual(factors_trend.momentum_12_1({"closes": closes}, {}), 0)
         rising = [float(index) for index in range(1, 201)]

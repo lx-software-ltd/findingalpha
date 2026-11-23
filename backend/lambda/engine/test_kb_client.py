@@ -5,12 +5,18 @@ from __future__ import annotations
 import os
 import unittest
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 from unittest.mock import patch
 
 import kb_client
 
 NOW = datetime(2026, 11, 18, 2, 30, tzinfo=timezone.utc)
+
+
+class _Patch(Protocol):
+    def start(self) -> Any: ...
+
+    def stop(self) -> None: ...
 _PHRASE = "secret passage words"
 
 
@@ -87,7 +93,7 @@ class KbClientTest(unittest.TestCase):
             },
         )
         self.env.start()
-        self.patches = [
+        self.patches: list[_Patch] = [
             patch("kb_client.store.get", self.store.get),
             patch("kb_client.store.update", self.store.update),
             patch("kb_client.store.update_conditional", self.store.update_conditional),

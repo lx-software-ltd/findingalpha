@@ -56,7 +56,8 @@ def _bucket(bucket: str | None) -> str:
 def trim_facts(payload: dict[str, Any], maps: dict[str, dict[str, list[str]]] | None = None) -> dict[str, Any]:
     """Keep the mapped concepts. Names and unused tags are dropped."""
     chosen = maps if maps is not None else fundamentals_pit.load_tag_maps()
-    facts = payload.get("facts") if isinstance(payload.get("facts"), dict) else {}
+    raw_facts = payload.get("facts")
+    facts = raw_facts if isinstance(raw_facts, dict) else {}
     kept: dict[str, dict[str, Any]] = {}
     for section in ("flows", "stocks", "shareFlows", "debt"):
         for tags in (chosen.get(section) or {}).values():

@@ -65,7 +65,7 @@ def _enterprise_value(body: dict[str, Any]) -> float | None:
     long_debt = body.get("longTermDebt")
     short_debt = body.get("shortTermDebt")
     cash = body.get("cash")
-    if None in (market, long_debt, short_debt, cash):
+    if market is None or long_debt is None or short_debt is None or cash is None:
         return None
     value = float(market) + float(long_debt) + float(short_debt) - float(cash)
     if value <= 0:

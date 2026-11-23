@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 from unittest.mock import patch
 
 import kb_eval
 
 NOW = datetime(2026, 11, 18, 2, 30, tzinfo=timezone.utc)
+
+
+class _Patch(Protocol):
+    def start(self) -> Any: ...
+
+    def stop(self) -> None: ...
 
 
 def _question(name: str, text: str = "return on invested capital") -> dict[str, Any]:
@@ -39,7 +45,7 @@ class KbEvalTest(unittest.TestCase):
     def setUp(self) -> None:
         self.store = _Store()
         self.state: dict[str, Any] = {"manifestHash": "done"}
-        self.patches = [
+        self.patches: list[_Patch] = [
             patch("kb_eval.store.put", self.store.put),
             patch("kb_eval.store.get", lambda _pk, _sk: dict(self.state) if self.state else None),
         ]
@@ -51,7 +57,7 @@ class KbEvalTest(unittest.TestCase):
             item.stop()
 
     def test_hits_are_counted_at_eight_and_at_three(self) -> None:
-        caches: list[dict] = []
+        caches: list[dict[Any, Any] | None] = []
 
         def retrieve(query: str, cache: dict | None = None, **_kwargs: Any) -> list[dict[str, Any]]:
             del query
@@ -116,7 +122,7 @@ class KbEvalTest(unittest.TestCase):
         self.assertIsNone(self.store.item)
 
     def test_the_same_question_uses_one_cache(self) -> None:
-        seen: list[dict] = []
+        seen: list[dict[Any, Any] | None] = []
 
         def retrieve(_query: str, cache: dict | None = None, **_kwargs: Any) -> list[dict[str, Any]]:
             seen.append(cache)

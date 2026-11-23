@@ -43,7 +43,8 @@ def saved_liquid(day: date, bucket: str, client: Any) -> dict[str, Any] | None:
     companies = [dict(row) for row in rows if isinstance(row, dict)]
     if not companies:
         return None
-    raw = found.get("funnel") if isinstance(found.get("funnel"), dict) else {}
+    found_funnel = found.get("funnel")
+    raw = found_funnel if isinstance(found_funnel, dict) else {}
     funnel = {key: int(raw.get(key) or 0) for key in _FUNNEL}
     text = str(found.get("priceAsOf") or "")
     price_as_of = date.fromisoformat(text[:10]) if text else None
@@ -208,7 +209,8 @@ def _saved(day: date, ciks: list[str], bucket: str, client: Any) -> dict[str, An
 
 
 def _counts(saved: dict[str, Any]) -> dict[str, int]:
-    raw = saved.get("counts") if isinstance(saved.get("counts"), dict) else {}
+    found_counts = saved.get("counts")
+    raw = found_counts if isinstance(found_counts, dict) else {}
     return {gate: int(raw.get(gate) or 0) for gate in _GATES}
 
 

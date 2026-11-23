@@ -8,7 +8,7 @@ import logging
 import os
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any, Callable, TypedDict
 
 import store
 import timeutil
@@ -35,7 +35,7 @@ def _pk(job: str) -> str:
     return f"JOB#{job}"
 
 
-def _claim(job: str, now: datetime) -> bool:
+def _claim(job: str, now: datetime) -> dict[str, Any] | None:
     now_s = timeutil.format_iso_millis(now)
     lease = timeutil.format_iso_millis(now + LEASE)
     return store.update_conditional(
@@ -142,12 +142,17 @@ def run(
         raise
 
 
+class _ResumeOutcome(TypedDict):
+    started: list[str]
+    failed: list[dict[str, str]]
+
+
 def resume_stalled(
     *,
     now: Clock = timeutil.utc_now,
     invoke: Invoker | None = None,
     enabled: Callable[[str], bool] | None = None,
-) -> list[str]:
+) -> _ResumeOutcome:
     """Start a job that should continue, when ``enabled`` allows it.
 
     A running job whose lease expired, a paused job, and a failed job

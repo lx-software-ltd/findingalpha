@@ -6,12 +6,18 @@ import json
 import os
 import unittest
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 from unittest.mock import patch
 
 import kb_sync
 
 NOW = datetime(2026, 11, 18, 2, 30, tzinfo=timezone.utc)
+
+
+class _Patch(Protocol):
+    def start(self) -> Any: ...
+
+    def stop(self) -> None: ...
 
 
 def _obj(key: str, size: int = 10, etag: str = "etag") -> dict[str, Any]:
@@ -100,7 +106,7 @@ class KbSyncTest(unittest.TestCase):
             },
         )
         self.env.start()
-        self.patches = [
+        self.patches: list[_Patch] = [
             patch("kb_sync_jobs.store.get", self.store.get),
             patch("kb_sync_jobs.store.put", self.store.put),
         ]

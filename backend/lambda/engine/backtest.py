@@ -265,11 +265,15 @@ def continued_run(previous: dict[str, Any], size: int) -> tuple[str, str] | None
     """
     if previous.get("status") not in {"running", "paused", "failed"}:
         return None
-    saved = previous.get("params") if isinstance(previous.get("params"), dict) else {}
+    raw_params = previous.get("params")
+    saved = raw_params if isinstance(raw_params, dict) else {}
     if isinstance(saved.get("portfolioSize"), bool) or not saved.get("runId"):
         return None
     try:
-        saved_size = int(saved.get("portfolioSize"))
+        portfolio = saved.get("portfolioSize")
+        if portfolio is None:
+            return None
+        saved_size = int(portfolio)
         failures = int(previous.get("failures") or 0)
     except (TypeError, ValueError):
         return None
@@ -318,7 +322,8 @@ def run(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
     import store
 
     register = methodology.load()
-    params = event.get("params") if isinstance(event.get("params"), dict) else {}
+    raw_params = event.get("params")
+    params = raw_params if isinstance(raw_params, dict) else {}
     size = portfolio_size(params.get("portfolioSize"), register)
     if size is None:
         return {"ok": False, "status": "failed", "error": "portfolioSize"}

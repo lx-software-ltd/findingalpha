@@ -388,7 +388,8 @@ def _progress_counts(seen: dict[str, dict[str, Any]]) -> dict[str, int]:
     """Scanned, indexed, and failed documents across the running ingestion jobs."""
     scanned = indexed = failed = 0
     for item in seen.values():
-        stats = item.get("statistics") if isinstance(item.get("statistics"), dict) else {}
+        raw_stats = item.get("statistics")
+        stats = raw_stats if isinstance(raw_stats, dict) else {}
         scanned += _stat(stats.get("numberOfDocumentsScanned"))
         indexed += _stat(stats.get("numberOfNewDocumentsIndexed"))
         indexed += _stat(stats.get("numberOfModifiedDocumentsIndexed"))

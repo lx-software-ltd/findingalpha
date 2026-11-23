@@ -69,10 +69,13 @@ class ChooseTest(unittest.TestCase):
     def test_each_tag_uses_its_own_split_date(self) -> None:
         cover = _row("sharesOutstanding", "2024-03-31", 10, "2024-04-26", tag=share_count.COVER_TAG)
         sheet = _row("sharesOutstanding", "2024-03-31", 12, "2024-04-26", tag="CommonStockSharesOutstanding")
-        self.assertEqual(share_count.choose([cover], ON).after, date(2024, 3, 31))
-        self.assertEqual(share_count.choose([sheet], ON).after, date(2024, 4, 26))
-        self.assertEqual(share_count.choose([cover], ON).source, "cover")
-        self.assertEqual(share_count.choose([sheet], ON).source, "balanceSheet")
+        cover_choice = share_count.choose([cover], ON)
+        sheet_choice = share_count.choose([sheet], ON)
+        assert cover_choice is not None and sheet_choice is not None
+        self.assertEqual(cover_choice.after, date(2024, 3, 31))
+        self.assertEqual(sheet_choice.after, date(2024, 4, 26))
+        self.assertEqual(cover_choice.source, "cover")
+        self.assertEqual(sheet_choice.source, "balanceSheet")
 
     def test_a_count_older_than_450_days_falls_through(self) -> None:
         fresh_end = (ON - timedelta(days=450)).isoformat()
@@ -95,7 +98,9 @@ class ChooseTest(unittest.TestCase):
             tag="WeightedAverageNumberOfDilutedSharesOutstanding",
             start="2023-04-01",
         )
-        self.assertEqual(share_count.choose([fresh], ON).source, "balanceSheet")
+        fresh_choice = share_count.choose([fresh], ON)
+        assert fresh_choice is not None
+        self.assertEqual(fresh_choice.source, "balanceSheet")
         picked = share_count.choose([stale, weighted, longer], ON)
         assert picked is not None
         self.assertEqual(picked.source, "weightedDiluted")
@@ -127,7 +132,9 @@ class CoverPageTest(unittest.TestCase):
             '<xbrli:context id="m"><xbrli:instant>2024-05-01</xbrli:instant></xbrli:context>'
             '<ix:nonFraction contextRef="m" name="dei:EntityCommonStockSharesOutstanding" scale="6">5</ix:nonFraction>'
         )
-        self.assertEqual(share_count.parse_cover_shares(scaled)["value"], 5_000_000)
+        scaled_cover = share_count.parse_cover_shares(scaled)
+        assert scaled_cover is not None
+        self.assertEqual(scaled_cover["value"], 5_000_000)
         self.assertIsNone(share_count.parse_cover_shares("<html></html>"))
 
     def test_a_company_wide_total_is_not_added_to_the_classes(self) -> None:

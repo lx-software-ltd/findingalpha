@@ -149,8 +149,10 @@ class FundamentalsIngestTest(unittest.TestCase):
         saved = memory.items[("UNIVERSE#2024-06-03", "META")]
         self.assertEqual(saved["members"], 2)
         self.assertEqual(saved["gsi1pk"], "UNIVERSE")
-        self.assertIsInstance(saved["coverage"]["flows"]["revenue"], Decimal)
-        self.assertEqual(saved["coverage"]["flows"]["revenue"], Decimal("0.5"))
+        coverage = saved["coverage"]
+        assert isinstance(coverage, dict)
+        self.assertIsInstance(coverage["flows"]["revenue"], Decimal)
+        self.assertEqual(coverage["flows"]["revenue"], Decimal("0.5"))
 
     def test_a_missing_company_facts_file_is_stored_empty(self) -> None:
         bucket = _Bucket()

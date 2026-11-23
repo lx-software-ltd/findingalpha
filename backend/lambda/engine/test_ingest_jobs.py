@@ -68,10 +68,18 @@ class _JobRows:
             "gsi1sk": values[":gsi1sk"],
             "cursor": values[":cursor"],
             "total": values[":total"],
-            "params": dict(values[":params"]),  # type: ignore[arg-type]
+            "params": _copied_params(values[":params"]),
             "hardStops": values[":stops"],
         }
         return dict(current) if current else None
+
+
+def _copied_params(value: object) -> dict[str, object]:
+    assert isinstance(value, dict)
+    copied: dict[str, object] = {}
+    for key in value:
+        copied[str(key)] = value[key]
+    return copied
 
 
 def _bind_rows(rows: _JobRows):
@@ -275,7 +283,9 @@ class IngestJobsTest(unittest.TestCase):
         seen: dict[str, object] = {}
 
         def build(_day: date, _context: object, **kwargs: object) -> dict[str, object]:
-            exchanges = [row.get("exchange") for row in kwargs["assets"]]  # type: ignore[union-attr]
+            assets = kwargs["assets"]
+            assert isinstance(assets, list)
+            exchanges = [row.get("exchange") for row in assets]
             self.assertIn("ARCA", exchanges)
             return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
 
@@ -374,7 +384,9 @@ class IngestJobsTest(unittest.TestCase):
         self.assertEqual(failed["status"], "failed")
         self.assertNotIn("failures", failed)
         self.assertFalse(chunked._resumable(failed, "2999-01-01T00:00:00.000Z"))
-        self.assertEqual(row["params"]["symbols"], ["EXMPL"])
+        params = row["params"]
+        assert isinstance(params, dict)
+        self.assertEqual(params["symbols"], ["EXMPL"])
 
     def test_this_run_drops_the_adjusted_lease_before_it_claims_the_job(self) -> None:
         from unittest.mock import patch

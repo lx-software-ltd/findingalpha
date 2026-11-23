@@ -393,7 +393,9 @@ class ChunkedTest(unittest.TestCase):
             patch("store.get", return_value={"params": {"start": "2016-01-01"}}),
         ):
             chunked._invoke_self("backfill_prices")
-        self.assertIn(b'"start": "2016-01-01"', calls[0]["Payload"])
+        payload = calls[0]["Payload"]
+        assert isinstance(payload, bytes)
+        self.assertIn(b'"start": "2016-01-01"', payload)
 
     def test_tick_resumes_a_backtest_whose_size_is_a_whole_decimal(self) -> None:
         memory = _Memory()

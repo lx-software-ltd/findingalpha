@@ -74,7 +74,7 @@ class MarketCalendarTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.url = ""
 
-            def _json(self, url: str) -> list[dict[str, str]]:
+            def _json(self, url: str) -> list[dict[str, object]]:
                 self.url = url
                 return [{"date": "2024-06-03"}, {"closed": True}]
 

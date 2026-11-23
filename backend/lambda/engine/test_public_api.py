@@ -314,7 +314,7 @@ class PublicApiTest(unittest.TestCase):
             del params
             sent.append(name)
 
-        refused = (
+        refused: tuple[tuple[str, dict[str, Any], str], ...] = (
             ("backtest", {"portfolioSize": 9}, "portfolioSize must be an integer from 10 to 40"),
             ("backtest", {"portfolioSize": 41}, "portfolioSize must be an integer from 10 to 40"),
             ("backtest", {"portfolioSize": True}, "portfolioSize must be an integer from 10 to 40"),

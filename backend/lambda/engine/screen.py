@@ -186,7 +186,7 @@ def run(
 
 
 def _member_row(member: dict[str, Any], body: dict[str, Any], register: dict[str, Any]) -> dict[str, Any]:
-    row = {
+    row: dict[str, Any] = {
         "symbol": str(member.get("symbol") or body.get("symbol") or ""),
         "name": str(member.get("name") or member.get("symbol") or ""),
         "sector": str(member.get("sector") or ""),
@@ -281,7 +281,10 @@ def _snapshot(member: dict[str, Any], day: str, client: Any, market: dict[str, A
     if shares is None:
         member_close = _number(member.get("close"))
         cap = _number(member.get("marketCap"))
-        shares = None if member_close in (None, 0) or cap is None else cap / member_close
+        if member_close is None or member_close == 0 or cap is None:
+            shares = None
+        else:
+            shares = cap / member_close
     return snapshot_mod.build(
         symbol,
         cik,
