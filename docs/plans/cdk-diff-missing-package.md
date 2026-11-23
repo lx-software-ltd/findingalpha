@@ -1,6 +1,6 @@
 # Plan: CDK Diff warns when the app is missing
 
-**Status**: In progress
+**Status**: Merged in findingalpha #85 (`04b14ed`).
 **Zone**: yellow
 
 ## Goal
