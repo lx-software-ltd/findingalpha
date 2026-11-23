@@ -163,7 +163,10 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn("UserPoolClientId CognitoDomain AdminApiBaseUrl", admin)
         self.assertIn("CognitoDomain on findingalpha must be an https origin", admin)
         self.assertIn("AdminApiBaseUrl on findingalpha must be an https origin", admin)
-        self.assertNotIn("describe-stacks", admin)
+        self.assertNotIn(
+            "describe-stacks",
+            admin.split("Compare the dry run with the current deploy", 1)[0],
+        )
         self.assertNotIn("::add-mask::", admin)
         public = _workflow("deploy-public-website.yml")
         self.assertIn("findingalpha-public-www", public)
@@ -181,6 +184,15 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn("bash scripts/deploy/deploy-public-website.sh", public)
         self.assertNotIn("s3-cloudfront-deploy@", public)
         self.assertNotIn("create-invalidation", public)
+        admin_site = _workflow("deploy-admin-web.yml")
+        self.assertLess(
+            admin_site.index("Compare the dry run with the current deploy"),
+            admin_site.index("Upload the admin site"),
+        )
+        self.assertIn("continue-on-error: true", admin_site)
+        self.assertIn("PROFILE=admin-hashed", admin_site)
+        self.assertIn('"#!/usr/bin/env bash\\n"', admin_site)
+        self.assertIn("bash scripts/deploy/deploy-admin-www.sh", admin_site)
 
     def test_account_id_is_masked_without_a_warning(self) -> None:
         for filename in ("deploy-backend.yml", "deploy-admin-web.yml"):
