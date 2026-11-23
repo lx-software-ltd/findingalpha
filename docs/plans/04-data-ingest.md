@@ -356,7 +356,7 @@ do not mean the same thing. Only SIC 6324 (hospital and medical service
 plans) stays in. Price, volume and size keep trading costs small. The
 owner confirmed this split, the merchandise and payment-network
 sectors, and the three-filing history rule on 16 November 2026
-(`docs/plans/m04-sector-decisions.md`).
+(`m04-sector-decisions.md`).
 
 `universe.build(date)`:
 

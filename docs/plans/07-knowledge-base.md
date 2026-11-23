@@ -49,7 +49,7 @@ Owner decisions, the same evening, with the review of 17 November 2026
   other alarms.
 - `AdminApiFn` and `EngineFn` bundle `boto3==1.44.3` and
   `botocore==1.44.3`, because both are built from the engine directory.
-  The change is `docs/plans/m07-pin-boto3.md`.
+  The change is `m07-pin-boto3.md`.
 
 - Managed Knowledge Base (`type: MANAGED`) is available in
   `ap-southeast-1`. Hybrid search is always on. Embedding, reranking

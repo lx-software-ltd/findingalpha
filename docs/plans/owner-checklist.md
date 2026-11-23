@@ -11,7 +11,7 @@ Secrets Manager. They never go into git, a pull request, or chat.
 | Id | Task | Blocks |
 | --- | --- | --- |
 | O01 | Choose and register the new domain. Add it to Cloudflare DNS. **Done** | First deploy (M02), email (M10) |
-| O02 | Protect `main`: pull request required, required checks `lint` and `test`, no force-push | Merging M01 safely |
+| O02 | Protect `main`: pull request required, required checks `lint`, `test`, and `security-summary`, no force-push | Merging M01 safely |
 | O03 | Produce the PII denylist hashes (step in M01) and hand over the hash file. **Done 20 Nov 2026**: the 31 organisation digests are in `scripts/pii-denylist.sha256`. Add further values the same way, digests only | M01 |
 | O04 | Create the GitHub variables, the environment `production` and its secrets (list below) | First deploy (M02) |
 | O05 | Confirm AWS access for GitHub Actions (details below) | First deploy (M02) |
