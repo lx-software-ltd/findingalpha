@@ -57,9 +57,17 @@ class WorkflowSecretTest(unittest.TestCase):
         text = _workflow("deploy-backend.yml")
         expressions = _expressions(text)
         self.assertIn("vars.API_CUSTOM_DOMAIN_NAME", expressions)
-        self.assertIn("vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN", expressions)
+        self.assertIn(
+            "secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN",
+            expressions,
+        )
         self.assertIn("vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME", expressions)
-        self.assertIn("vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN", expressions)
+        self.assertIn(
+            "secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN",
+            expressions,
+        )
+        self.assertNotIn("vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN", expressions)
+        self.assertNotIn("vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN", expressions)
         self.assertNotIn("vars.ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN", expressions)
         self.assertNotIn("vars.ADMIN_COGNITO_ORIGIN", expressions)
         self.assertNotIn("CognitoServeCustomDomain", text)

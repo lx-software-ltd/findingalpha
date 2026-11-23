@@ -79,7 +79,7 @@ come from the GitHub `production` environment, not from the file.
 | `AdminFederatedEmailAllowlist` | GitHub secret `ADMIN_FEDERATED_EMAIL_ALLOWLIST` | none | Comma-separated, lower case. Environment `production` |
 | `CognitoDomainPrefix` | params file | `findingalpha-admin-auth` | |
 | `CognitoCustomDomainName` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_NAME` | empty | Optional `auth.<domain>`. Empty skips the custom domain. Set with the certificate; both or neither. When set, `CognitoDomain` uses it |
-| `CognitoCustomDomainCertificateArn` | GitHub var `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | us-east-1 ACM. Empty skips the custom domain |
+| `CognitoCustomDomainCertificateArn` | production secret `ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | us-east-1 ACM. Empty skips the custom domain |
 | `MailSendingDomain` | GitHub var `MAIL_SENDING_DOMAIN` | empty | `<domain>`. Empty disables email |
 | `BriefFromLocalPart` | params file | `brief` | Sender is `brief@<domain>` |
 | `BriefRecipientEmail` | GitHub secret `BRIEF_RECIPIENT_EMAIL` | empty | Environment `production` |
@@ -92,7 +92,7 @@ come from the GitHub `production` environment, not from the file.
 | `BrokerMode` | params file | `paper` | `allowedValues: ["paper"]` until M12 |
 | `PublicApiWritesEnabled` | params file | `true` | Kill switch for writes by API key. CDK default stays `false` |
 | `ApiCustomDomainName` | GitHub var `API_CUSTOM_DOMAIN_NAME` | empty | `api.<domain>`. Empty skips the custom domain |
-| `ApiCustomDomainCertificateArn` | GitHub var `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | ACM in `ap-southeast-1`, not us-east-1 |
+| `ApiCustomDomainCertificateArn` | production secret `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` | empty | ACM in `ap-southeast-1`, not us-east-1 |
 | `CommitteeAnalystModel` | params file | set in M08 | OpenRouter slug |
 | `CommitteeChairModel` | params file | set in M08 | OpenRouter slug |
 | `KbMaxRawBytes` | params file | `2147483648` | 2 GB cap |
@@ -103,7 +103,7 @@ come from the GitHub `production` environment, not from the file.
 | Parameter | Source | Notes |
 | --- | --- | --- |
 | `AdminWebDomainName` | GitHub var `ADMIN_WEB_DOMAIN_NAME` | CloudFront alias |
-| `AdminWebCertificateArn` | GitHub var `ADMIN_WEB_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
+| `AdminWebCertificateArn` | production secret `ADMIN_WEB_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
 | `CspCognitoConnectOrigin` | Deploy Backend derives it | prefix URL; when custom domain set, also `https://auth.<domain>` (space-separated) | Stack parameter, not an export import |
 | `WafWebAclArn` | GitHub var `ADMIN_WAF_WEB_ACL_ARN` | Empty disables |
 
@@ -112,7 +112,7 @@ come from the GitHub `production` environment, not from the file.
 | Parameter | Source | Notes |
 | --- | --- | --- |
 | `PublicWebsiteDomainName` | GitHub var `PUBLIC_WWW_DOMAIN_NAME` | CloudFront alias |
-| `PublicWebsiteCertificateArn` | GitHub var `PUBLIC_WWW_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
+| `PublicWebsiteCertificateArn` | production secret `PUBLIC_WWW_CERTIFICATE_ARN` | ACM, us-east-1, ISSUED |
 | `WafWebAclArn` | GitHub var `PUBLIC_WWW_WAF_WEB_ACL_ARN` | Empty disables |
 
 ### GitHub variables and secrets
