@@ -91,8 +91,105 @@ jobs:
           cat "$err" >&2 || true
           rm -f "$err"
 
-      - name: Deploy public website
+      - name: Read the public website outputs
+        id: site
         if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
-        run: bash scripts/deploy/deploy-public-website.sh
         env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          stack=findingalpha-public-www
+          bucket="$(aws cloudformation describe-stacks --stack-name "$stack" --query "Stacks[0].Outputs[?OutputKey=='PublicWebsiteBucketName'].OutputValue" --output text)"
+          distribution="$(aws cloudformation describe-stacks --stack-name "$stack" --query "Stacks[0].Outputs[?OutputKey=='PublicWebsiteDistributionId'].OutputValue" --output text)"
+          if [ -z "$bucket" ] || [ "$bucket" = "None" ]; then
+            echo "Public website bucket output not found for $stack" >&2
+            exit 1
+          fi
+          if [ "$distribution" = "None" ]; then
+            distribution=""
+          fi
+          echo "bucket=$bucket" >> "$GITHUB_OUTPUT"
+          echo "distribution=$distribution" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the pinned deploy action
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: lx-software-ltd/actions
+          ref: e6be2629d7206b0d5c079662f364772bc816acc1
+          path: .actions-pin
+
+      - name: Compare the dry run with the current deploy
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
+        env:
+          BUCKET: ${{ steps.site.outputs.bucket }}
+          DISTRIBUTION: ${{ steps.site.outputs.distribution }}
           PUBLIC_WEBSITE_STACK_NAME: findingalpha-public-www
+        run: |
+          set -euo pipefail
+          real_aws="$(command -v aws)"
+          bindir="$RUNNER_TEMP/aws-dry/bin"
+          mkdir -p "$bindir"
+          cat > "$bindir/aws" << EOF
+          #!/bin/sh
+          if [ "\$1" = "s3" ]; then
+            exec "$real_aws" s3 "\$2" --dryrun "\${@:3}"
+          fi
+          if [ "\$1" = "cloudfront" ]; then
+            echo "Dry run: skipping CloudFront invalidation" >&2
+            exit 0
+          fi
+          exec "$real_aws" "\$@"
+          EOF
+          chmod +x "$bindir/aws"
+          PATH="$bindir:$PATH" bash scripts/deploy/deploy-public-website.sh > "$RUNNER_TEMP/current-deploy.txt"
+          SOURCE="$GITHUB_WORKSPACE/apps/public_www/dist" \
+            BUCKET="$BUCKET" \
+            DISTRIBUTION_ID="$DISTRIBUTION" \
+            PROFILE=public-hashed \
+            DRY_RUN=true \
+            python3 "$GITHUB_WORKSPACE/.actions-pin/s3-cloudfront-deploy/s3_sync.py" > "$RUNNER_TEMP/action-deploy.txt"
+          CURRENT="$RUNNER_TEMP/current-deploy.txt" ACTION="$RUNNER_TEMP/action-deploy.txt" python3 - << 'PY'
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          account = re.compile(r"\b\d{12}\b")
+
+          def planned(path):
+              found = []
+              for line in Path(path).read_text(encoding="utf-8").splitlines():
+                  if "(dryrun)" not in line:
+                      continue
+                  if " to " in line:
+                      found.append("upload " + line.split(" to ", 1)[1].strip())
+                  else:
+                      found.append(line.split("(dryrun)", 1)[1].strip())
+              return sorted(found)
+
+          current = planned(os.environ["CURRENT"])
+          action = planned(os.environ["ACTION"])
+          if not current or not action:
+              raise SystemExit("dry run produced no planned S3 changes")
+          if current != action:
+              print("planned S3 changes differ", file=sys.stderr)
+              for line in current:
+                  if line not in action:
+                      print("current only: " + account.sub("************", line), file=sys.stderr)
+              for line in action:
+                  if line not in current:
+                      print("action only: " + account.sub("************", line), file=sys.stderr)
+              raise SystemExit(1)
+          print(f"Dry run matches the current deploy ({len(current)} planned S3 changes). No upload.")
+          PY
+
+      - name: Dry-run the shared S3 deploy
+        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
+        uses: lx-software-ltd/actions/s3-cloudfront-deploy@e6be2629d7206b0d5c079662f364772bc816acc1 # main 2026-11-23
+        with:
+          source: apps/public_www/dist
+          bucket: ${{ steps.site.outputs.bucket }}
+          distribution-id: ${{ steps.site.outputs.distribution }}
+          profile: public-hashed
+          dry-run: "true"
