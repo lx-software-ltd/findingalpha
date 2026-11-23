@@ -26,15 +26,12 @@ first, then `findingalpha-public-www` only when both public domain and
 certificate variables are set. Empty public vars skip that stack so
 backend deploys are not blocked.
 
-**Deploy Public Website** builds `apps/public_www` and runs
-`scripts/deploy/deploy-public-website.sh`. Before that upload it
-compares a dry run of `s3-cloudfront-deploy` at
-`e6be2629d7206b0d5c079662f364772bc816acc1` with a dry run of the same
-script. The comparison step continues on error, so a mismatch does not
-block the upload. The real switch is a later change after that
-comparison on `main` matches. It also runs after a successful **Deploy
-Backend** on `main`, and skips when the app or the CloudFormation stack
-is missing.
+**Deploy Public Website** builds `apps/public_www` and uploads with
+`s3-cloudfront-deploy` at `e6be2629d7206b0d5c079662f364772bc816acc1`,
+profile `public-hashed`. The dry run on `main` matched the script
+(9 planned S3 changes) and the script upload succeeded before this
+switch. It also runs after a successful **Deploy Backend** on `main`,
+and skips when the app or the CloudFormation stack is missing.
 
 ## Local
 
