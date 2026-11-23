@@ -27,7 +27,7 @@ certificate variables are set. Empty public vars skip that stack so
 backend deploys are not blocked.
 
 **Deploy Public Website** builds `apps/public_www` and uploads with
-`s3-cloudfront-deploy` at `e6be2629d7206b0d5c079662f364772bc816acc1`,
+`s3-cloudfront-deploy` at `ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f`,
 profile `public-hashed`. The dry run on `main` matched the script
 (9 planned S3 changes) and the script upload succeeded before this
 switch. It also runs after a successful **Deploy Backend** on `main`,

@@ -89,7 +89,7 @@ class WorkflowSecretTest(unittest.TestCase):
         text = _workflow("deploy-backend.yml")
         self.assertLess(text.index("Build the CDK plan"), text.index("name: Deploy CDK stacks"))
         self.assertIn(
-            "uses: lx-software-ltd/actions/cdk-deploy@e6be2629d7206b0d5c079662f364772bc816acc1 # main 2026-11-23",
+            "uses: lx-software-ltd/actions/cdk-deploy@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23",
             text,
         )
         self.assertIn('attempts: "1"', text)
