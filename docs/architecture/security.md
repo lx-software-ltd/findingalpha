@@ -86,7 +86,7 @@ are `lint`, `test`, and `security-summary`.
 
 The weekly **Verify GitHub Rulesets** workflow calls
 `lx-software-ltd/actions/verify-rulesets` at
-`ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f`. It fails unless the
+`a1816561097c19870cc3a4af1407b6ac2caddfe6`. It fails unless the
 approving-review count is exactly 0 and the required checks are exactly
 `lint`, `test`, and `security-summary`. A ruleset that targets `main`
 while its enforcement is not `active` fails that job. A required

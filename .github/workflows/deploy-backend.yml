@@ -122,7 +122,7 @@ jobs:
 
       - name: Configure AWS credentials
         id: aws
-        uses: lx-software-ltd/actions/aws-oidc@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
+        uses: lx-software-ltd/actions/aws-oidc@a1816561097c19870cc3a4af1407b6ac2caddfe6 # main 2026-11-23
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
@@ -147,7 +147,7 @@ jobs:
           platforms: arm64
 
       - name: Check CDK bootstrap
-        uses: lx-software-ltd/actions/cdk-bootstrap-check@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
+        uses: lx-software-ltd/actions/cdk-bootstrap-check@a1816561097c19870cc3a4af1407b6ac2caddfe6 # main 2026-11-23
         with:
           qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
           region: ${{ vars.AWS_REGION }}
@@ -250,17 +250,15 @@ jobs:
               value = os.environ.get(name, "")
               if value:
                   print(f"::add-mask::{value}")
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
-              handle.write("plan<<PLANJSON\n")
-              handle.write(plan + "\n")
-              handle.write("PLANJSON\n")
+          destination = Path(os.environ["RUNNER_TEMP"]) / "cdk-plan.json"
+          destination.write_text(plan + "\n", encoding="utf-8")
           PY
 
       - name: Deploy CDK stacks
-        uses: lx-software-ltd/actions/cdk-deploy@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23
+        uses: lx-software-ltd/actions/cdk-deploy@a1816561097c19870cc3a4af1407b6ac2caddfe6 # main 2026-11-23
         with:
           working-directory: backend/infrastructure
-          plan: ${{ steps.plan.outputs.plan }}
+          plan-file: ${{ runner.temp }}/cdk-plan.json
           param-file: ${{ vars.CDK_PARAM_FILE }}
           region: ${{ vars.AWS_REGION }}
         env:
