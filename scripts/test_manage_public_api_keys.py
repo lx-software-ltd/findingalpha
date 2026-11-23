@@ -87,7 +87,9 @@ class ManageKeysTest(unittest.TestCase):
         self.assertIn("Set PUBLIC_API_KEY_GPG_PASSPHRASE", text)
         self.assertIn("cat key.asc", text)
         self.assertNotIn('cat "$KEY_FILE"', text)
-        self.assertIn("secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID", text)
+        self.assertIn("secrets.AWS_ACCOUNT_ID", text)
+        self.assertNotIn("vars.AWS_ACCOUNT_ID", text)
+        self.assertIn("lx-software-ltd/actions/aws-oidc@", text)
 
     def test_set_scopes_replaces_the_list(self) -> None:
         table = type("Table", (), {})()
