@@ -74,16 +74,15 @@ access.
 
 **Repository variables** (Settings, Secrets and variables, Actions,
 Variables). `cdk-diff` on a pull request from this repository can read
-these. Until `AWS_ACCOUNT_ID` and `AWS_REGION` are both set, that
-check passes with a warning and does not compare the account. A
-Dependabot pull request can read the variable.
+these. `AWS_REGION` is required for CDK Diff. `AWS_ACCOUNT_ID` is a
+repository secret, and the variable of that name is not read. It can
+be deleted. A Dependabot pull request can read a variable.
 
 | Variable | Value |
 | --- | --- |
 | `AWS_REGION` | `ap-southeast-1` |
 | `CDK_BOOTSTRAP_QUALIFIER` | `siutindei` |
 | `CDK_PARAM_FILE` | `backend/infrastructure/params/production.json` |
-| `AWS_ACCOUNT_ID` | The account id. A repository variable, not a secret |
 
 **Environment `production`, variables.** Needed for the first deploy:
 

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Public workflows must not print owner emails.
 
-The account id is a repository secret. Deploy workflows and CDK Diff
-pass secrets.AWS_ACCOUNT_ID only. manage-api-keys.yml is not a deploy
-workflow and still accepts the secret or the variable.
+The account id is a repository secret. Deploy workflows, CDK Diff,
+and key management pass secrets.AWS_ACCOUNT_ID only.
 """
 
 from __future__ import annotations
@@ -112,12 +111,19 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertNotIn("::add-mask::", text)
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
 
-    def test_manage_api_keys_prefers_the_account_secret(self) -> None:
+    def test_manage_api_keys_calls_aws_oidc(self) -> None:
         text = _workflow("manage-api-keys.yml")
         expressions = _expressions(text)
-        self.assertTrue(_accepts_secret_or_variable(expressions, "AWS_ACCOUNT_ID"))
+        self.assertIn("secrets.AWS_ACCOUNT_ID", expressions)
+        self.assertNotIn("vars.AWS_ACCOUNT_ID", expressions)
+        self.assertNotIn("secrets.AWS_ACCOUNT_ID || vars.AWS_ACCOUNT_ID", text)
         self.assertIn("vars.AWS_REGION", expressions)
         self.assertNotIn("$AWS_ACCOUNT_ID", text)
+        self.assertNotIn("configure-aws-credentials", text)
+        self.assertRegex(
+            text,
+            r"uses: lx-software-ltd/actions/aws-oidc@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
+        )
 
     def test_deploy_workflows_call_aws_oidc(self) -> None:
         pin = r"uses: lx-software-ltd/actions/aws-oidc@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}"
