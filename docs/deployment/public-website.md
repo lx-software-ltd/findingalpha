@@ -27,8 +27,9 @@ certificate variables are set. Empty public vars skip that stack so
 backend deploys are not blocked.
 
 **Deploy Public Website** builds `apps/public_www` and uploads with
-`s3-cloudfront-deploy` at `ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f`,
-profile `public-hashed`. The dry run on `main` matched the script
+`s3-cloudfront-deploy` at `a1816561097c19870cc3a4af1407b6ac2caddfe6`,
+profile `public-hashed`. The action reads the bucket and distribution
+from stack `findingalpha-public-www`. The dry run on `main` matched the script
 (9 planned S3 changes) and the script upload succeeded before this
 switch. It also runs after a successful **Deploy Backend** on `main`,
 and skips when the app or the CloudFormation stack is missing.

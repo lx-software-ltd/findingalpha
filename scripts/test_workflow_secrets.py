@@ -88,10 +88,11 @@ class WorkflowSecretTest(unittest.TestCase):
     def test_cdk_deploy_action_replaces_the_shell(self) -> None:
         text = _workflow("deploy-backend.yml")
         self.assertLess(text.index("Build the CDK plan"), text.index("name: Deploy CDK stacks"))
-        self.assertIn(
-            "uses: lx-software-ltd/actions/cdk-deploy@ffde04dca3c78b1ccb8739f4d3a23f728ac7a05f # main 2026-11-23",
+        self.assertRegex(
             text,
+            r"uses: lx-software-ltd/actions/cdk-deploy@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
         )
+        self.assertIn("plan-file: ${{ runner.temp }}/cdk-plan.json", text)
         self.assertNotIn('attempts: "1"', text)
         self.assertNotIn('no-notices: "false"', text)
         self.assertNotIn('escape-newlines: "false"', text)
@@ -176,15 +177,19 @@ class WorkflowSecretTest(unittest.TestCase):
             public,
             r"uses: lx-software-ltd/actions/s3-cloudfront-deploy@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
         )
+        self.assertIn("stack: findingalpha-public-www", public)
+        self.assertIn("bucket-output: PublicWebsiteBucketName", public)
+        self.assertIn("distribution-output: PublicWebsiteDistributionId", public)
+        self.assertNotIn("Read the public website outputs", public)
         self.assertIn("profile: public-hashed", public)
         self.assertIn('dry-run: "false"', public)
         self.assertNotIn("bash scripts/deploy/deploy-public-website.sh", public)
         self.assertNotIn("create-invalidation", public)
         admin_site = _workflow("deploy-admin-web.yml")
-        self.assertLess(
-            admin_site.index("Read the admin website outputs"),
-            admin_site.index("s3-cloudfront-deploy@"),
-        )
+        self.assertIn("stack: findingalpha-admin-web", admin_site)
+        self.assertIn("bucket-output: AdminWebBucketName", admin_site)
+        self.assertIn("distribution-output: AdminWebDistributionId", admin_site)
+        self.assertNotIn("Read the admin website outputs", admin_site)
         self.assertIn("profile: admin-hashed", admin_site)
         self.assertIn('dry-run: "false"', admin_site)
         self.assertNotIn("bash scripts/deploy/deploy-admin-www.sh", admin_site)
