@@ -36,7 +36,9 @@ def _register(weights: dict[str, float] | None = None) -> dict:
 
 class CompositeTest(unittest.TestCase):
     def test_winsorise_clips_at_three_standard_deviations_and_keeps_missing(self) -> None:
-        values: list[float | None] = [0.0] * 10 + [10.0, None]
+        values: list[float | None] = []
+        values.extend([0.0] * 10)
+        values.extend((10.0, None))
         present = [0.0] * 10 + [10.0]
         mean = sum(present) / len(present)
         deviation = math.sqrt(sum((value - mean) ** 2 for value in present) / len(present))
@@ -49,7 +51,8 @@ class CompositeTest(unittest.TestCase):
         self.assertEqual(composite.winsorise([None, None], 3), [None, None])
 
     def test_a_small_sector_uses_the_universe_and_a_constant_is_zero(self) -> None:
-        values = [1.0, 3.0, 5.0]
+        values: list[float | None] = []
+        values.extend((1.0, 3.0, 5.0))
         scores = composite.zscores(values, ["a", "a", "b"], min_sector_size=3)
         mean = 3
         deviation = math.sqrt(((1 - 3) ** 2 + 0 + (5 - 3) ** 2) / 3)
@@ -68,8 +71,10 @@ class CompositeTest(unittest.TestCase):
         scored = composite.composite(rows, register)
         # Sector ind has three names and the minimum is four, so the z-score uses all four.
         universe = composite.zscores([1, 2, 3, 100], ["ind", "ind", "ind", "fin"], min_sector_size=4)
-        self.assertAlmostEqual(scored[0]["z"]["qualityA"], universe[0])
-        self.assertAlmostEqual(scored[0]["z"]["qualityB"], -universe[0])
+        quality = universe[0]
+        assert quality is not None
+        self.assertAlmostEqual(scored[0]["z"]["qualityA"], quality)
+        self.assertAlmostEqual(scored[0]["z"]["qualityB"], -quality)
         self.assertEqual(scored[0]["registerHash"], methodology.register_hash(register))
 
     def test_a_missing_group_is_none_and_the_weights_come_from_the_register(self) -> None:
@@ -88,14 +93,15 @@ class CompositeTest(unittest.TestCase):
         )
 
     def test_a_blank_sector_uses_the_universe(self) -> None:
-        values = [1.0, 3.0, 10.0, 30.0]
+        values: list[float | None] = []
+        values.extend((1.0, 3.0, 10.0, 30.0))
         sectors = ["", "", "tech", "tech"]
         scores = composite.zscores(values, sectors, min_sector_size=2)
         universe = composite.zscores(values, ["a", "b", "c", "d"], min_sector_size=10)
         self.assertEqual(scores[0], universe[0])
         self.assertEqual(scores[1], universe[1])
         self.assertNotEqual(scores[2], universe[2])
-        other = composite.zscores([1.0, 3.0, 10.0, 30.0], ["Other", "Other", "tech", "tech"], min_sector_size=2)
+        other = composite.zscores(values, ["Other", "Other", "tech", "tech"], min_sector_size=2)
         self.assertEqual(other[0], universe[0])
 
 

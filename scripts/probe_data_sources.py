@@ -63,7 +63,7 @@ def bars(symbols: str, start: str, end: str, feed: str) -> dict[str, object]:
         return {"status": status, "error": _redact(body.decode("utf-8", "replace"))}
     payload = json.loads(body)
     found = payload.get("bars") or {}
-    summary = {
+    summary: dict[str, object] = {
         "status": status,
         "symbols": sorted(found) if isinstance(found, dict) else keys(found),
         "next": bool(payload.get("next_page_token")),

@@ -113,6 +113,20 @@ def _part_rows(
         pit = _pit(str(who.get("cik") or ""), bucket=name, client=client)
         symbol_splits = splits.get(symbol) or []
         company = str(who.get("cik") or "")
+
+        def shares_on(
+            end: str,
+            pit: list[dict[str, Any]] = pit,
+            symbol_splits: list[tuple[str, float]] = symbol_splits,
+            company: str = company,
+        ) -> float | None:
+            return backtest_inputs.shares_on(
+                pit,
+                symbol_splits,
+                end,
+                cover=backtest_inputs.cached_cover(name, company, end, covers, client),
+            )
+
         rows = backtest.rows_for_symbol(
             symbol,
             ends,
@@ -125,9 +139,7 @@ def _part_rows(
             sector=str(who.get("sector") or ""),
             sic=who.get("sic"),
             by_month=stats.get(symbol) or {},
-            shares_on=lambda end, rows=pit, events=symbol_splits, cik=company: backtest_inputs.shares_on(
-                rows, events, end, cover=backtest_inputs.cached_cover(name, cik, end, covers, client)
-            ),
+            shares_on=shares_on,
         )
         for row in rows:
             row["name"] = who.get("name") or symbol

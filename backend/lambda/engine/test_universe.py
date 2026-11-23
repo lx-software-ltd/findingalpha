@@ -6,6 +6,7 @@ import json
 import unittest
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Any, NoReturn, TypeGuard
 from unittest.mock import patch
 
 import s3io
@@ -335,7 +336,7 @@ class UniverseTest(unittest.TestCase):
         self.assertEqual(result["sectors"], {"Technology": 2, "Energy": 1, "Other": 1})
 
     def test_ingest_off_makes_no_request(self) -> None:
-        def refuse(*_args: object, **_kwargs: object) -> list[dict[str, object]]:
+        def refuse(*_args: object, **_kwargs: object) -> NoReturn:
             raise AssertionError("requested")
 
         with self.assertRaises(universe.IngestDisabled):
@@ -393,18 +394,18 @@ def _build(
     on: date = AS_OF,
     sessions: list[date] | None = None,
     read_bars: object = None,
-    refresh: object = None,
-    read_actions: object = None,
-    read_cover: object = None,
+    refresh: universe.Refresh | None = None,
+    read_actions: universe.Actions | None = None,
+    read_cover: universe.Cover | None = None,
     memory: _Memory | None = None,
     bucket: _Bucket | None = None,
     fact_reads: list[str] | None = None,
     context: object = None,
     on_submissions: object = None,
     use_bucket_facts: bool = False,
-    read_facts: object = None,
+    read_facts: universe.Facts | None = None,
     listed: list[str] | None = None,
-) -> tuple[dict[str, object], _Bucket, _Memory]:
+) -> tuple[dict[str, Any], _Bucket, _Memory]:
     chosen = sessions if sessions is not None else _sessions()
     memory = memory or _Memory()
     bucket = bucket or _Bucket()
@@ -493,6 +494,10 @@ def _liquid(symbol: str, cik: int) -> dict[str, object]:
         "close": 10,
         "medianDollarVolume": 3_000_000,
     }
+
+
+def _fact_rows(value: object) -> TypeGuard[list[dict[str, Any]]]:
+    return isinstance(value, list) and all(isinstance(item, dict) for item in value)
 
 
 def _refuse_facts(_cik: str) -> None:
@@ -805,6 +810,7 @@ class UniverseReviewTest(unittest.TestCase):
             reader = universe_data.cover_reader("data", bucket)
             first = reader(_cik(1), AS_OF)
             second = reader(_cik(1), AS_OF)
+        assert first is not None and second is not None
         self.assertEqual(first["value"], 300)
         self.assertEqual(second["accession"], "0000000001-24-000001")
         self.assertEqual(downloads, ["0000000001-24-000001:cover.htm"])
@@ -843,6 +849,7 @@ class UniverseReviewTest(unittest.TestCase):
             reader = universe_data.cover_reader("data", bucket)
             first = reader(_cik(1), AS_OF)
             second = reader(_cik(1), AS_OF)
+        assert first is not None and second is not None
         self.assertEqual(first["value"], 300)
         self.assertEqual(first["accession"], "0000000001-24-000001")
         self.assertEqual(second["accession"], first["accession"])
@@ -877,7 +884,9 @@ class UniverseReviewTest(unittest.TestCase):
         def read(cik: str) -> Rows:
             if held:
                 self.assertIsNone(held[-1]())
-            rows = Rows(dict(row) for row in source[cik])  # type: ignore[union-attr]
+            facts = source[cik]
+            assert isinstance(facts, list)
+            rows = Rows(dict(row) for row in facts)
             held.append(weakref.ref(rows))
             return rows
 
@@ -1036,11 +1045,14 @@ class UniverseReviewTest(unittest.TestCase):
     def test_a_checkpoint_is_written_every_batch(self) -> None:
         snaps: list[object] = []
 
-        def read(cik: str) -> object:
+        def read(cik: str) -> list[dict[str, Any]] | None:
             key = ("data", "universe/date=2024-06-03/build.json")
             snaps.append(s3io.get_json("data", key[1], client=bucket) if key in bucket.objects else None)
             reads.append(cik)
-            return facts[cik]
+            found = facts[cik]
+            if not _fact_rows(found):
+                return None
+            return found
 
         reads: list[str] = []
         companies = [_company("DROP", facts=[]), _company("PASS", cik=2), _company("ALSO", cik=3)]
@@ -1076,10 +1088,15 @@ class UniverseReviewTest(unittest.TestCase):
         self.assertEqual(progress["missing"], [_cik(1)])
         self.assertEqual([row["symbol"] for row in progress["companies"]], ["ONE", "TWO", "THREE"])
         later: list[str] = []
+
+        def mark_missing(cik: str) -> bool:
+            later.append(cik)
+            return False
+
         second = _collect(
             companies,
             bucket,
-            probe=lambda cik: later.append(cik) or False,
+            probe=mark_missing,
             context=_Context(),
             facts_of=_refuse_facts,
         )
@@ -1123,12 +1140,17 @@ class UniverseReviewTest(unittest.TestCase):
             bucket,
         )
         reads: list[str] = []
+
+        def read_history(cik: str) -> list[dict[str, object]]:
+            reads.append(cik)
+            return _history(SHARES)
+
         result = _collect(
             companies,
             bucket,
             probe=None,
             context=_Context(),
-            facts_of=lambda cik: reads.append(cik) or _history(SHARES),
+            facts_of=read_history,
         )
         self.assertEqual(reads, [_cik(1), _cik(2)])
         self.assertEqual(result["status"], "ready")
@@ -1158,10 +1180,14 @@ class UniverseReviewTest(unittest.TestCase):
             reads.append(cik)
             return None if cik == _cik(1) else _history(SHARES)
 
+        def mark_missing(cik: str) -> bool:
+            probes.append(cik)
+            return False
+
         result = _collect(
             companies,
             bucket,
-            probe=lambda cik: probes.append(cik) or False,
+            probe=mark_missing,
             context=_Context(),
             facts_of=facts,
         )

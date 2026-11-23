@@ -107,6 +107,7 @@ class _Memory:
         names: dict[str, str] | None = None,
     ) -> dict[str, object] | None:
         del names
+        previous: dict[str, object] | None
         if "coverage" in expression:
             from boto3.dynamodb.types import TypeSerializer
 

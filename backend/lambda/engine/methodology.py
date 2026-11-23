@@ -115,10 +115,10 @@ def _backtest(block: dict[str, Any]) -> None:
     if isinstance(delay, bool) or not isinstance(delay, int) or delay < 0:
         raise MethodologyError("tradeDelaySessions")
     cost = block.get("costBpsPerSide")
-    if not _number(cost) or float(cost) < 0:
+    if cost is None or not _number(cost) or float(cost) < 0:
         raise MethodologyError("costBpsPerSide")
     rate = block.get("dividendWithholdingRate")
-    if not _number(rate) or not 0 <= float(rate) <= 1:
+    if rate is None or not _number(rate) or not 0 <= float(rate) <= 1:
         raise MethodologyError("dividendWithholdingRate")
     if not str(block.get("benchmark") or "").strip() or not str(block.get("cashProxy") or "").strip():
         raise MethodologyError("benchmark")

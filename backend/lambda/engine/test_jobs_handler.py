@@ -5,7 +5,12 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+import job_runs
 import jobs_handler
+
+
+def _run() -> job_runs.JobRun:
+    return job_runs.JobRun("test", "2024-06-03T00:00:00.000Z")
 
 
 class JobsHandlerTest(unittest.TestCase):
@@ -74,7 +79,7 @@ class JobsHandlerTest(unittest.TestCase):
             patch("ingest_jobs.weekly_refresh", return_value={"ok": True, "status": "done"}),
             patch("monthly_stats.append_latest", side_effect=RuntimeError("slow")),
         ):
-            result = jobs_handler._weekly({}, None, None)
+            result = jobs_handler._weekly({}, _run(), None)
         self.assertEqual(result["status"], "done")
         self.assertEqual(result["monthly"]["status"], "failed")
 
@@ -84,7 +89,7 @@ class JobsHandlerTest(unittest.TestCase):
                 return 1000
 
         with patch("ingest_jobs.weekly_refresh", return_value={"ok": True, "status": "done"}):
-            result = jobs_handler._weekly({}, None, Clock())
+            result = jobs_handler._weekly({}, _run(), Clock())
         self.assertEqual(result["status"], "done")
         self.assertEqual(result["monthly"]["status"], "deferred")
 
@@ -96,7 +101,7 @@ class JobsHandlerTest(unittest.TestCase):
             ),
             patch("monthly_stats.append_latest", return_value={"ok": True, "status": "done"}) as append,
         ):
-            result = jobs_handler._weekly({}, None, None)
+            result = jobs_handler._weekly({}, _run(), None)
         self.assertEqual(result["status"], "running")
         self.assertEqual(result["monthly"]["status"], "done")
         append.assert_called_once()
@@ -109,7 +114,7 @@ class JobsHandlerTest(unittest.TestCase):
             ),
             patch("monthly_stats.append_latest", side_effect=AssertionError("too early")) as append,
         ):
-            result = jobs_handler._weekly({}, None, None)
+            result = jobs_handler._weekly({}, _run(), None)
         self.assertEqual(result["status"], "running")
         self.assertNotIn("monthly", result)
         append.assert_not_called()
@@ -119,7 +124,7 @@ class JobsHandlerTest(unittest.TestCase):
             patch("ingest_jobs.resume_adjusted", return_value={"ok": True, "status": "done"}),
             patch("monthly_stats.append_latest", return_value={"ok": True, "status": "done"}),
         ):
-            result = jobs_handler._adjusted({}, None, None)
+            result = jobs_handler._adjusted({}, _run(), None)
         self.assertEqual(result["monthly"]["status"], "done")
 
     def test_an_awaiting_sync_is_recorded_with_its_status(self) -> None:

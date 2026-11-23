@@ -273,10 +273,10 @@ def as_of(rows: list[dict[str, Any]], on: str) -> list[dict[str, Any]]:
         current = chosen.get(key)
         if current is None or row["filed"] > current["filed"]:
             chosen[key] = row
-    for key, group in shares.items():
+    for period, group in shares.items():
         combined = _combine_shares(group)
         if combined is not None:
-            chosen[(_SHARES_FIELD, key[0], key[1])] = combined
+            chosen[(_SHARES_FIELD, period[0], period[1])] = combined
     return list(chosen.values())
 
 

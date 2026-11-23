@@ -5,10 +5,16 @@ from __future__ import annotations
 import json
 import os
 import unittest
-from typing import Any
+from typing import Any, Protocol
 from unittest.mock import patch
 
 import api_handler
+
+
+class _Patch(Protocol):
+    def start(self) -> Any: ...
+
+    def stop(self) -> None: ...
 
 
 def _event(method: str, path: str, body: dict[str, Any] | None = None, limit: str | None = None) -> dict[str, Any]:
@@ -65,7 +71,7 @@ class _Store:
 class DashboardTest(unittest.TestCase):
     def setUp(self) -> None:
         self.store = _Store()
-        self.patches = [
+        self.patches: list[_Patch] = [
             patch("store.get", self.store.get),
             patch("store.put", self.store.put),
             patch("store.delete", self.store.delete),

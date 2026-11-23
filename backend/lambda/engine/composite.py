@@ -87,7 +87,8 @@ def group_scores(row: dict[str, Any], factors: list[dict[str, Any]], *, min_shar
     grouped: dict[str, list[str]] = {}
     for factor in factors:
         grouped.setdefault(str(factor["group"]), []).append(str(factor["id"]))
-    scores = row.get("z") if isinstance(row.get("z"), dict) else {}
+    raw_scores = row.get("z")
+    scores = raw_scores if isinstance(raw_scores, dict) else {}
     return {
         name: group_score([scores.get(factor_id) for factor_id in ids], min_share=min_share)
         for name, ids in grouped.items()
@@ -97,7 +98,14 @@ def group_scores(row: dict[str, Any], factors: list[dict[str, Any]], *, min_shar
 def _combine(groups: dict[str, float | None], weights: dict[str, float]) -> float | None:
     if any(groups.get(name) is None for name in weights):
         return None
-    return sum(float(weights[name]) * float(groups[name]) for name in weights)
+    if not weights:
+        return 0
+    total = 0.0
+    for name in weights:
+        score = groups[name]
+        assert score is not None
+        total += float(weights[name]) * float(score)
+    return total
 
 
 def composite(rows: list[dict[str, Any]], register: dict[str, Any]) -> list[dict[str, Any]]:

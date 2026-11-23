@@ -11,13 +11,15 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("RECORDS_TABLE_NAME", "findingalpha-records")
 
-boto3 = types.ModuleType("boto3")
+class _Boto3(types.ModuleType):
+    resource: MagicMock
+    client: MagicMock
+
+
+boto3 = _Boto3("boto3")
 boto3.resource = MagicMock()
 boto3.client = MagicMock()
 sys.modules["boto3"] = boto3
-
-botocore = types.ModuleType("botocore")
-exceptions = types.ModuleType("botocore.exceptions")
 
 
 class ClientError(Exception):
@@ -27,7 +29,17 @@ class ClientError(Exception):
         self.operation_name = operation
 
 
+class _Exceptions(types.ModuleType):
+    ClientError: type[ClientError]
+
+
+class _Botocore(types.ModuleType):
+    exceptions: _Exceptions
+
+
+exceptions = _Exceptions("botocore.exceptions")
 exceptions.ClientError = ClientError
+botocore = _Botocore("botocore")
 botocore.exceptions = exceptions
 sys.modules["botocore"] = botocore
 sys.modules["botocore.exceptions"] = exceptions
@@ -131,7 +143,12 @@ class AuthorizerTest(unittest.TestCase):
 
     def test_revoked_and_expired_and_garbage_expiry_are_denied(self) -> None:
         past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-        for extra in ({"revoked": True}, {"expiresAt": past}, {"expiresAt": "not-a-date"}):
+        cases: tuple[dict[str, object], ...] = (
+            {"revoked": True},
+            {"expiresAt": past},
+            {"expiresAt": "not-a-date"},
+        )
+        for extra in cases:
             self.table.get_item.return_value = {"Item": _valid_item(**extra)}
             self.assertFalse(lambda_handler(_event(), None)["isAuthorized"])
 

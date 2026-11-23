@@ -14,6 +14,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from email.message import Message
 from pathlib import Path
+from typing import Literal, TypedDict
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -37,12 +38,13 @@ class _Response:
     def __enter__(self) -> _Response:
         return self
 
-    def __exit__(self, *_exc: object) -> bool:
+    def __exit__(self, *_exc: object) -> Literal[False]:
         return False
 
 
-class _Limiter:
+class _Limiter(http_client.RateLimiter):
     def __init__(self) -> None:
+        super().__init__(1)
         self.calls = 0
 
     def wait(self) -> None:
@@ -568,11 +570,16 @@ class AlpacaDataTest(unittest.TestCase):
         self.assertEqual(seen["name"], "ingestEnabled")
 
 
+class _Slot(TypedDict):
+    window: int | None
+    count: int
+
+
 class MinuteSlotTest(unittest.TestCase):
     def test_a_full_minute_waits_for_the_next_one(self) -> None:
         import store
 
-        state = {"window": None, "count": 0}
+        state: _Slot = {"window": None, "count": 0}
         sleeps: list[float] = []
         clock = {"t": 120.0}
 

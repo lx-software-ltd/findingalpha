@@ -372,7 +372,7 @@ class AlpacaData:
 
     def daily_bars(
         self,
-        symbols: list[str] | tuple[str, ...],
+        symbols: list[str] | tuple[str, ...] | str,
         start: date | datetime | str,
         end: date | datetime | str,
         adjustment: str,
@@ -484,9 +484,7 @@ def list_assets(status: str = "active") -> list[dict[str, Any]]:
     return _open().list_assets(status)
 
 
-def daily_bars(
-    symbols: list[str] | tuple[str, ...], start: date | datetime | str, end: date | datetime | str, adjustment: str
-) -> Iterator[dict[str, Any]]:
+def daily_bars(symbols: list[str] | tuple[str, ...] | str, start: date | datetime | str, end: date | datetime | str, adjustment: str) -> Iterator[dict[str, Any]]:
     return _open().daily_bars(symbols, start, end, adjustment)
 
 

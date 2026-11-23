@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import config
 import s3io
@@ -80,7 +80,8 @@ def _screen(day: str) -> dict[str, Any]:
         if isinstance(rank, int) and not isinstance(rank, bool) and rank <= limit:
             rows.append(_public_row(row))
     rows.sort(key=lambda row: int(row["rank"]))
-    counts = meta.get("counts") if isinstance(meta.get("counts"), dict) else {}
+    raw_counts = meta.get("counts")
+    counts = raw_counts if isinstance(raw_counts, dict) else {}
     return _json_response(
         200,
         {
@@ -109,10 +110,17 @@ def _path(event: dict[str, Any]) -> str:
     return str((event.get("requestContext") or {}).get("http", {}).get("path") or "")
 
 
+@runtime_checkable
+class _Ratio(Protocol):
+    def as_integer_ratio(self) -> tuple[int, int]: ...
+
+    def __float__(self) -> float: ...
+
+
 def _plain(value: object) -> object:
     if isinstance(value, bool) or value is None:
         return value
-    if hasattr(value, "as_integer_ratio") and not isinstance(value, float):
+    if isinstance(value, _Ratio) and not isinstance(value, float):
         number = float(value)
         return int(number) if number.is_integer() else number
     return value

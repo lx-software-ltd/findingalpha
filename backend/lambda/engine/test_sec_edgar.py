@@ -11,9 +11,19 @@ import urllib.request
 from datetime import date
 from email.message import Message
 from pathlib import Path
+from typing import Literal
 
 import http_client
 import sec_edgar
+
+
+class _Capture(logging.Handler):
+    def __init__(self, records: list[logging.LogRecord]) -> None:
+        super().__init__()
+        self.records = records
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
 
 _FIXTURES = Path(__file__).resolve().parent / "test_fixtures"
 _CONTACT = "sec-test@example.com"
@@ -29,7 +39,7 @@ class _Response:
     def __enter__(self) -> _Response:
         return self
 
-    def __exit__(self, *_exc: object) -> bool:
+    def __exit__(self, *_exc: object) -> Literal[False]:
         return False
 
 
@@ -45,7 +55,7 @@ class SecEdgarTest(unittest.TestCase):
     def setUp(self) -> None:
         sec_edgar._CLIENT = None
         self.limiter = _Limiter()
-        self.seen: list[tuple[str, str]] = []
+        self.seen: list[tuple[str, str | None]] = []
 
     def tearDown(self) -> None:
         sec_edgar._CLIENT = None
@@ -76,7 +86,7 @@ class SecEdgarTest(unittest.TestCase):
         self.assertEqual(self.limiter.calls, 1)
 
     def test_submissions_and_facts_use_the_ten_digit_cik(self) -> None:
-        routes = {
+        routes: dict[str, bytes | int] = {
             "https://data.sec.gov/submissions/CIK0000000007.json": b'{"sic": "1000"}',
             "https://data.sec.gov/api/xbrl/companyfacts/CIK0000000007.json": b'{"facts": {}}',
         }
@@ -214,8 +224,7 @@ class SecEdgarTest(unittest.TestCase):
 
     def test_the_contact_is_not_logged(self) -> None:
         records: list[logging.LogRecord] = []
-        handler = logging.Handler()
-        handler.emit = records.append  # type: ignore[method-assign]
+        handler = _Capture(records)
         logger = logging.getLogger("http_client")
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
