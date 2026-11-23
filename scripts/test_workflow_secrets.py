@@ -89,6 +89,18 @@ class WorkflowSecretTest(unittest.TestCase):
             text,
         )
 
+    def test_cdk_deploy_dry_run_keeps_the_real_step(self) -> None:
+        text = _workflow("deploy-backend.yml")
+        self.assertLess(
+            text.index("Compare the dry run with the current deploy"),
+            text.index("name: Deploy CDK stacks"),
+        )
+        self.assertIn("continue-on-error: true", text)
+        self.assertIn('"#!/usr/bin/env bash"', text)
+        self.assertIn("npx cdk deploy --require-approval never \\", text)
+        self.assertNotIn("cdk-deploy@", text)
+        self.assertIn("REAL_NPX=/bin/false", text)
+
     def test_cdk_diff_calls_aws_oidc(self) -> None:
         text = _workflow("cdk-diff.yml")
         expressions = _expressions(text)
@@ -151,7 +163,10 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn("UserPoolClientId CognitoDomain AdminApiBaseUrl", admin)
         self.assertIn("CognitoDomain on findingalpha must be an https origin", admin)
         self.assertIn("AdminApiBaseUrl on findingalpha must be an https origin", admin)
-        self.assertNotIn("describe-stacks", admin)
+        self.assertNotIn(
+            "describe-stacks",
+            admin.split("Compare the dry run with the current deploy", 1)[0],
+        )
         self.assertNotIn("::add-mask::", admin)
         public = _workflow("deploy-public-website.yml")
         self.assertIn("findingalpha-public-www", public)
@@ -168,6 +183,15 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn('dry-run: "false"', public)
         self.assertNotIn("bash scripts/deploy/deploy-public-website.sh", public)
         self.assertNotIn("create-invalidation", public)
+        admin_site = _workflow("deploy-admin-web.yml")
+        self.assertLess(
+            admin_site.index("Compare the dry run with the current deploy"),
+            admin_site.index("Upload the admin site"),
+        )
+        self.assertIn("continue-on-error: true", admin_site)
+        self.assertIn("PROFILE=admin-hashed", admin_site)
+        self.assertIn('"#!/usr/bin/env bash\\n"', admin_site)
+        self.assertIn("bash scripts/deploy/deploy-admin-www.sh", admin_site)
 
     def test_account_id_is_masked_without_a_warning(self) -> None:
         for filename in ("deploy-backend.yml", "deploy-admin-web.yml"):
