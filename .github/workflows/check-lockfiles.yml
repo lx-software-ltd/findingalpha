@@ -19,13 +19,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@12ce7549f74db10a3c595214bf411deba0ef728a # main 2026-11-22
+        uses: lx-software-ltd/actions/setup-node@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
 
       - name: Validate brand asset copies
         run: bash scripts/sync-brand-assets.sh --check
 
       - name: Validate package-lock.json
-        uses: lx-software-ltd/actions/node-lockfiles@12ce7549f74db10a3c595214bf411deba0ef728a # main 2026-11-22
+        uses: lx-software-ltd/actions/node-lockfiles@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
         with:
           directories: |
             apps/public_www
@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check requirement pins
-        uses: lx-software-ltd/actions/python-requirements-pins@12ce7549f74db10a3c595214bf411deba0ef728a # main 2026-11-22
+        uses: lx-software-ltd/actions/python-requirements-pins@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
         with:
           files: |
             backend/lambda/engine/requirements.txt
