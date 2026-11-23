@@ -61,7 +61,7 @@ jobs:
       - name: Configure AWS credentials
         id: aws
         if: steps.exists.outputs.present == 'true'
-        uses: lx-software-ltd/actions/aws-oidc@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
+        uses: lx-software-ltd/actions/aws-oidc@e6be2629d7206b0d5c079662f364772bc816acc1 # main 2026-11-23
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}

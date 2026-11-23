@@ -5,7 +5,7 @@
 
 ## Goal
 
-Call `s3-cloudfront-deploy` for the findingalpha public site, pinned to actions `e6be2629d7206b0d5c079662f364772bc816acc1`. The first run on `main` is a dry run. It prints the planned S3 changes from the shared action and from the current deploy script, and fails when those lists differ. It does not upload and it does not invalidate CloudFront.
+Call `s3-cloudfront-deploy` for the findingalpha public site. Workflow conformance allows one `lx-software-ltd/actions` commit, so every pin and the pre-commit `rev` move from `c210c3223782894251ba37b4fc71a0c245619d39` to `e6be2629d7206b0d5c079662f364772bc816acc1`. The actions between those commits add deploy actions. They do not change the actions this repository already calls. The first run on `main` is a dry run. It prints the planned S3 changes from the shared action and from the current deploy script, and fails when those lists differ. It does not upload and it does not invalidate CloudFront.
 
 ## Non-goals
 
@@ -15,7 +15,7 @@ Call `s3-cloudfront-deploy` for the findingalpha public site, pinned to actions 
 
 ## Files
 
-`.github/workflows/deploy-public-website.yml`, `scripts/test_workflow_secrets.py`, `docs/deployment/public-website.md`.
+`.github/workflows/`, `.pre-commit-config.yaml`, `scripts/test_workflow_secrets.py`, `docs/deployment/public-website.md`.
 
 ## Invariants this change preserves
 

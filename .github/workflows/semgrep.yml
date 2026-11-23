@@ -37,7 +37,7 @@ jobs:
       # Upload stays on the old category so alerts filed from security.yml
       # are not left without a configuration.
       - name: Run Semgrep
-        uses: lx-software-ltd/actions/semgrep@c210c3223782894251ba37b4fc71a0c245619d39 # main 2026-11-22
+        uses: lx-software-ltd/actions/semgrep@e6be2629d7206b0d5c079662f364772bc816acc1 # main 2026-11-23
         with:
           mode: scan
           rules: p/python p/javascript p/security-audit p/secrets p/owasp-top-ten
