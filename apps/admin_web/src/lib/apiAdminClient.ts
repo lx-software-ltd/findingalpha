@@ -89,4 +89,3 @@ export async function adminFetchJson<T>(
   const res = await adminFetch(path, init);
   return (await res.json()) as T;
 }
-
