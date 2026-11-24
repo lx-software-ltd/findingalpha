@@ -1,8 +1,11 @@
 name: Manage Public API Keys
+# template:set
+# template:end
 
 on:
   workflow_dispatch:
     inputs:
+      # template:set
       action:
         description: create, list, revoke, set-write, or set-scopes
         required: true
@@ -45,6 +48,7 @@ on:
         default: admin
         options:
           - admin
+      # template:end
 
 permissions:
   contents: read
@@ -57,8 +61,8 @@ jobs:
   manage:
     if: github.ref == 'refs/heads/main'
     permissions:
-      id-token: write
       contents: read
+      id-token: write
     name: Manage keys
     runs-on: ubuntu-26.04
     environment: production
@@ -90,6 +94,7 @@ jobs:
 
       - name: Create key
         if: inputs.action == 'create'
+        # template:set
         env:
           LABEL: ${{ inputs.label }}
           TIER: ${{ inputs.tier }}
@@ -99,6 +104,7 @@ jobs:
           ALLOW_WRITE: ${{ inputs.allow_write }}
           GPG_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE }}
           AWS_REGION: ${{ vars.AWS_REGION }}
+        # template:end
         run: bash scripts/deploy/create-api-key.sh
 
       - name: List keys
