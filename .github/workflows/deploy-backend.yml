@@ -3,21 +3,28 @@ name: Deploy Backend
 on:
   repository_dispatch:
     types: [deploy-backend]
+  workflow_dispatch:
+    inputs:
+      # template:set
+      cdk_stacks:
+        description: CDK stacks to deploy. Empty deploys every stack in the plan.
+        required: false
+        default: ""
+        type: string
+
+permissions:
+      # template:end
   push:
-    branches: [main]
+    branches:
+      - main
+    # template:set
     paths:
       - "backend/infrastructure/**"
       - "backend/lambda/**"
       - "contracts/**"
       - "!contracts/roadmap.json"
       - ".github/workflows/deploy-backend.yml"
-  workflow_dispatch:
-    inputs:
-      cdk_stacks:
-        description: CDK stacks to deploy. Empty deploys every stack in the plan.
-        required: false
-        default: ""
-        type: string
+    # template:end
 
 permissions:
   contents: read
@@ -28,48 +35,66 @@ concurrency:
 
 jobs:
   deploy:
+    # template:set
+    # The production environment should also limit branches to main.
+    # This job refuses every other ref even if that setting is open.
+    # template:end
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write
-    # The production environment should also limit branches to main.
-    # This job refuses every other ref even if that setting is open.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     environment: production
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # template:set
+        # template:end
+
 
       - name: Set up Node.js
         uses: lx-software-ltd/actions/setup-node@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           cache: npm
           working-directory: backend/infrastructure
-
+      # template:set
+      # template:end
       - name: Set up Python
         uses: lx-software-ltd/actions/setup-python@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
 
+
       - name: Configure AWS credentials
+        # template:set
         id: aws
+        # template:end
         uses: lx-software-ltd/actions/aws-oidc@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          # template:set
           region: ${{ vars.AWS_REGION }}
+          # template:end
 
+      # template:optional qemu
+      # template:set
+      # template:end
       - name: Set up QEMU for arm64 Lambda bundling
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
 
+      # template:end
+
       - name: Check CDK bootstrap
         uses: lx-software-ltd/actions/cdk-bootstrap-check@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
+          # template:set
           region: ${{ vars.AWS_REGION }}
-
+          # template:end
       - name: Prepare CDK app
         id: prep
         run: bash scripts/deploy/cdk-prepare.sh deploy
+        # template:set
         env:
           P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           ALLOWLIST_FROM_VARIABLE: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST == '' && vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST != '' }}
@@ -100,16 +125,25 @@ jobs:
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
           P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
+        # template:end
+
 
       - name: Deploy stacks
         uses: lx-software-ltd/actions/cdk-deploy@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           working-directory: backend/infrastructure
-          stacks: ${{ inputs.cdk_stacks }}
           plan-file: backend/infrastructure/cdk-plan.json
+          # template:set
+          stacks: ${{ inputs.cdk_stacks }}
+          # template:end
           param-file: ${{ vars.CDK_PARAM_FILE }}
           attempts: "3"
+          # template:set
+          # template:end
+          # template:set
           region: ${{ vars.AWS_REGION }}
+          # template:end
+        # template:set
         env:
           CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
           CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
@@ -131,3 +165,5 @@ jobs:
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
           P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
+        # template:end
+
