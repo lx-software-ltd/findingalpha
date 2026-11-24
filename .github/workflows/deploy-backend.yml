@@ -152,10 +152,6 @@ jobs:
           qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
           region: ${{ vars.AWS_REGION }}
 
-      - name: Acknowledge CDK notices
-        working-directory: backend/infrastructure
-        run: npx cdk acknowledge 34892 || true
-
       - name: Build the CDK plan
         id: plan
         env:
