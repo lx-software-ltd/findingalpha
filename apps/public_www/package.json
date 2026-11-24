@@ -10,7 +10,8 @@
     "preview": "vite preview --port 4173",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:ci": "npm test"
   },
   "dependencies": {
     "react": "^19.3.1",
