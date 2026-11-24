@@ -94,8 +94,8 @@ def net_debt_to_ebitda(snapshot: dict, _params: dict) -> float | None:
     depreciation = _num(snapshot.get("depreciationAmortization_ttm"))
     if None in (long_debt, short_debt, cash, operating, depreciation):
         return None
-    assert long_debt is not None and short_debt is not None and cash is not None
-    assert operating is not None and depreciation is not None
+    assert long_debt is not None and short_debt is not None and cash is not None  # nosec B101
+    assert operating is not None and depreciation is not None  # nosec B101
     ebitda = operating + depreciation
     if ebitda <= 0:
         return None
