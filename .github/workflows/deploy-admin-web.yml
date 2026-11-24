@@ -42,14 +42,14 @@ jobs:
       - name: Configure AWS credentials
         id: aws
         if: steps.exists.outputs.present == 'true'
-        uses: lx-software-ltd/actions/aws-oidc@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
+        uses: lx-software-ltd/actions/aws-oidc@498ccef500b37e3b04314213aa10f49a2b5c02e5 # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
 
       - name: Set up Node.js
         if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
-        uses: lx-software-ltd/actions/setup-node@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-node@498ccef500b37e3b04314213aa10f49a2b5c02e5 # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/admin_web
@@ -57,7 +57,7 @@ jobs:
       - name: Read admin SPA settings from the findingalpha stack
         id: stack_outputs
         if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
-        uses: lx-software-ltd/actions/cfn-stack-outputs@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
+        uses: lx-software-ltd/actions/cfn-stack-outputs@498ccef500b37e3b04314213aa10f49a2b5c02e5 # main 2026-11-24
         with:
           stack: findingalpha
           outputs: UserPoolClientId CognitoDomain AdminApiBaseUrl
@@ -103,7 +103,7 @@ jobs:
 
       - name: Upload the admin site
         if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
-        uses: lx-software-ltd/actions/s3-cloudfront-deploy@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
+        uses: lx-software-ltd/actions/s3-cloudfront-deploy@498ccef500b37e3b04314213aa10f49a2b5c02e5 # main 2026-11-24
         with:
           source: apps/admin_web/dist
           stack: findingalpha-admin-web
