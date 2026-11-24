@@ -217,6 +217,7 @@ apps/admin_web/dist/
 apps/admin_web/playwright-report/
 apps/admin_web/test-results/
 apps/public_www/dist/
+apps/public_www/.lighthouseci/
 backend/infrastructure/dist/
 .env
 .env.local
