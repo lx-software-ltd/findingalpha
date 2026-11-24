@@ -57,14 +57,14 @@ class GuardShellTest(unittest.TestCase):
     def test_live_mutations_are_denied(self) -> None:
         self.assert_denied("npx cdk deploy findingalpha")
         self.assert_denied("aws s3api delete-object --bucket example --key a")
-        self.assert_denied("bash scripts/deploy/deploy-admin-www.sh")
+        self.assert_denied("bash scripts/deploy/cdk-prepare.sh deploy")
 
     def test_mentioning_a_protected_command_is_allowed(self) -> None:
         for command in (
             "cat scripts/deploy/cdk-params.sh",
-            "git diff main -- scripts/deploy/deploy-admin-www.sh",
-            "git add scripts/deploy/deploy-admin-www.sh",
-            "shellcheck scripts/deploy/deploy-admin-www.sh",
+            "git diff main -- scripts/deploy/cdk-prepare.sh",
+            "git add scripts/deploy/cdk-prepare.sh",
+            "shellcheck scripts/deploy/cdk-prepare.sh",
             "rg -n 'cdk deploy' docs",
             "grep -rn 'aws delete-' .cursor/hooks",
             "rg 'git push --force' .cursor/hooks",
@@ -74,14 +74,12 @@ class GuardShellTest(unittest.TestCase):
             self.assertEqual(permission, "allow", f"{command}: {message}")
 
     def test_nested_invocations_are_denied(self) -> None:
-        self.assert_denied("scripts/deploy/deploy-admin-www.sh")
+        self.assert_denied("scripts/deploy/cdk-prepare.sh")
         self.assert_denied("bash -c 'cdk deploy findingalpha'")
         self.assert_denied("echo $(aws s3api delete-bucket --bucket example)")
 
     def test_read_only_script_modes_are_allowed(self) -> None:
-        for command in (
-            "npx cdk diff",
-        ):
+        for command in ("npx cdk diff",):
             permission, message = guard.decide(command)
             self.assertEqual(permission, "allow", message)
 

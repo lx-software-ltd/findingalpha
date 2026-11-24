@@ -95,7 +95,7 @@ class WorkflowSecretTest(unittest.TestCase):
 
     def test_cdk_deploy_action_replaces_the_shell(self) -> None:
         text = _workflow("deploy-backend.yml")
-        self.assertLess(text.index("Prepare CDK app"), text.index("name: Deploy CDK stacks"))
+        self.assertLess(text.index("Prepare CDK app"), text.index("name: Deploy stacks"))
         self.assertRegex(
             text,
             r"uses: lx-software-ltd/actions/cdk-deploy@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",

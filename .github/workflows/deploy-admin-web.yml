@@ -7,7 +7,6 @@ on:
     branches: [main]
     paths:
       - "apps/admin_web/**"
-      - "scripts/deploy/deploy-admin-www.sh"
       - "contracts/roadmap.json"
       - ".github/workflows/deploy-admin-web.yml"
   workflow_dispatch:
@@ -76,7 +75,7 @@ jobs:
           VITE_COGNITO_LOGOUT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/
           VITE_API_BASE_URL: ${{ steps.admin_spa.outputs.api_url }}
 
-      - name: Upload the admin site
+      - name: Deploy admin web
         uses: lx-software-ltd/actions/s3-cloudfront-deploy@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           source: apps/admin_web/dist

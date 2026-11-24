@@ -47,7 +47,7 @@ backend/infrastructure/test/python-lambda.test.ts
 backend/lambda/pre_token_generation/handler.py  test_handler.py
 backend/lambda/engine/  (skeleton, see M02-T07)
 contracts/admin-domains.json  contracts/jobs.json
-scripts/deploy/cdk-params.sh  scripts/deploy/deploy-admin-www.sh
+scripts/deploy/cdk-params.sh
 .github/workflows/cdk-diff.yml  deploy-backend.yml  deploy-admin-web.yml
 docs/architecture/overview.md  security.md
 docs/deployment/setup.md  admin-website.md
@@ -421,7 +421,7 @@ replaced.
   is empty.
 - Do not use `--exclusively`.
 
-`deploy-admin-web.yml` and `scripts/deploy/deploy-admin-www.sh`: copy.
+`deploy-admin-web.yml`: copy.
 Changes: stack name `findingalpha`, web stack `findingalpha-admin-web`,
 `VITE_COGNITO_REDIRECT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/auth/callback`,
 `VITE_COGNITO_LOGOUT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/`,

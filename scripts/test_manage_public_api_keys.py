@@ -171,10 +171,11 @@ class ManageKeysTest(unittest.TestCase):
 
     def test_workflow_can_replace_scopes_without_printing_a_key(self) -> None:
         text = (ROOT / ".github" / "workflows" / "manage-api-keys.yml").read_text(encoding="utf-8")
+        validate = (ROOT / "scripts" / "deploy" / "validate-api-key-inputs.sh").read_text(encoding="utf-8")
         self.assertIn("\n          - set-scopes\n", text)
         self.assertIn("inputs.action == 'set-scopes'", text)
         self.assertIn('set-scopes --key-id "$KEY_ID" --scopes "$SCOPES"', text)
-        self.assertIn("key_id and scopes are required for set-scopes", text)
+        self.assertIn("'key_id' and 'scopes' are required for action=set-scopes", validate)
         scopes = text[text.index("      scopes:\n") : text.index("      allow_write:\n")]
         self.assertNotIn("default:", scopes)
         self.assertIn("Empty on create means system", scopes)
