@@ -1,8 +1,11 @@
 name: Manage Public API Keys
+# template:set
+# template:end
 
 on:
   workflow_dispatch:
     inputs:
+      # template:set
       action:
         description: create, list, revoke, set-write, or set-scopes
         required: true
@@ -17,15 +20,16 @@ on:
         description: Name for a new key
         required: false
         type: string
-      tier:
-        description: Only admin can be minted
+      expires_at:
+        description: ISO date. Empty means 90 days
         required: false
-        type: choice
-        default: admin
-        options:
-          - admin
+        type: string
       scopes:
         description: Comma-separated scopes. Empty on create means system. set-scopes replaces the whole list, so repeat every scope to keep
+        required: false
+        type: string
+      allowed_cidrs:
+        description: Comma-separated CIDRs. Empty allows any address
         required: false
         type: string
       allow_write:
@@ -33,33 +37,50 @@ on:
         required: false
         type: boolean
         default: false
-      expires_at:
-        description: ISO date. Empty means 90 days
-        required: false
-        type: string
-      allowed_cidrs:
-        description: Comma-separated CIDRs. Empty allows any address
-        required: false
-        type: string
       key_id:
         description: keyId for revoke, set-write, or set-scopes
         required: false
         type: string
+      tier:
+        description: Only admin can be minted
+        required: false
+        type: choice
+        default: admin
+        options:
+          - admin
+      # template:end
 
 permissions:
   contents: read
 
+concurrency:
+  group: manage-api-keys
+  cancel-in-progress: false
+
 jobs:
-  keys:
+  manage:
+    if: github.ref == 'refs/heads/main'
     permissions:
-      id-token: write
       contents: read
+      id-token: write
     name: Manage keys
     runs-on: ubuntu-26.04
     environment: production
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: lx-software-ltd/actions/setup-python@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+
+      - name: Validate inputs
+        env:
+          ACTION: ${{ inputs.action }}
+          LABEL: ${{ inputs.label }}
+          KEY_ID: ${{ inputs.key_id }}
+          SCOPES: ${{ inputs.scopes }}
+          HAS_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE != '' }}
+        run: bash scripts/deploy/validate-api-key-inputs.sh
 
       - name: Configure AWS credentials
         id: aws
@@ -68,24 +89,12 @@ jobs:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
 
-      - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
-
       - name: Install boto3
         run: pip install --quiet boto3
 
-      - name: Require the passphrase before creating a key
-        if: inputs.action == 'create'
-        env:
-          GPG_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE }}
-        run: |
-          if [ -z "${GPG_PASSPHRASE}" ]; then
-            echo "::error::Set PUBLIC_API_KEY_GPG_PASSPHRASE on the production environment before creating a key."
-            exit 1
-          fi
-
       - name: Create key
         if: inputs.action == 'create'
+        # template:set
         env:
           LABEL: ${{ inputs.label }}
           TIER: ${{ inputs.tier }}
@@ -95,41 +104,8 @@ jobs:
           ALLOW_WRITE: ${{ inputs.allow_write }}
           GPG_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE }}
           AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          KEY_FILE="$(mktemp -u)"
-          ARGS=(create --label "$LABEL" --tier "$TIER" --plaintext-out "$KEY_FILE" --region "$AWS_REGION")
-          if [ -n "$EXPIRES_AT" ]; then
-            ARGS+=(--expires-at "$EXPIRES_AT")
-          fi
-          if [ -n "$SCOPES" ]; then
-            ARGS+=(--scopes "$SCOPES")
-          fi
-          if [ -n "$ALLOWED_CIDRS" ]; then
-            ARGS+=(--allowed-cidrs "$ALLOWED_CIDRS")
-          fi
-          if [ "$ALLOW_WRITE" = "true" ]; then
-            ARGS+=(--allow-write)
-          fi
-          python3 scripts/manage-public-api-keys.py "${ARGS[@]}"
-          echo "::add-mask::$(tr -d '\n' < "$KEY_FILE")"
-          gpg --batch --yes --symmetric --cipher-algo AES256 --armor \
-            --passphrase "$GPG_PASSPHRASE" \
-            --output key.asc "$KEY_FILE"
-          rm -f "$KEY_FILE"
-          {
-            echo "## Encrypted API key"
-            echo ""
-            echo "Copy the block below into \`key.asc\`, then run"
-            echo "\`gpg --decrypt key.asc\` and enter the"
-            echo "\`PUBLIC_API_KEY_GPG_PASSPHRASE\` value."
-            echo ""
-            echo '```'
-            cat key.asc
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          rm -f key.asc
-          echo "Encrypted key emitted to the job summary."
+        # template:end
+        run: bash scripts/deploy/create-api-key.sh
 
       - name: List keys
         if: inputs.action == 'list'
@@ -164,10 +140,4 @@ jobs:
           KEY_ID: ${{ inputs.key_id }}
           SCOPES: ${{ inputs.scopes }}
           AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          if [ -z "$KEY_ID" ] || [ -z "$SCOPES" ]; then
-            echo "::error::key_id and scopes are required for set-scopes. Repeat every scope the key should keep."
-            exit 1
-          fi
-          python3 scripts/manage-public-api-keys.py set-scopes --key-id "$KEY_ID" --scopes "$SCOPES" --region "$AWS_REGION" | tee -a "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/manage-public-api-keys.py set-scopes --key-id "$KEY_ID" --scopes "$SCOPES" --region "$AWS_REGION" | tee -a "$GITHUB_STEP_SUMMARY"

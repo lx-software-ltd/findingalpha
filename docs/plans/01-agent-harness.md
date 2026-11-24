@@ -299,7 +299,7 @@ twice; write the unit test; update `reference.md` section 9.
 Copy and trim. Keep the runner image, action versions and the
 aggregator pattern exactly as the sibling has them.
 
-- `lint.yml`: jobs `lint-admin-web`, `build-cdk`, `lint-python`,
+- `lint.yml`: jobs `lint-admin-web`, `lint-cdk`, `lint-python`,
   `validate-agent-harness`, and the aggregator `lint`. Remove
   `lint-web`. Until M02 and M03 create the folders, guard the two Node
   jobs with a first step that exits successfully when

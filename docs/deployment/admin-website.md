@@ -113,7 +113,7 @@ There is nothing to build until M03. **Deploy Admin Web** skips the
 build while `apps/admin_web/package.json` is absent.
 
 When the app exists, the workflow runs on `main` when `apps/admin_web/**`,
-`scripts/deploy/deploy-admin-www.sh`, `contracts/roadmap.json`, or this
+`contracts/roadmap.json`, or this
 workflow file change, after a successful **Deploy Backend** on `main`,
 or manually. Re-running a failed attempt uses the workflow from that
 attempt. It builds

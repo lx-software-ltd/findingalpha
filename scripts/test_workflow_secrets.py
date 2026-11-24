@@ -29,6 +29,10 @@ def _workflow(name: str) -> str:
     return (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
 
 
+def _prepare() -> str:
+    return (ROOT / "scripts" / "deploy" / "cdk-prepare.sh").read_text(encoding="utf-8")
+
+
 def _expressions(text: str) -> set[str]:
     """Return the insides of GitHub expressions, ignoring comments and prose."""
     return {match.group(1).strip() for match in _EXPRESSION.finditer(text)}
@@ -77,20 +81,21 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertIn("findingalpha:CognitoCustomDomainName={P_COGNITO_DOMAIN}", extra)
         self.assertIn("findingalpha:CognitoCustomDomainCertificateArn={P_COGNITO_CERT}", extra)
         self.assertIn("findingalpha-admin-web:CspCognitoConnectOrigin={P_CSP_ORIGIN}", extra)
+        prepare = _prepare()
         self.assertIn(
             'prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"',
-            text,
+            prepare,
         )
-        self.assertIn('origin = prefix_origin + " https://" + domain', text)
-        self.assertIn("origin = prefix_origin", text)
+        self.assertIn('origin = prefix_origin + " https://" + domain', prepare)
+        self.assertIn("origin = prefix_origin", prepare)
         self.assertIn(
             "Set both ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN, or leave both empty.",
-            text,
+            prepare,
         )
 
     def test_cdk_deploy_action_replaces_the_shell(self) -> None:
         text = _workflow("deploy-backend.yml")
-        self.assertLess(text.index("Build the CDK plan"), text.index("name: Deploy CDK stacks"))
+        self.assertLess(text.index("Prepare CDK app"), text.index("name: Deploy stacks"))
         self.assertRegex(
             text,
             r"uses: lx-software-ltd/actions/cdk-deploy@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
@@ -173,22 +178,18 @@ class WorkflowSecretTest(unittest.TestCase):
             r"uses: lx-software-ltd/actions/cfn-stack-outputs@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
         )
         self.assertIn("UserPoolClientId CognitoDomain AdminApiBaseUrl", admin)
-        self.assertIn("CognitoDomain on findingalpha must be an https origin", admin)
-        self.assertIn("AdminApiBaseUrl on findingalpha must be an https origin", admin)
+        settings = (ROOT / "scripts" / "deploy" / "check-admin-spa-settings.sh").read_text(encoding="utf-8")
+        self.assertIn("CognitoDomain on {stack} must be an https origin", settings)
+        self.assertIn("AdminApiBaseUrl on {stack} must be an https origin", settings)
+        self.assertIn("STACK_NAME: findingalpha", admin)
         self.assertNotIn("::add-mask::", admin)
         public = _workflow("deploy-public-www.yml")
         self.assertIn("findingalpha-public-www", public)
-        self.assertIn("Skip when the stack is not deployed yet", public)
-        self.assertIn('allow-missing: "true"', public)
-        self.assertRegex(
-            public,
-            r"uses: lx-software-ltd/actions/cfn-stack-outputs@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
-        )
+        self.assertNotIn("Skip when the stack is not deployed yet", public)
         self.assertNotIn("aws cloudformation describe-stacks", public)
         self.assertLess(public.index("setup-node@"), public.index("actions/aws-oidc@"))
         self.assertLess(public.index("Build public website"), public.index("actions/aws-oidc@"))
-        self.assertLess(public.index("actions/aws-oidc@"), public.index("Skip when the stack is not deployed yet"))
-        self.assertLess(public.index("Skip when the stack is not deployed yet"), public.index("s3-cloudfront-deploy@"))
+        self.assertLess(public.index("actions/aws-oidc@"), public.index("s3-cloudfront-deploy@"))
         self.assertRegex(
             public,
             r"uses: lx-software-ltd/actions/s3-cloudfront-deploy@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
@@ -217,13 +218,13 @@ class WorkflowSecretTest(unittest.TestCase):
             self.assertNotIn("AWS_ACCOUNT_ID is read from a variable", text, filename)
             self.assertNotIn("ACCOUNT_FROM_VARIABLE", text, filename)
             self.assertNotIn("ADMIN_BOOTSTRAP_EMAIL", text, filename)
-        backend = _workflow("deploy-backend.yml")
+        backend = _prepare()
         self.assertIn("::add-mask::", backend)
         admin = _workflow("deploy-admin-web.yml")
         self.assertNotIn("::add-mask::", admin)
         self.assertIn("is read from a variable, so this log shows it", backend)
         self.assertIn(
-            'warn_if_variable "${ALLOWLIST_FROM_VARIABLE}" "ADMIN_FEDERATED_EMAIL_ALLOWLIST"',
+            'warn_if_variable "${ALLOWLIST_FROM_VARIABLE:-}" "ADMIN_FEDERATED_EMAIL_ALLOWLIST"',
             backend,
         )
 

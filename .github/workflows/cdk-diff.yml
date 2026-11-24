@@ -3,13 +3,19 @@ name: CDK Diff
 on:
   pull_request:
     paths:
+# template:set
       - "backend/**"
       - "contracts/**"
       - ".github/workflows/cdk-diff.yml"
+# template:end
+  repository_dispatch:
+    types: [cdk-diff]
   workflow_dispatch:
     inputs:
       stacks:
+# template:set
         description: "Optional space/comma-separated CDK stack names"
+# template:end
         required: false
         default: ""
 
@@ -31,147 +37,85 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+# template:set
+# template:end
 
+
+      - name: Set up Node.js
+        uses: lx-software-ltd/actions/setup-node@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+        with:
+          cache: npm
+          working-directory: backend/infrastructure
+# template:set
+# template:end
+      - name: Set up Python
+        uses: lx-software-ltd/actions/setup-python@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+
+
+
+# template:optional diff-role-guard
       - name: Refuse the deploy role on a pull request
         if: github.event_name == 'pull_request' && vars.AWS_DIFF_ROLE_NAME == 'GitHubActionsRole'
         run: |
           echo "::error::AWS_DIFF_ROLE_NAME must name a read-only role. A pull request does not assume GitHubActionsRole."
           exit 1
+# template:end
 
       - name: Configure AWS credentials
         id: aws
+# template:optional diff-role
         if: github.event_name != 'pull_request' || vars.AWS_DIFF_ROLE_NAME != ''
+# template:end
         uses: lx-software-ltd/actions/aws-oidc@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+# template:set
           region: ${{ vars.AWS_REGION }}
           role-name: ${{ github.event_name == 'pull_request' && vars.AWS_DIFF_ROLE_NAME || 'GitHubActionsRole' }}
           required: ${{ github.event_name == 'pull_request' && 'false' || 'true' }}
+# template:end
 
+# template:optional diff-note
       - name: Note when a pull request diff did not run
         if: github.event_name == 'pull_request' && steps.aws.outputs.ready != 'true'
         run: |
           echo "::warning::This pull request did not assume a role. Set AWS_DIFF_ROLE_NAME to a read-only role that trusts only pull_request. GitHubActionsRole is not assumed from a pull request."
+# template:end
 
-      - name: Set up Node.js
-        if: steps.aws.outputs.ready == 'true'
-        uses: lx-software-ltd/actions/setup-node@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
-        with:
-          cache: npm
-          working-directory: backend/infrastructure
 
+# template:optional qemu
+# template:set
       # `cdk diff` synthesizes with asset bundling. The arm64 image needs
       # QEMU on an x86-64 runner.
+# template:end
       - name: Set up QEMU for arm64 Lambda bundling
         if: steps.aws.outputs.ready == 'true'
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
+# template:end
 
       - name: Check CDK Bootstrap status
         if: steps.aws.outputs.ready == 'true'
         uses: lx-software-ltd/actions/cdk-bootstrap-check@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
+# template:set
           region: ${{ vars.AWS_REGION }}
+# template:end
 
-      - name: Prepare CDK diff
-        id: prep
+      - name: Prepare CDK app
         if: steps.aws.outputs.ready == 'true'
-        run: |
-          if [ ! -f "backend/infrastructure/package.json" ]; then
-            echo "::warning::Missing backend/infrastructure/package.json"
-            echo "Missing backend/infrastructure/package.json"
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          cd backend/infrastructure
-          npx cdk acknowledge 34892 || true
-          npm run build --if-present
-          BACKEND_PARAM_ARGS=()
-          ADMIN_WEB_PARAM_ARGS=()
-          PUBLIC_WWW_PARAM_ARGS=()
-          resolve_param_file() {
-            local path="$1"
-            if [ -z "$path" ]; then
-              return 1
-            fi
-            if [ -f "$path" ]; then
-              echo "$path"
-              return 0
-            fi
-            if [ -n "$GITHUB_WORKSPACE" ] && [ -f "$GITHUB_WORKSPACE/$path" ]; then
-              echo "$GITHUB_WORKSPACE/$path"
-              return 0
-            fi
-            return 1
-          }
-          if [ -n "${CDK_PARAM_FILE:-}" ]; then
-            RESOLVED_PARAM_FILE=$(resolve_param_file "$CDK_PARAM_FILE" || true)
-            if [ -n "$RESOLVED_PARAM_FILE" ]; then
-              # shellcheck source=../../scripts/deploy/cdk-params.sh
-              source ../../scripts/deploy/cdk-params.sh
-              cdk_load_param_args "$RESOLVED_PARAM_FILE"
-            else
-              echo "CDK_PARAM_FILE '$CDK_PARAM_FILE' not found"
-              exit 1
-            fi
-          fi
-          PARAM_ARGS=( "${BACKEND_PARAM_ARGS[@]}" "${ADMIN_WEB_PARAM_ARGS[@]}" "${PUBLIC_WWW_PARAM_ARGS[@]}" )
-          if [ ${#PARAM_ARGS[@]} -gt 0 ]; then
-            printf '%s\0' "${PARAM_ARGS[@]}" > "$RUNNER_TEMP/cdk-diff-args"
-          else
-            : > "$RUNNER_TEMP/cdk-diff-args"
-          fi
-          STACK_ARGS=()
-          if [ -n "${CDK_STACKS:-}" ]; then
-            IFS=$', \n\t' read -r -a STACK_LIST <<< "$CDK_STACKS"
-            for stack in "${STACK_LIST[@]}"; do
-              trimmed="${stack#"${stack%%[![:space:]]*}"}"
-              trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
-              if [ -n "$trimmed" ]; then
-                STACK_ARGS+=("$trimmed")
-              fi
-            done
-          fi
-          if [ ${#STACK_ARGS[@]} -eq 0 ]; then
-            STACK_ARGS=(findingalpha-public-www findingalpha findingalpha-admin-web)
-          fi
-          {
-            echo "run=true"
-            echo "stacks=${STACK_ARGS[*]}"
-          } >> "$GITHUB_OUTPUT"
-        env:
-          CDK_STACKS: ${{ inputs.stacks }}
-          CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
-
-      - name: Build the Cognito connect origin
-        if: steps.aws.outputs.ready == 'true' && steps.prep.outputs.run == 'true'
+        id: prep
+        run: bash scripts/deploy/cdk-prepare.sh diff
+# template:set
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
           P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
-        run: |
-          python3 - << 'PY'
-          import os
-          from pathlib import Path
-
-          region = os.environ.get("AWS_REGION", "")
-          if not region:
-              raise SystemExit("AWS_REGION is required to build the Cognito prefix origin for CSP.")
-          prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"
-          domain = os.environ.get("P_COGNITO_DOMAIN", "")
-          cert = os.environ.get("P_COGNITO_CERT", "")
-          if domain and cert:
-              origin = prefix_origin + " https://" + domain
-          else:
-              origin = prefix_origin
-          env_path = Path(os.environ["GITHUB_ENV"])
-          existing = env_path.read_text(encoding="utf-8")
-          if existing and not existing.endswith("\n"):
-              existing += "\n"
-          env_path.write_text(existing + f"P_CSP_ORIGIN={origin}\n", encoding="utf-8")
-          PY
+          CDK_STACKS: ${{ inputs.stacks }}
+          CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
+# template:end
 
       - name: Run CDK diff
         if: steps.aws.outputs.ready == 'true' && steps.prep.outputs.run == 'true'
@@ -180,8 +124,11 @@ jobs:
           working-directory: backend/infrastructure
           stacks: ${{ steps.prep.outputs.stacks }}
           plan-file: backend/infrastructure/cdk-plan.json
-          args-file: ${{ runner.temp }}/cdk-diff-args
+          args-file: ${{ runner.temp }}/cdk-args
+# template:set
+# template:end
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+# template:set
         env:
           P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
           P_GOOGLE_CLIENT_ID: ${{ vars.ADMIN_GOOGLE_CLIENT_ID }}
@@ -199,3 +146,4 @@ jobs:
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
           P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
+# template:end

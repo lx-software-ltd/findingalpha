@@ -1,15 +1,28 @@
 name: Deploy Backend
 
 on:
+  repository_dispatch:
+    types: [deploy-backend]
+  workflow_dispatch:
+    inputs:
+      # template:set
+      cdk_stacks:
+        description: CDK stacks to deploy. Empty deploys every stack in the plan.
+        required: false
+        default: ""
+        type: string
+      # template:end
   push:
-    branches: [main]
+    branches:
+      - main
+    # template:set
     paths:
       - "backend/infrastructure/**"
       - "backend/lambda/**"
       - "contracts/**"
       - "!contracts/roadmap.json"
       - ".github/workflows/deploy-backend.yml"
-  workflow_dispatch:
+    # template:end
 
 permissions:
   contents: read
@@ -20,28 +33,68 @@ concurrency:
 
 jobs:
   deploy:
+    # template:set
+    # The production environment should also limit branches to main.
+    # This job refuses every other ref even if that setting is open.
+    # template:end
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write
-    # The production environment should also limit branches to main.
-    # This job refuses every other ref even if that setting is open.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     environment: production
     steps:
-      - name: Require deploy settings
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # template:set
+        # template:end
+
+
+      - name: Set up Node.js
+        uses: lx-software-ltd/actions/setup-node@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+        with:
+          cache: npm
+          working-directory: backend/infrastructure
+      # template:set
+      # template:end
+      - name: Set up Python
+        uses: lx-software-ltd/actions/setup-python@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+
+
+      - name: Configure AWS credentials
+        # template:set
+        id: aws
+        # template:end
+        uses: lx-software-ltd/actions/aws-oidc@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+        with:
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          # template:set
+          region: ${{ vars.AWS_REGION }}
+          # template:end
+
+      # template:optional qemu
+      # template:set
+      # template:end
+      - name: Set up QEMU for arm64 Lambda bundling
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
+
+      # template:end
+
+      - name: Check CDK bootstrap
+        uses: lx-software-ltd/actions/cdk-bootstrap-check@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+        with:
+          qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
+          # template:set
+          region: ${{ vars.AWS_REGION }}
+          # template:end
+      - name: Prepare CDK app
+        id: prep
+        run: bash scripts/deploy/cdk-prepare.sh deploy
+        # template:set
         env:
-          P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
-          P_CERT_ARN: ${{ secrets.ADMIN_WEB_CERTIFICATE_ARN || vars.ADMIN_WEB_CERTIFICATE_ARN }}
-          P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
-          P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
-          P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
-          P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
-          P_API_CERT: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
           P_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
-          P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
-          P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
           ALLOWLIST_FROM_VARIABLE: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST == '' && vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST != '' }}
           BRIEF_FROM_VARIABLE: ${{ secrets.BRIEF_RECIPIENT_EMAIL == '' && vars.BRIEF_RECIPIENT_EMAIL != '' }}
           SEC_FROM_VARIABLE: ${{ secrets.SEC_CONTACT_EMAIL == '' && vars.SEC_CONTACT_EMAIL != '' }}
@@ -49,116 +102,7 @@ jobs:
           PUBLIC_CERT_FROM_VARIABLE: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN == '' && vars.PUBLIC_WWW_CERTIFICATE_ARN != '' }}
           COGNITO_CERT_FROM_VARIABLE: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN == '' && vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN != '' }}
           API_CERT_FROM_VARIABLE: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN == '' && vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN != '' }}
-        run: |
-          # This step's settings block is printed before any mask. Register
-          # the values now so later steps show *** instead of repeating them.
-          mask_list() {
-            local raw="$1"
-            local part trimmed
-            local -a parts
-            if [ -z "$raw" ]; then
-              return 0
-            fi
-            echo "::add-mask::${raw}"
-            IFS=',' read -ra parts <<< "$raw"
-            for part in "${parts[@]}"; do
-              trimmed="${part#"${part%%[![:space:]]*}"}"
-              trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
-              if [ -n "$trimmed" ]; then
-                echo "::add-mask::${trimmed}"
-              fi
-            done
-          }
-          warn_if_variable() {
-            if [ "$1" = "true" ]; then
-              echo "::warning::$2 is read from a variable, so this log shows it. Set the secret and delete the variable."
-            fi
-          }
-          mask_list "${P_ACCOUNT_ID}"
-          mask_list "${P_EMAIL_ALLOWLIST}"
-          mask_list "${P_BRIEF_RECIPIENT}"
-          mask_list "${P_SEC_CONTACT}"
-          mask_list "${P_CERT_ARN}"
-          mask_list "${P_PUBLIC_CERT_ARN}"
-          mask_list "${P_COGNITO_CERT}"
-          mask_list "${P_API_CERT}"
-          warn_if_variable "${ALLOWLIST_FROM_VARIABLE}" "ADMIN_FEDERATED_EMAIL_ALLOWLIST"
-          warn_if_variable "${BRIEF_FROM_VARIABLE}" "BRIEF_RECIPIENT_EMAIL"
-          warn_if_variable "${SEC_FROM_VARIABLE}" "SEC_CONTACT_EMAIL"
-          warn_if_variable "${ADMIN_CERT_FROM_VARIABLE}" "ADMIN_WEB_CERTIFICATE_ARN"
-          warn_if_variable "${PUBLIC_CERT_FROM_VARIABLE}" "PUBLIC_WWW_CERTIFICATE_ARN"
-          warn_if_variable "${COGNITO_CERT_FROM_VARIABLE}" "ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN"
-          warn_if_variable "${API_CERT_FROM_VARIABLE}" "API_CUSTOM_DOMAIN_CERTIFICATE_ARN"
-          if [ -z "${P_ADMIN_DOMAIN}" ] || [ -z "${P_CERT_ARN}" ]; then
-            echo "::error::Set ADMIN_WEB_DOMAIN_NAME and ADMIN_WEB_CERTIFICATE_ARN on the production environment before deploying."
-            exit 1
-          fi
-          if [ -z "${P_PUBLIC_DOMAIN}" ] || [ -z "${P_PUBLIC_CERT_ARN}" ]; then
-            echo "::notice::PUBLIC_WWW_DOMAIN_NAME or PUBLIC_WWW_CERTIFICATE_ARN is unset; findingalpha-public-www will be skipped."
-          fi
-          if [ -z "${P_ACCOUNT_ID}" ]; then
-            echo "::error::Set AWS_ACCOUNT_ID as a repository secret before deploying."
-            exit 1
-          fi
-          if [ -z "${P_EMAIL_ALLOWLIST}" ]; then
-            echo "::error::Set ADMIN_FEDERATED_EMAIL_ALLOWLIST as a production secret or a variable before deploying."
-            exit 1
-          fi
-          if { [ -n "${P_COGNITO_DOMAIN}" ] && [ -z "${P_COGNITO_CERT}" ]; } || \
-             { [ -z "${P_COGNITO_DOMAIN}" ] && [ -n "${P_COGNITO_CERT}" ]; }; then
-            echo "::error::Set both ADMIN_COGNITO_CUSTOM_DOMAIN_NAME and ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN, or leave both empty."
-            exit 1
-          fi
-
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
-        with:
-          cache: npm
-          working-directory: backend/infrastructure
-          install: "false"
-
-      - name: Configure AWS credentials
-        id: aws
-        uses: lx-software-ltd/actions/aws-oidc@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
-        with:
-          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
-          region: ${{ vars.AWS_REGION }}
-
-      - name: Install CDK dependencies
-        run: |
-          if [ ! -f "backend/infrastructure/package.json" ]; then
-            echo "Missing backend/infrastructure/package.json"
-            exit 1
-          fi
-          cd backend/infrastructure
-          npm ci
-
-      - name: Build CDK app
-        run: |
-          cd backend/infrastructure
-          npm run build --if-present
-
-      - name: Set up QEMU for arm64 Lambda bundling
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        with:
-          platforms: arm64
-
-      - name: Check CDK bootstrap
-        uses: lx-software-ltd/actions/cdk-bootstrap-check@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
-        with:
-          qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
-          region: ${{ vars.AWS_REGION }}
-
-      - name: Acknowledge CDK notices
-        working-directory: backend/infrastructure
-        run: npx cdk acknowledge 34892 || true
-
-      - name: Build the CDK plan
-        id: plan
-        env:
+          CDK_STACKS: ${{ inputs.cdk_stacks }}
           CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
           CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
           P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
@@ -179,50 +123,25 @@ jobs:
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
           P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
-        run: |
-          python3 - << 'PY'
-          import os
-          from pathlib import Path
+        # template:end
 
-          # backend/infrastructure/cdk-plan.json is the plan diff and deploy
-          # both name. This step only fills {P_CSP_ORIGIN}.
-          region = os.environ.get("AWS_REGION", "")
-          if not region:
-              raise SystemExit("AWS_REGION is required to build the Cognito prefix origin for CSP.")
-          prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"
-          domain = os.environ.get("P_COGNITO_DOMAIN", "")
-          cert = os.environ.get("P_COGNITO_CERT", "")
-          if domain and cert:
-              origin = prefix_origin + " https://" + domain
-          else:
-              origin = prefix_origin
-          for name in (
-              "P_GOOGLE_CLIENT_SECRET",
-              "P_EMAIL_ALLOWLIST",
-              "P_BRIEF_RECIPIENT",
-              "P_SEC_CONTACT",
-              "P_CERT_ARN",
-              "P_API_CERT",
-              "P_COGNITO_CERT",
-              "P_PUBLIC_CERT_ARN",
-          ):
-              value = os.environ.get(name, "")
-              if value:
-                  print(f"::add-mask::{value}")
-          env_path = Path(os.environ["GITHUB_ENV"])
-          existing = env_path.read_text(encoding="utf-8")
-          if existing and not existing.endswith("\n"):
-              existing += "\n"
-          env_path.write_text(existing + f"P_CSP_ORIGIN={origin}\n", encoding="utf-8")
-          PY
 
-      - name: Deploy CDK stacks
+      - name: Deploy stacks
         uses: lx-software-ltd/actions/cdk-deploy@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           working-directory: backend/infrastructure
           plan-file: backend/infrastructure/cdk-plan.json
+          # template:set
+          stacks: ${{ inputs.cdk_stacks }}
+          # template:end
           param-file: ${{ vars.CDK_PARAM_FILE }}
+          attempts: "3"
+          # template:set
+          # template:end
+          # template:set
           region: ${{ vars.AWS_REGION }}
+          # template:end
+        # template:set
         env:
           CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
           CDK_BOOTSTRAP_QUALIFIER: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
@@ -244,3 +163,4 @@ jobs:
           P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
           P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
           P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
+        # template:end

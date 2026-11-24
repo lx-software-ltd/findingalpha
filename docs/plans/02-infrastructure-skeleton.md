@@ -47,7 +47,7 @@ backend/infrastructure/test/python-lambda.test.ts
 backend/lambda/pre_token_generation/handler.py  test_handler.py
 backend/lambda/engine/  (skeleton, see M02-T07)
 contracts/admin-domains.json  contracts/jobs.json
-scripts/deploy/cdk-params.sh  scripts/deploy/deploy-admin-www.sh
+scripts/deploy/cdk-params.sh
 .github/workflows/cdk-diff.yml  deploy-backend.yml  deploy-admin-web.yml
 docs/architecture/overview.md  security.md
 docs/deployment/setup.md  admin-website.md
@@ -93,7 +93,7 @@ docs/deployment/setup.md  admin-website.md
    and `Project` to `Finding Alpha` on both stacks.
 4. Never pass `--qualifier` to `cdk deploy` or `cdk diff`. That flag is
    for `cdk bootstrap` only. The environment variable is the mechanism.
-5. Remove the M01 guards from the `build-cdk` and
+5. Remove the M01 guards from the `lint-cdk` and
    `test-infrastructure` CI jobs.
 6. Check: `CDK_SKIP_PYTHON_PIP=1 npx cdk synth --quiet` lists both
    stacks (after the later steps).
@@ -421,7 +421,7 @@ replaced.
   is empty.
 - Do not use `--exclusively`.
 
-`deploy-admin-web.yml` and `scripts/deploy/deploy-admin-www.sh`: copy.
+`deploy-admin-web.yml`: copy.
 Changes: stack name `findingalpha`, web stack `findingalpha-admin-web`,
 `VITE_COGNITO_REDIRECT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/auth/callback`,
 `VITE_COGNITO_LOGOUT_URI: https://${{ vars.ADMIN_WEB_DOMAIN_NAME }}/`,

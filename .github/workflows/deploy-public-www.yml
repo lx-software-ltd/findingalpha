@@ -1,20 +1,15 @@
 name: Deploy Public Website
 
 on:
+  repository_dispatch:
+    types: [deploy-public-www]
   workflow_dispatch:
   push:
     branches:
       - main
     paths:
       - "apps/public_www/**"
-      - "scripts/deploy/deploy-public-website.sh"
       - ".github/workflows/deploy-public-www.yml"
-  # After a successful backend deploy the public stack may have been created
-  # or updated. Rebuild and upload from current main. Skip when the stack is
-  # not deployed yet (vars unset or first backend-only merge).
-  workflow_run:
-    workflows: ["Deploy Backend"]
-    types: [completed]
 
 permissions:
   contents: read
@@ -25,60 +20,53 @@ concurrency:
 
 jobs:
   build-and-deploy:
+# template:set
+    # The production environment should also limit branches to main.
+    # This job refuses every other ref even if that setting is open.
+# template:end
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write
-    # The production environment should also limit branches to main.
-    # This job refuses every other ref even if that setting is open.
-    if: ${{ github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')) }}
     runs-on: ubuntu-26.04
     environment: production
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Skip when the app does not exist yet
-        id: exists
-        run: test -f apps/public_www/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
-
       - name: Set up Node.js
-        if: steps.exists.outputs.present == 'true'
         uses: lx-software-ltd/actions/setup-node@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/public_www
 
+# template:set
+# template:end
       - name: Build public website
-        if: steps.exists.outputs.present == 'true'
-        run: npm run build
         working-directory: apps/public_www
+# template:set
+# template:end
+        run: npm run build
 
       # After the build. npm ci and the build must not see the deploy role.
       - name: Configure AWS credentials
         id: aws
-        if: steps.exists.outputs.present == 'true'
         uses: lx-software-ltd/actions/aws-oidc@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
 
-      - name: Skip when the stack is not deployed yet
-        id: stack
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
-        uses: lx-software-ltd/actions/cfn-stack-outputs@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
-        with:
-          stack: findingalpha-public-www
-          allow-missing: "true"
-          region: ${{ vars.AWS_REGION }}
-
       - name: Deploy public website
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
         uses: lx-software-ltd/actions/s3-cloudfront-deploy@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           source: apps/public_www/dist
+# template:set
           stack: findingalpha-public-www
+# template:end
           region: ${{ vars.AWS_REGION }}
           bucket-output: PublicWebsiteBucketName
           distribution-output: PublicWebsiteDistributionId
+# template:set
           profile: public-hashed
+# template:end
           dry-run: "false"
