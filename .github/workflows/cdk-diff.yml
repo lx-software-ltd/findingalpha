@@ -77,102 +77,16 @@ jobs:
           qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
           region: ${{ vars.AWS_REGION }}
 
-      - name: Prepare CDK diff
+      - name: Prepare CDK app
         id: prep
         if: steps.aws.outputs.ready == 'true'
-        run: |
-          if [ ! -f "backend/infrastructure/package.json" ]; then
-            echo "::warning::Missing backend/infrastructure/package.json"
-            echo "Missing backend/infrastructure/package.json"
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          cd backend/infrastructure
-          npm run build --if-present
-          BACKEND_PARAM_ARGS=()
-          ADMIN_WEB_PARAM_ARGS=()
-          PUBLIC_WWW_PARAM_ARGS=()
-          resolve_param_file() {
-            local path="$1"
-            if [ -z "$path" ]; then
-              return 1
-            fi
-            if [ -f "$path" ]; then
-              echo "$path"
-              return 0
-            fi
-            if [ -n "$GITHUB_WORKSPACE" ] && [ -f "$GITHUB_WORKSPACE/$path" ]; then
-              echo "$GITHUB_WORKSPACE/$path"
-              return 0
-            fi
-            return 1
-          }
-          if [ -n "${CDK_PARAM_FILE:-}" ]; then
-            RESOLVED_PARAM_FILE=$(resolve_param_file "$CDK_PARAM_FILE" || true)
-            if [ -n "$RESOLVED_PARAM_FILE" ]; then
-              # shellcheck source=../../scripts/deploy/cdk-params.sh
-              source ../../scripts/deploy/cdk-params.sh
-              cdk_load_param_args "$RESOLVED_PARAM_FILE"
-            else
-              echo "CDK_PARAM_FILE '$CDK_PARAM_FILE' not found"
-              exit 1
-            fi
-          fi
-          PARAM_ARGS=( "${BACKEND_PARAM_ARGS[@]}" "${ADMIN_WEB_PARAM_ARGS[@]}" "${PUBLIC_WWW_PARAM_ARGS[@]}" )
-          if [ ${#PARAM_ARGS[@]} -gt 0 ]; then
-            printf '%s\0' "${PARAM_ARGS[@]}" > "$RUNNER_TEMP/cdk-diff-args"
-          else
-            : > "$RUNNER_TEMP/cdk-diff-args"
-          fi
-          STACK_ARGS=()
-          if [ -n "${CDK_STACKS:-}" ]; then
-            IFS=$', \n\t' read -r -a STACK_LIST <<< "$CDK_STACKS"
-            for stack in "${STACK_LIST[@]}"; do
-              trimmed="${stack#"${stack%%[![:space:]]*}"}"
-              trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
-              if [ -n "$trimmed" ]; then
-                STACK_ARGS+=("$trimmed")
-              fi
-            done
-          fi
-          if [ ${#STACK_ARGS[@]} -eq 0 ]; then
-            STACK_ARGS=(findingalpha-public-www findingalpha findingalpha-admin-web)
-          fi
-          {
-            echo "run=true"
-            echo "stacks=${STACK_ARGS[*]}"
-          } >> "$GITHUB_OUTPUT"
-        env:
-          CDK_STACKS: ${{ inputs.stacks }}
-          CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
-
-      - name: Build the Cognito connect origin
-        if: steps.aws.outputs.ready == 'true' && steps.prep.outputs.run == 'true'
+        run: bash scripts/deploy/cdk-prepare.sh diff
         env:
           AWS_REGION: ${{ vars.AWS_REGION }}
           P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
           P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
-        run: |
-          python3 - << 'PY'
-          import os
-          from pathlib import Path
-
-          region = os.environ.get("AWS_REGION", "")
-          if not region:
-              raise SystemExit("AWS_REGION is required to build the Cognito prefix origin for CSP.")
-          prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"
-          domain = os.environ.get("P_COGNITO_DOMAIN", "")
-          cert = os.environ.get("P_COGNITO_CERT", "")
-          if domain and cert:
-              origin = prefix_origin + " https://" + domain
-          else:
-              origin = prefix_origin
-          env_path = Path(os.environ["GITHUB_ENV"])
-          existing = env_path.read_text(encoding="utf-8")
-          if existing and not existing.endswith("\n"):
-              existing += "\n"
-          env_path.write_text(existing + f"P_CSP_ORIGIN={origin}\n", encoding="utf-8")
-          PY
+          CDK_STACKS: ${{ inputs.stacks }}
+          CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
 
       - name: Run CDK diff
         if: steps.aws.outputs.ready == 'true' && steps.prep.outputs.run == 'true'
@@ -181,7 +95,7 @@ jobs:
           working-directory: backend/infrastructure
           stacks: ${{ steps.prep.outputs.stacks }}
           plan-file: backend/infrastructure/cdk-plan.json
-          args-file: ${{ runner.temp }}/cdk-diff-args
+          args-file: ${{ runner.temp }}/cdk-args
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
         env:
           P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}

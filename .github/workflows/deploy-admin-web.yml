@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build-and-deploy:
     permissions:
       contents: read
       id-token: write
@@ -35,30 +35,24 @@ jobs:
     runs-on: ubuntu-26.04
     environment: production
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Skip when the app does not exist yet
-        id: exists
-        run: test -f apps/admin_web/package.json && echo "present=true" >> "$GITHUB_OUTPUT" || echo "present=false" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials
-        id: aws
-        if: steps.exists.outputs.present == 'true'
-        uses: lx-software-ltd/actions/aws-oidc@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
-        with:
-          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
-          region: ${{ vars.AWS_REGION }}
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         uses: lx-software-ltd/actions/setup-node@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/admin_web
 
+      - name: Configure AWS credentials
+        id: aws
+        uses: lx-software-ltd/actions/aws-oidc@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
+        with:
+          account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+          region: ${{ vars.AWS_REGION }}
+
       - name: Read admin SPA settings from the findingalpha stack
         id: stack_outputs
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         uses: lx-software-ltd/actions/cfn-stack-outputs@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           stack: findingalpha
@@ -67,34 +61,13 @@ jobs:
 
       - name: Check admin SPA settings
         id: admin_spa
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         env:
           JSON: ${{ steps.stack_outputs.outputs.json }}
-        run: |
-          set -euo pipefail
-          python3 - << 'PY'
-          import json
-          import os
-          import sys
+          STACK_NAME: findingalpha
+        run: bash scripts/deploy/check-admin-spa-settings.sh
 
-          data = json.loads(os.environ["JSON"])
-          domain = data["CognitoDomain"]
-          api_url = data["AdminApiBaseUrl"]
-          client_id = data["UserPoolClientId"]
-          if not domain.startswith("https://"):
-              print("::error::CognitoDomain on findingalpha must be an https origin", file=sys.stderr)
-              sys.exit(1)
-          if not api_url.startswith("https://"):
-              print("::error::AdminApiBaseUrl on findingalpha must be an https origin", file=sys.stderr)
-              sys.exit(1)
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
-              handle.write(f"client_id={client_id}\n")
-              handle.write(f"domain={domain}\n")
-              handle.write(f"api_url={api_url}\n")
-          PY
-
-      - run: npm run build
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
+      - name: Build admin web
+        run: npm run build
         working-directory: apps/admin_web
         env:
           VITE_COGNITO_CLIENT_ID: ${{ steps.admin_spa.outputs.client_id }}
@@ -104,7 +77,6 @@ jobs:
           VITE_API_BASE_URL: ${{ steps.admin_spa.outputs.api_url }}
 
       - name: Upload the admin site
-        if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
         uses: lx-software-ltd/actions/s3-cloudfront-deploy@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           source: apps/admin_web/dist

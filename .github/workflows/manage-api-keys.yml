@@ -17,15 +17,16 @@ on:
         description: Name for a new key
         required: false
         type: string
-      tier:
-        description: Only admin can be minted
+      expires_at:
+        description: ISO date. Empty means 90 days
         required: false
-        type: choice
-        default: admin
-        options:
-          - admin
+        type: string
       scopes:
         description: Comma-separated scopes. Empty on create means system. set-scopes replaces the whole list, so repeat every scope to keep
+        required: false
+        type: string
+      allowed_cidrs:
+        description: Comma-separated CIDRs. Empty allows any address
         required: false
         type: string
       allow_write:
@@ -33,24 +34,27 @@ on:
         required: false
         type: boolean
         default: false
-      expires_at:
-        description: ISO date. Empty means 90 days
-        required: false
-        type: string
-      allowed_cidrs:
-        description: Comma-separated CIDRs. Empty allows any address
-        required: false
-        type: string
       key_id:
         description: keyId for revoke, set-write, or set-scopes
         required: false
         type: string
+      tier:
+        description: Only admin can be minted
+        required: false
+        type: choice
+        default: admin
+        options:
+          - admin
 
 permissions:
   contents: read
 
+concurrency:
+  group: manage-api-keys
+  cancel-in-progress: false
+
 jobs:
-  keys:
+  manage:
     if: github.ref == 'refs/heads/main'
     permissions:
       id-token: write
@@ -75,15 +79,14 @@ jobs:
       - name: Install boto3
         run: pip install --quiet boto3
 
-      - name: Require the passphrase before creating a key
-        if: inputs.action == 'create'
+      - name: Validate inputs
         env:
-          GPG_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE }}
-        run: |
-          if [ -z "${GPG_PASSPHRASE}" ]; then
-            echo "::error::Set PUBLIC_API_KEY_GPG_PASSPHRASE on the production environment before creating a key."
-            exit 1
-          fi
+          ACTION: ${{ inputs.action }}
+          LABEL: ${{ inputs.label }}
+          KEY_ID: ${{ inputs.key_id }}
+          SCOPES: ${{ inputs.scopes }}
+          HAS_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE != '' }}
+        run: bash scripts/deploy/validate-api-key-inputs.sh
 
       - name: Create key
         if: inputs.action == 'create'
@@ -96,41 +99,7 @@ jobs:
           ALLOW_WRITE: ${{ inputs.allow_write }}
           GPG_PASSPHRASE: ${{ secrets.PUBLIC_API_KEY_GPG_PASSPHRASE }}
           AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          KEY_FILE="$(mktemp -u)"
-          ARGS=(create --label "$LABEL" --tier "$TIER" --plaintext-out "$KEY_FILE" --region "$AWS_REGION")
-          if [ -n "$EXPIRES_AT" ]; then
-            ARGS+=(--expires-at "$EXPIRES_AT")
-          fi
-          if [ -n "$SCOPES" ]; then
-            ARGS+=(--scopes "$SCOPES")
-          fi
-          if [ -n "$ALLOWED_CIDRS" ]; then
-            ARGS+=(--allowed-cidrs "$ALLOWED_CIDRS")
-          fi
-          if [ "$ALLOW_WRITE" = "true" ]; then
-            ARGS+=(--allow-write)
-          fi
-          python3 scripts/manage-public-api-keys.py "${ARGS[@]}"
-          echo "::add-mask::$(tr -d '\n' < "$KEY_FILE")"
-          gpg --batch --yes --symmetric --cipher-algo AES256 --armor \
-            --passphrase "$GPG_PASSPHRASE" \
-            --output key.asc "$KEY_FILE"
-          rm -f "$KEY_FILE"
-          {
-            echo "## Encrypted API key"
-            echo ""
-            echo "Copy the block below into \`key.asc\`, then run"
-            echo "\`gpg --decrypt key.asc\` and enter the"
-            echo "\`PUBLIC_API_KEY_GPG_PASSPHRASE\` value."
-            echo ""
-            echo '```'
-            cat key.asc
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          rm -f key.asc
-          echo "Encrypted key emitted to the job summary."
+        run: bash scripts/deploy/create-api-key.sh
 
       - name: List keys
         if: inputs.action == 'list'
