@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PIN = "7274dbbda035e283bf0d2a78c98d45deae348344"
+PIN = "962b4408003d89c3bf791ce9299bd13eb75a418e"
 
 
 class LighthouseWorkflowTest(unittest.TestCase):

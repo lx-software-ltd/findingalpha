@@ -1,10 +1,4 @@
 name: Lighthouse Public Website
-# template:set
-# The logo site build needs no production variables, so one job covers a
-# path-filtered pull request, the Monday run, and a manual run. It is not
-# a required check. main-protection still requires lint, test, and
-# security-summary.
-# template:end
 
 on:
   workflow_dispatch:
@@ -37,19 +31,19 @@ jobs:
       contents: read
       statuses: write
     name: Lighthouse audit
-
-
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         # template:set
+        with:
+          lfs: false
         # template:end
 
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@7274dbbda035e283bf0d2a78c98d45deae348344 # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-node@962b4408003d89c3bf791ce9299bd13eb75a418e # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/public_www
@@ -62,7 +56,7 @@ jobs:
         run: npm run build
 
       - name: Run Lighthouse CI
-        uses: lx-software-ltd/actions/lighthouse-ci@7274dbbda035e283bf0d2a78c98d45deae348344 # main 2026-11-24
+        uses: lx-software-ltd/actions/lighthouse-ci@962b4408003d89c3bf791ce9299bd13eb75a418e # main 2026-11-24
         with:
           working-directory: apps/public_www
           page-paths: ${{ inputs.page_paths }}
