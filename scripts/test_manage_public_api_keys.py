@@ -83,10 +83,12 @@ class ManageKeysTest(unittest.TestCase):
 
     def test_workflow_encrypts_the_key_and_refuses_an_empty_passphrase(self) -> None:
         text = (ROOT / ".github" / "workflows" / "manage-api-keys.yml").read_text(encoding="utf-8")
+        validate = (ROOT / "scripts" / "deploy" / "validate-api-key-inputs.sh").read_text(encoding="utf-8")
+        create = (ROOT / "scripts" / "deploy" / "create-api-key.sh").read_text(encoding="utf-8")
         self.assertIn("PUBLIC_API_KEY_GPG_PASSPHRASE", text)
-        self.assertIn("Set PUBLIC_API_KEY_GPG_PASSPHRASE", text)
-        self.assertIn("cat key.asc", text)
-        self.assertNotIn('cat "$KEY_FILE"', text)
+        self.assertIn("PUBLIC_API_KEY_GPG_PASSPHRASE is not set", validate)
+        self.assertIn("cat key.asc", create)
+        self.assertNotIn('cat "$KEY_FILE"', create)
         self.assertIn("secrets.AWS_ACCOUNT_ID", text)
         self.assertNotIn("vars.AWS_ACCOUNT_ID", text)
         self.assertIn("lx-software-ltd/actions/aws-oidc@", text)
