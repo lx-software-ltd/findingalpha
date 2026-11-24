@@ -39,7 +39,6 @@ dashboard's Roadmap page shows those ids, so do not renumber them.
 | File | What it covers |
 | --- | --- |
 | [`data-precision-followups.md`](data-precision-followups.md) | Follow-ups on data precision |
-| [`2026-11-24-dependency-submission-name.md`](2026-11-24-dependency-submission-name.md) | The dependency workflow display name. Status: done |
 
 ## Status values
 
