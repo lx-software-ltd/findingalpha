@@ -35,7 +35,7 @@ jobs:
         run: python3 scripts/check-contracts.py
 
       - name: Check hashed PII denylist
-        uses: lx-software-ltd/actions/pii-denylist@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/pii-denylist@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
 
       - name: Test scripts
         run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
@@ -46,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-python@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           python-version: "3.12"
       - run: python3 -m pip install boto3
@@ -65,7 +65,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-node@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/public_www
@@ -86,7 +86,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-node@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/admin_web
@@ -101,7 +101,7 @@ jobs:
           VITE_API_BASE_URL: https://placeholder.execute-api.us-east-1.amazonaws.com
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-python@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           python-version: "3.12"
 
@@ -125,13 +125,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-node@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/admin_web
 
       - name: Install Playwright Chromium
-        uses: lx-software-ltd/actions/playwright-install@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/playwright-install@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           working-directory: apps/admin_web
           browsers: chromium
@@ -148,7 +148,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-node@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           cache: npm
           working-directory: backend/infrastructure
@@ -176,6 +176,6 @@ jobs:
     if: always()
     steps:
       - name: Require every test job
-        uses: lx-software-ltd/actions/require-jobs@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
+        uses: lx-software-ltd/actions/require-jobs@1d66ad00053fdbea390c4d2c3f4b89d8c31cfdfc # main 2026-11-24
         with:
           needs-json: ${{ toJson(needs) }}
