@@ -42,6 +42,10 @@ Audit the Vite logo site with `lx-software-ltd/actions/lighthouse-ci`, the same 
 - `python3 -m unittest scripts/test_lighthouse_workflow.py` passes.
 - `npx --yes @lhci/cli@0.15.1 autorun` against a local `dist/` meets the 0.9 floors.
 
+## First CI run
+
+The first CI run failed with `NO_FCP`. Headless Chrome never saw a contentful paint: `#root` was empty until React, and the entrance animation held the logo at `opacity: 0`. The logo is now in `index.html`, and the animation moves it without hiding it.
+
 ## Rollback
 
 Revert the pull request. The workflow, config, tests, gitignore line, and doc sections go with it. Nothing deployed changes.

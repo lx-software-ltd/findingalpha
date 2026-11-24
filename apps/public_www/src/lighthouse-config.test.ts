@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { cwd } from "node:process";
 import { describe, expect, it } from "vitest";
 
-const config = JSON.parse(readFileSync(resolve(cwd(), ".lighthouserc.json"), "utf8")) as {
+const root = cwd();
+const config = JSON.parse(readFileSync(resolve(root, ".lighthouserc.json"), "utf8")) as {
   ci: {
     collect: { staticDistDir: string; url: string[]; numberOfRuns: number };
     assert: { aggregationMethod: string; assertions: Record<string, unknown> };
@@ -27,5 +28,22 @@ describe("lighthouse config", () => {
       expect(assertions[`categories:${category}`]).toEqual(["error", { minScore: 0.9 }]);
     }
     expect(assertions["offscreen-images"]).toBeUndefined();
+  });
+});
+
+describe("lighthouse shell", () => {
+  it("paints the logo in the document, before React", () => {
+    const html = readFileSync(resolve(root, "index.html"), "utf8");
+    const body = html.slice(html.indexOf("<body"));
+    const rootMarkup = body.slice(body.indexOf('<div id="root">'), body.indexOf("</div>"));
+    expect(rootMarkup).toContain('src="/logo.png"');
+    expect(rootMarkup).toContain('alt="Finding Alpha"');
+    expect(rootMarkup).toContain('fetchpriority="high"');
+  });
+
+  it("keeps the logo visible while the entrance animation runs", () => {
+    const css = readFileSync(resolve(root, "src/index.css"), "utf8");
+    const frames = css.slice(css.indexOf("@keyframes logo-in"), css.indexOf("prefers-reduced-motion"));
+    expect(frames).not.toContain("opacity");
   });
 });
