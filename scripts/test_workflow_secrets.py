@@ -7,6 +7,7 @@ and key management pass secrets.AWS_ACCOUNT_ID only.
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -71,9 +72,11 @@ class WorkflowSecretTest(unittest.TestCase):
         self.assertNotIn("vars.ADMIN_COGNITO_SERVE_CUSTOM_DOMAIN", expressions)
         self.assertNotIn("vars.ADMIN_COGNITO_ORIGIN", expressions)
         self.assertNotIn("CognitoServeCustomDomain", text)
-        self.assertIn("findingalpha:CognitoCustomDomainName", text)
-        self.assertIn("findingalpha:CognitoCustomDomainCertificateArn", text)
-        self.assertIn("findingalpha-admin-web:CspCognitoConnectOrigin", text)
+        plan = json.loads((ROOT / "backend" / "infrastructure" / "cdk-plan.json").read_text(encoding="utf-8"))
+        extra = [item for group in plan["groups"] for item in group.get("extra-args", [])]
+        self.assertIn("findingalpha:CognitoCustomDomainName={P_COGNITO_DOMAIN}", extra)
+        self.assertIn("findingalpha:CognitoCustomDomainCertificateArn={P_COGNITO_CERT}", extra)
+        self.assertIn("findingalpha-admin-web:CspCognitoConnectOrigin={P_CSP_ORIGIN}", extra)
         self.assertIn(
             'prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"',
             text,
@@ -92,14 +95,21 @@ class WorkflowSecretTest(unittest.TestCase):
             text,
             r"uses: lx-software-ltd/actions/cdk-deploy@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
         )
-        self.assertIn("plan-file: ${{ runner.temp }}/cdk-plan.json", text)
+        self.assertIn("plan-file: backend/infrastructure/cdk-plan.json", text)
+        self.assertNotIn("${{ runner.temp }}/cdk-plan.json", text)
+        plan = json.loads((ROOT / "backend" / "infrastructure" / "cdk-plan.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            plan["groups"][1]["when-all-env"],
+            ["P_PUBLIC_DOMAIN", "P_PUBLIC_CERT_ARN"],
+        )
+        diff = _workflow("cdk-diff.yml")
+        self.assertIn("plan-file: backend/infrastructure/cdk-plan.json", diff)
         self.assertNotIn('attempts: "1"', text)
         self.assertNotIn('no-notices: "false"', text)
         self.assertNotIn('escape-newlines: "false"', text)
         self.assertNotIn("format: prefixed-json", text)
         self.assertNotIn("rollback-match:", text)
         self.assertIn("working-directory: backend/infrastructure", text)
-        self.assertIn('when-all-env": ["P_PUBLIC_DOMAIN", "P_PUBLIC_CERT_ARN"]', text)
         self.assertNotIn("npx cdk deploy --require-approval never", text)
         self.assertNotIn("Compare the dry run with the current deploy", text)
 
