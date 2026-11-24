@@ -98,3 +98,4 @@ def _decode_cursor(raw: str) -> dict[str, Any] | None:
 def _encode_cursor(value: dict[str, Any]) -> str:
     raw = json.dumps(value, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
