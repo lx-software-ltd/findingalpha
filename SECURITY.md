@@ -1,25 +1,51 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+This policy covers the code in this repository and whatever is deployed from it. Every `lx-software-ltd` repository carries the same policy. Only the last section, [This repository](#this-repository), differs.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| main    | :white_check_mark: |
+## Supported versions
 
-## Reporting a Vulnerability
+Only the latest `main` is supported. Earlier commits do not receive fixes.
 
-Please report a vulnerability through GitHub private vulnerability
-reporting. Open the repository Security tab and choose Report a
-vulnerability. Do not open a public issue.
+## Report a vulnerability
 
-Include a description, steps to reproduce, and the impact.
+Report it privately through GitHub. Open the **Security** tab of this repository and choose **Report a vulnerability**. Do not open a public issue, pull request, or discussion.
 
-### Response Timeline
+Include:
 
-- **Initial Response**: Within 48 hours
-- **Status Update**: Within 7 days
-- **Resolution Target**: Depends on severity
-  - Critical: Within 24-48 hours
-  - High: Within 7 days
-  - Medium: Within 30 days
-  - Low: Within 90 days
+- what is affected and what an attacker could do with it
+- the steps to reproduce it
+- the commit or URL you tested
+- a fix or mitigation, if you have one
+
+Do not put a live credential or anyone's personal data in the report. Say where you found it.
+
+## What to expect
+
+| Step | Target |
+| --- | --- |
+| First response | Within 48 hours |
+| Status update | Within 7 days |
+| Fix for a critical finding | Within 24 to 48 hours |
+| Fix for a high finding | Within 7 days |
+| Fix for a medium finding | Within 30 days |
+| Fix for a low finding | Within 90 days |
+
+You get updates while the fix is in progress and a note when it ships. The advisory credits you unless you ask to stay anonymous.
+
+## Rules every repository follows
+
+- **No secrets and no private personal data in git.** Secrets live in GitHub Actions secrets or AWS Secrets Manager. Gitleaks and a hashed personal-data denylist run on every pull request to `main`. GitHub secret scanning and push protection are on.
+- **Changes reach `main` by pull request.** The `main-protection` ruleset blocks force-push and deletion, and requires the `lint`, `test`, and `security-summary` checks.
+- **Security checks gate the merge.** `security-summary` fails unless every job in `.github/workflows/security.yml` succeeded. That workflow also runs every Monday.
+- **Dependencies are pinned and watched.** Third-party GitHub Actions are pinned by full commit SHA. Dependabot opens version updates and security updates.
+- **CI holds no long-lived AWS key.** Every workflow starts from `contents: read`. A job that calls AWS assumes a role through GitHub OIDC.
+
+## This repository
+
+`findingalpha` is one owner's research and paper-trading system. It deploys a private dashboard, an HTTP API, scheduled jobs, and a logo-only public site to AWS.
+
+- Nothing in git identifies the owner. The capital amount, holdings, account identifiers, the domain, and the source PDFs stay out.
+- The system trades on paper only. `BrokerMode` allows only `paper`.
+- `security.yml` runs Checkov, CodeQL, the personal-data denylist, Gitleaks, pip-audit, Bandit, and npm audit. `semgrep.yml` runs Semgrep.
+
+The product rules are in [`docs/architecture/overview.md`](docs/architecture/overview.md). How the system enforces them is in [`docs/architecture/security.md`](docs/architecture/security.md).
