@@ -24,6 +24,20 @@ npm run build
 npm run preview
 ```
 
+## Lighthouse
+
+`.lighthouserc.json` is the base config for **Lighthouse Public Website**.
+The shared `lighthouse-ci` action rewrites the collect URL from the
+workflow input (empty means `/`) and runs `@lhci/cli` against `dist/`.
+The distribution does not rewrite unknown paths to `index.html`, so the
+config leaves `isSinglePageApplication` off.
+
+Locally, after `npm run build`:
+
+```bash
+npx --yes @lhci/cli@0.15.1 autorun
+```
+
 ## Deploy
 
 Hosting is the `findingalpha-public-www` stack (S3 + CloudFront).

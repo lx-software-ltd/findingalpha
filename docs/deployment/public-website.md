@@ -43,6 +43,19 @@ npm run build
 npm run preview
 ```
 
+## Lighthouse
+
+**Lighthouse Public Website** builds `apps/public_www` and runs
+`lx-software-ltd/actions/lighthouse-ci` against `dist/`. The default
+page is `/`. A manual run can pass other paths or full URLs. The job
+also runs on a pull request that touches the site or the workflow, and
+every Monday. It is not a required check.
+
+Category floors are 0.9 for performance, accessibility, best practices,
+and SEO, median of three runs. There is no analytics host to block.
+Reports upload to temporary public storage and are kept as the
+`lighthouse-public-www-results` artifact.
+
 ## First publish checklist
 
 1. Request an ACM certificate in `us-east-1` for the public hostname.
