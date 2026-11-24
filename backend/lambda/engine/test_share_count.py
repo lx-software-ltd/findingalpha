@@ -46,7 +46,7 @@ class CoverAsOfTest(unittest.TestCase):
         }
         early = share_count.cover_as_of(payload, date(2017, 6, 1))
         later = share_count.cover_as_of(payload, date(2018, 6, 1))
-        assert early is not None and later is not None
+        assert early is not None and later is not None  # nosec B101
         self.assertEqual(early["value"], 10)
         self.assertEqual(later["value"], 40)
         self.assertIsNone(share_count.cover_as_of({"attempts": {"old": {"end": "2017-02-28", "value": 10}}}, ON))
@@ -71,7 +71,7 @@ class ChooseTest(unittest.TestCase):
         sheet = _row("sharesOutstanding", "2024-03-31", 12, "2024-04-26", tag="CommonStockSharesOutstanding")
         cover_choice = share_count.choose([cover], ON)
         sheet_choice = share_count.choose([sheet], ON)
-        assert cover_choice is not None and sheet_choice is not None
+        assert cover_choice is not None and sheet_choice is not None  # nosec B101
         self.assertEqual(cover_choice.after, date(2024, 3, 31))
         self.assertEqual(sheet_choice.after, date(2024, 4, 26))
         self.assertEqual(cover_choice.source, "cover")
@@ -99,10 +99,10 @@ class ChooseTest(unittest.TestCase):
             start="2023-04-01",
         )
         fresh_choice = share_count.choose([fresh], ON)
-        assert fresh_choice is not None
+        assert fresh_choice is not None  # nosec B101
         self.assertEqual(fresh_choice.source, "balanceSheet")
         picked = share_count.choose([stale, weighted, longer], ON)
-        assert picked is not None
+        assert picked is not None  # nosec B101
         self.assertEqual(picked.source, "weightedDiluted")
         self.assertEqual(picked.value, 7)
         self.assertEqual(picked.after, date(2024, 5, 1))
@@ -112,12 +112,12 @@ class ChooseTest(unittest.TestCase):
         sheet = _row("sharesOutstanding", "2024-03-31", 100, "2024-04-26", tag="CommonStockSharesOutstanding")
         splits = [_split("2024-04-15", 1, 10)]
         adjusted = share_count.shares_as_of([sheet], splits, ON)
-        assert adjusted is not None
+        assert adjusted is not None  # nosec B101
         self.assertEqual(adjusted["shares"], 100)
         self.assertEqual(adjusted["source"], "balanceSheet")
         cover = {"filed": "2024-04-24", "end": "2024-04-17", "value": 40}
         fallen = share_count.shares_as_of([], splits, ON, cover=cover)
-        assert fallen is not None
+        assert fallen is not None  # nosec B101
         self.assertEqual(fallen["shares"], 40)
         self.assertEqual(fallen["source"], "coverClasses")
 
@@ -125,7 +125,7 @@ class ChooseTest(unittest.TestCase):
 class CoverPageTest(unittest.TestCase):
     def test_classes_on_the_latest_instant_are_added(self) -> None:
         parsed = share_count.parse_cover_shares(_COVER)
-        assert parsed is not None
+        assert parsed is not None  # nosec B101
         self.assertEqual(parsed["end"], "2024-04-17")
         self.assertEqual(parsed["value"], 1040)
         scaled = (
@@ -133,7 +133,7 @@ class CoverPageTest(unittest.TestCase):
             '<ix:nonFraction contextRef="m" name="dei:EntityCommonStockSharesOutstanding" scale="6">5</ix:nonFraction>'
         )
         scaled_cover = share_count.parse_cover_shares(scaled)
-        assert scaled_cover is not None
+        assert scaled_cover is not None  # nosec B101
         self.assertEqual(scaled_cover["value"], 5_000_000)
         self.assertIsNone(share_count.parse_cover_shares("<html></html>"))
 
@@ -145,7 +145,7 @@ class CoverPageTest(unittest.TestCase):
         <ix:nonFraction contextRef="class-a" name="dei:EntityCommonStockSharesOutstanding" scale="0">60</ix:nonFraction>
         """
         parsed = share_count.parse_cover_shares(document)
-        assert parsed is not None
+        assert parsed is not None  # nosec B101
         self.assertEqual(parsed["value"], 100)
 
 

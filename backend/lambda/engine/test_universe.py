@@ -810,7 +810,7 @@ class UniverseReviewTest(unittest.TestCase):
             reader = universe_data.cover_reader("data", bucket)
             first = reader(_cik(1), AS_OF)
             second = reader(_cik(1), AS_OF)
-        assert first is not None and second is not None
+        assert first is not None and second is not None  # nosec B101
         self.assertEqual(first["value"], 300)
         self.assertEqual(second["accession"], "0000000001-24-000001")
         self.assertEqual(downloads, ["0000000001-24-000001:cover.htm"])
@@ -849,7 +849,7 @@ class UniverseReviewTest(unittest.TestCase):
             reader = universe_data.cover_reader("data", bucket)
             first = reader(_cik(1), AS_OF)
             second = reader(_cik(1), AS_OF)
-        assert first is not None and second is not None
+        assert first is not None and second is not None  # nosec B101
         self.assertEqual(first["value"], 300)
         self.assertEqual(first["accession"], "0000000001-24-000001")
         self.assertEqual(second["accession"], first["accession"])
@@ -885,7 +885,7 @@ class UniverseReviewTest(unittest.TestCase):
             if held:
                 self.assertIsNone(held[-1]())
             facts = source[cik]
-            assert isinstance(facts, list)
+            assert isinstance(facts, list)  # nosec B101
             rows = Rows(dict(row) for row in facts)
             held.append(weakref.ref(rows))
             return rows

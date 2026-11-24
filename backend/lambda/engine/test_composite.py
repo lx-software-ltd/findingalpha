@@ -72,7 +72,7 @@ class CompositeTest(unittest.TestCase):
         # Sector ind has three names and the minimum is four, so the z-score uses all four.
         universe = composite.zscores([1, 2, 3, 100], ["ind", "ind", "ind", "fin"], min_sector_size=4)
         quality = universe[0]
-        assert quality is not None
+        assert quality is not None  # nosec B101
         self.assertAlmostEqual(scored[0]["z"]["qualityA"], quality)
         self.assertAlmostEqual(scored[0]["z"]["qualityB"], -quality)
         self.assertEqual(scored[0]["registerHash"], methodology.register_hash(register))

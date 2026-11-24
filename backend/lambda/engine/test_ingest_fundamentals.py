@@ -150,7 +150,7 @@ class FundamentalsIngestTest(unittest.TestCase):
         self.assertEqual(saved["members"], 2)
         self.assertEqual(saved["gsi1pk"], "UNIVERSE")
         coverage = saved["coverage"]
-        assert isinstance(coverage, dict)
+        assert isinstance(coverage, dict)  # nosec B101
         self.assertIsInstance(coverage["flows"]["revenue"], Decimal)
         self.assertEqual(coverage["flows"]["revenue"], Decimal("0.5"))
 

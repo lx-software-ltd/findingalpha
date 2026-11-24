@@ -167,7 +167,7 @@ def get_text(
             delay *= 2
     if transport is not None:
         raise HttpTransportError(host, attempts) from None
-    assert last is not None
+    assert last is not None  # nosec B101
     raise HttpStatusError(last.status, last.body)
 
 

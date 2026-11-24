@@ -103,7 +103,7 @@ def _combine(groups: dict[str, float | None], weights: dict[str, float]) -> floa
     total = 0.0
     for name in weights:
         score = groups[name]
-        assert score is not None
+        assert score is not None  # nosec B101
         total += float(weights[name]) * float(score)
     return total
 

@@ -319,13 +319,13 @@ def ttm(rows_as_of: list[dict[str, Any]], field: str) -> float | None:
         return None
     fy = max(annual, key=lambda row: row["end"])
     fy_end = _as_date(fy["end"])
-    assert fy_end is not None
+    assert fy_end is not None  # nosec B101
     later = [row for row in flows if row["end"] > fy["end"] and _year_to_date(row, fy_end)]
     if not later:
         return float(fy["value"])
     ytd = max(later, key=lambda row: row["end"])
     ytd_end = _as_date(ytd["end"])
-    assert ytd_end is not None
+    assert ytd_end is not None  # nosec B101
     target = ytd_end - timedelta(days=365)
     same = [row for row in flows if _class_of(row) == _class_of(ytd)]
     previous = [
@@ -353,7 +353,7 @@ def average_stock(rows_as_of: list[dict[str, Any]], field: str) -> float | None:
         return None
     latest = max(stocks, key=lambda row: row["end"])
     latest_end = _as_date(latest["end"])
-    assert latest_end is not None
+    assert latest_end is not None  # nosec B101
     target = latest_end - timedelta(days=365)
     earlier = [
         row

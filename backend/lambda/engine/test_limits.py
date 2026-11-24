@@ -66,7 +66,7 @@ class LimitsTest(unittest.TestCase):
         )))
 
     def test_random_clean_batches_stay_at_or_below_the_cap(self) -> None:
-        rng = random.Random(1)
+        rng = random.Random(1)  # nosec B311
         for _ in range(1000):
             equity = 100.0
             price = 10.0
