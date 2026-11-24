@@ -20,12 +20,14 @@ concurrency:
 
 jobs:
   build-and-deploy:
+# template:set
+    # The production environment should also limit branches to main.
+    # This job refuses every other ref even if that setting is open.
+# template:end
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       id-token: write
-    # The production environment should also limit branches to main.
-    # This job refuses every other ref even if that setting is open.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     environment: production
     steps:
@@ -38,9 +40,13 @@ jobs:
           cache: npm
           working-directory: apps/public_www
 
+# template:set
+# template:end
       - name: Build public website
-        run: npm run build
         working-directory: apps/public_www
+# template:set
+# template:end
+        run: npm run build
 
       # After the build. npm ci and the build must not see the deploy role.
       - name: Configure AWS credentials
@@ -54,9 +60,13 @@ jobs:
         uses: lx-software-ltd/actions/s3-cloudfront-deploy@8b75c2c3e18a96ffae1ac4f99e3dceb4821a1faf # main 2026-11-24
         with:
           source: apps/public_www/dist
+# template:set
           stack: findingalpha-public-www
+# template:end
           region: ${{ vars.AWS_REGION }}
           bucket-output: PublicWebsiteBucketName
           distribution-output: PublicWebsiteDistributionId
+# template:set
           profile: public-hashed
+# template:end
           dry-run: "false"
