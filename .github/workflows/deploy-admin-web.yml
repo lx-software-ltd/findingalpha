@@ -1,6 +1,8 @@
 name: Deploy Admin Web
 
 on:
+  repository_dispatch:
+    types: [deploy-admin-web]
   push:
     branches: [main]
     paths:

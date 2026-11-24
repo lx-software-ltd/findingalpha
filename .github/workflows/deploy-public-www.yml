@@ -1,6 +1,8 @@
 name: Deploy Public Website
 
 on:
+  repository_dispatch:
+    types: [deploy-public-www]
   workflow_dispatch:
   push:
     branches:

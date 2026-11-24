@@ -1,6 +1,8 @@
 name: Deploy Backend
 
 on:
+  repository_dispatch:
+    types: [deploy-backend]
   push:
     branches: [main]
     paths:
