@@ -1,9 +1,10 @@
 # Plans
 
-A yellow-zone change starts as a short plan copied from `_template.md`.
+A yellow-zone change starts as a short plan copied from
+[`_template.md`](_template.md).
 Red-zone work is planned in chat and waits for an explicit approval
-before any write. The zone map will be `docs/architecture/zones.md`
-(created in milestone 1, copied from the `lx-software` repository).
+before any write. The zone map is
+[`docs/architecture/zones.md`](../architecture/zones.md).
 
 ## The build plan
 
@@ -28,9 +29,17 @@ order. Each milestone is one or more pull requests.
 | [`10-daily-cycle.md`](10-daily-cycle.md) | Holds, order execution, the daily email, dashboard pages |
 | [`11-safety-and-go-live-gate.md`](11-safety-and-go-live-gate.md) | Breakers, the drill, the gate report, real-money outline |
 
-Every numbered milestone file uses the headings of `_template.md` and
+Every numbered milestone file uses the headings of
+[`_template.md`](_template.md) and
 adds a **Steps** section. Steps have ids such as `M03-T05`. The
 dashboard's Roadmap page shows those ids, so do not renumber them.
+
+## Other plans
+
+| File | What it covers |
+| --- | --- |
+| [`data-precision-followups.md`](data-precision-followups.md) | Follow-ups on data precision |
+| [`2026-11-24-dependency-submission-name.md`](2026-11-24-dependency-submission-name.md) | The dependency workflow display name. Status: done |
 
 ## Status values
 
