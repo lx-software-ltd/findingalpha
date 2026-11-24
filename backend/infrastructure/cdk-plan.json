@@ -49,5 +49,12 @@
         "findingalpha-public-www:WafWebAclArn={P_PUBLIC_WAF_ARN}"
       ]
     }
-  ]
+  ],
+  "aliases": {
+    "all stacks": [
+      "findingalpha-public-www",
+      "findingalpha",
+      "findingalpha-admin-web"
+    ]
+  }
 }
