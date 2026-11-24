@@ -22,7 +22,7 @@ Leave file names, job ids, pins, comments, and every other line alone. Do not ad
 
 - Job ids stay `check` and `submit`.
 - Step names stay as they are.
-- The pin `lx-software-ltd/actions/dependency-graph@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23` stays unchanged, as do the checkout pins.
+- This pull request does not edit the pin. main already has `lx-software-ltd/actions/dependency-graph@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24` from #103. Checkout pins stay unchanged.
 - Triggers, permissions, `if` conditions, and `runs-on` stay unchanged.
 
 ## Done when
