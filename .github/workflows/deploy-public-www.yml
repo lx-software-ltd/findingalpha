@@ -20,10 +20,6 @@ concurrency:
 
 jobs:
   build-and-deploy:
-# template:set
-    # The production environment should also limit branches to main.
-    # This job refuses every other ref even if that setting is open.
-# template:end
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
@@ -35,29 +31,25 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Node.js
-        uses: lx-software-ltd/actions/setup-node@7274dbbda035e283bf0d2a78c98d45deae348344 # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-node@0e5dbcbbe9fb3dc7eff728b7725de461a3a2ff6f # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/public_www
 
-# template:set
-# template:end
       - name: Build public website
         working-directory: apps/public_www
-# template:set
-# template:end
         run: npm run build
 
       # After the build. npm ci and the build must not see the deploy role.
       - name: Configure AWS credentials
         id: aws
-        uses: lx-software-ltd/actions/aws-oidc@7274dbbda035e283bf0d2a78c98d45deae348344 # main 2026-11-24
+        uses: lx-software-ltd/actions/aws-oidc@0e5dbcbbe9fb3dc7eff728b7725de461a3a2ff6f # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
 
       - name: Deploy public website
-        uses: lx-software-ltd/actions/s3-cloudfront-deploy@7274dbbda035e283bf0d2a78c98d45deae348344 # main 2026-11-24
+        uses: lx-software-ltd/actions/s3-cloudfront-deploy@0e5dbcbbe9fb3dc7eff728b7725de461a3a2ff6f # main 2026-11-24
         with:
           source: apps/public_www/dist
 # template:set
