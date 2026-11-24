@@ -3,9 +3,10 @@ name: Manage Public API Keys
 on:
   workflow_dispatch:
     inputs:
-      # template:set
       action:
-        description: create, list, revoke, set-write, or set-scopes
+        # template:set
+        description: "create, list, revoke, set-write, or set-scopes"
+        # template:end
         required: true
         type: choice
         options:
@@ -15,38 +16,51 @@ on:
           - set-write
           - set-scopes
       label:
-        description: Name for a new key
+        # template:set
+        description: "Name for a new key"
+        # template:end
         required: false
         type: string
       expires_at:
-        description: ISO date. Empty means 90 days
+        # template:set
+        description: "ISO date. Empty means 90 days"
+        # template:end
         required: false
         type: string
       scopes:
-        description: Comma-separated scopes. Empty on create means system. set-scopes replaces the whole list, so repeat every scope to keep
+        # template:set
+        description: "Comma-separated scopes. Empty on create means system. set-scopes replaces the whole list, so repeat every scope to keep"
+        # template:end
         required: false
         type: string
       allowed_cidrs:
-        description: Comma-separated CIDRs. Empty allows any address
+        # template:set
+        description: "Comma-separated CIDRs. Empty allows any address"
+        # template:end
         required: false
         type: string
       allow_write:
-        description: Opt the key into writes. The stack switch must also be on
+        # template:set
+        description: "Opt the key into writes. The stack switch must also be on"
+        # template:end
         required: false
         type: boolean
         default: false
       key_id:
-        description: keyId for revoke, set-write, or set-scopes
+        # template:set
+        description: "keyId for revoke, set-write, or set-scopes"
+        # template:end
         required: false
         type: string
       tier:
-        description: Only admin can be minted
+        # template:set
+        description: "Only admin can be minted"
+        # template:end
         required: false
         type: choice
         default: admin
         options:
           - admin
-      # template:end
 
 permissions:
   contents: read
@@ -69,7 +83,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python
-        uses: lx-software-ltd/actions/setup-python@936d3fad83b00b4cc23a603717fdf804576c300c # main 2026-11-24
+        uses: lx-software-ltd/actions/setup-python@a461dd613711bb036918699617487c42f324cc9e # main 2026-11-24
 
       - name: Validate inputs
         env:
@@ -82,7 +96,7 @@ jobs:
 
       - name: Configure AWS credentials
         id: aws
-        uses: lx-software-ltd/actions/aws-oidc@936d3fad83b00b4cc23a603717fdf804576c300c # main 2026-11-24
+        uses: lx-software-ltd/actions/aws-oidc@a461dd613711bb036918699617487c42f324cc9e # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}

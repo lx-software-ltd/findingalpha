@@ -160,6 +160,9 @@ if [ ${#PARAM_ARGS[@]} -gt 0 ]; then
 else
   : > "${RUNNER_TEMP:?}/cdk-args"
 fi
+if [ "${CDK_STACKS:-}" = "all stacks" ]; then
+  CDK_STACKS="findingalpha-public-www findingalpha findingalpha-admin-web"
+fi
 STACK_ARGS=()
 if [ -n "${CDK_STACKS:-}" ]; then
   IFS=$', \n\t' read -r -a STACK_LIST <<< "$CDK_STACKS"
