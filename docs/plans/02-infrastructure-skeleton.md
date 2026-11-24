@@ -93,7 +93,7 @@ docs/deployment/setup.md  admin-website.md
    and `Project` to `Finding Alpha` on both stacks.
 4. Never pass `--qualifier` to `cdk deploy` or `cdk diff`. That flag is
    for `cdk bootstrap` only. The environment variable is the mechanism.
-5. Remove the M01 guards from the `build-cdk` and
+5. Remove the M01 guards from the `lint-cdk` and
    `test-infrastructure` CI jobs.
 6. Check: `CDK_SKIP_PYTHON_PIP=1 npx cdk synth --quiet` lists both
    stacks (after the later steps).
