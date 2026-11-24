@@ -41,7 +41,7 @@ jobs:
       - name: Configure AWS credentials
         id: aws
         if: github.event_name != 'pull_request' || vars.AWS_DIFF_ROLE_NAME != ''
-        uses: lx-software-ltd/actions/aws-oidc@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23
+        uses: lx-software-ltd/actions/aws-oidc@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
@@ -55,7 +55,7 @@ jobs:
 
       - name: Set up Node.js
         if: steps.aws.outputs.ready == 'true'
-        uses: lx-software-ltd/actions/setup-node@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23
+        uses: lx-software-ltd/actions/setup-node@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
         with:
           cache: npm
           working-directory: backend/infrastructure
@@ -70,7 +70,7 @@ jobs:
 
       - name: Check CDK Bootstrap status
         if: steps.aws.outputs.ready == 'true'
-        uses: lx-software-ltd/actions/cdk-bootstrap-check@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23
+        uses: lx-software-ltd/actions/cdk-bootstrap-check@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
         with:
           qualifier: ${{ vars.CDK_BOOTSTRAP_QUALIFIER }}
           region: ${{ vars.AWS_REGION }}
@@ -145,11 +145,57 @@ jobs:
           CDK_STACKS: ${{ inputs.stacks }}
           CDK_PARAM_FILE: ${{ vars.CDK_PARAM_FILE }}
 
+      - name: Build the Cognito connect origin
+        if: steps.aws.outputs.ready == 'true' && steps.prep.outputs.run == 'true'
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
+          P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+        run: |
+          python3 - << 'PY'
+          import os
+          from pathlib import Path
+
+          region = os.environ.get("AWS_REGION", "")
+          if not region:
+              raise SystemExit("AWS_REGION is required to build the Cognito prefix origin for CSP.")
+          prefix_origin = f"https://findingalpha-admin-auth.auth.{region}.amazoncognito.com"
+          domain = os.environ.get("P_COGNITO_DOMAIN", "")
+          cert = os.environ.get("P_COGNITO_CERT", "")
+          if domain and cert:
+              origin = prefix_origin + " https://" + domain
+          else:
+              origin = prefix_origin
+          env_path = Path(os.environ["GITHUB_ENV"])
+          existing = env_path.read_text(encoding="utf-8")
+          if existing and not existing.endswith("\n"):
+              existing += "\n"
+          env_path.write_text(existing + f"P_CSP_ORIGIN={origin}\n", encoding="utf-8")
+          PY
+
       - name: Run CDK diff
         if: steps.aws.outputs.ready == 'true' && steps.prep.outputs.run == 'true'
-        uses: lx-software-ltd/actions/cdk-diff@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23
+        uses: lx-software-ltd/actions/cdk-diff@48ffe6dadb6c1540b8992e8e8edfda4f8aa0933e # main 2026-11-24
         with:
           working-directory: backend/infrastructure
           stacks: ${{ steps.prep.outputs.stacks }}
+          plan-file: backend/infrastructure/cdk-plan.json
           args-file: ${{ runner.temp }}/cdk-diff-args
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
+        env:
+          P_ADMIN_DOMAIN: ${{ vars.ADMIN_WEB_DOMAIN_NAME }}
+          P_GOOGLE_CLIENT_ID: ${{ vars.ADMIN_GOOGLE_CLIENT_ID }}
+          P_GOOGLE_CLIENT_SECRET: ${{ secrets.ADMIN_GOOGLE_CLIENT_SECRET }}
+          P_EMAIL_ALLOWLIST: ${{ secrets.ADMIN_FEDERATED_EMAIL_ALLOWLIST || vars.ADMIN_FEDERATED_EMAIL_ALLOWLIST }}
+          P_MAIL_DOMAIN: ${{ vars.MAIL_SENDING_DOMAIN }}
+          P_BRIEF_RECIPIENT: ${{ secrets.BRIEF_RECIPIENT_EMAIL || vars.BRIEF_RECIPIENT_EMAIL }}
+          P_SEC_CONTACT: ${{ secrets.SEC_CONTACT_EMAIL || vars.SEC_CONTACT_EMAIL }}
+          P_CERT_ARN: ${{ secrets.ADMIN_WEB_CERTIFICATE_ARN || vars.ADMIN_WEB_CERTIFICATE_ARN }}
+          P_API_DOMAIN: ${{ vars.API_CUSTOM_DOMAIN_NAME }}
+          P_API_CERT: ${{ secrets.API_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.API_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_COGNITO_DOMAIN: ${{ vars.ADMIN_COGNITO_CUSTOM_DOMAIN_NAME }}
+          P_COGNITO_CERT: ${{ secrets.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN || vars.ADMIN_COGNITO_CUSTOM_DOMAIN_CERTIFICATE_ARN }}
+          P_WAF_ARN: ${{ vars.ADMIN_WAF_WEB_ACL_ARN }}
+          P_PUBLIC_DOMAIN: ${{ vars.PUBLIC_WWW_DOMAIN_NAME }}
+          P_PUBLIC_CERT_ARN: ${{ secrets.PUBLIC_WWW_CERTIFICATE_ARN || vars.PUBLIC_WWW_CERTIFICATE_ARN }}
+          P_PUBLIC_WAF_ARN: ${{ vars.PUBLIC_WWW_WAF_WEB_ACL_ARN }}
