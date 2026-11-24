@@ -43,7 +43,7 @@ jobs:
 
       - name: Set up Node.js
         if: steps.exists.outputs.present == 'true'
-        uses: lx-software-ltd/actions/setup-node@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23
+        uses: lx-software-ltd/actions/setup-node@67d19fe22da0c68541b24034c56d52d25fe9c420 # main 2026-11-24
         with:
           cache: npm
           working-directory: apps/public_www
@@ -57,7 +57,7 @@ jobs:
       - name: Configure AWS credentials
         id: aws
         if: steps.exists.outputs.present == 'true'
-        uses: lx-software-ltd/actions/aws-oidc@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23
+        uses: lx-software-ltd/actions/aws-oidc@67d19fe22da0c68541b24034c56d52d25fe9c420 # main 2026-11-24
         with:
           account-id: ${{ secrets.AWS_ACCOUNT_ID }}
           region: ${{ vars.AWS_REGION }}
@@ -65,31 +65,15 @@ jobs:
       - name: Skip when the stack is not deployed yet
         id: stack
         if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true'
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          set -euo pipefail
-          stack=findingalpha-public-www
-          err="$(mktemp)"
-          if aws cloudformation describe-stacks --stack-name "$stack" --output json >/dev/null 2>"$err"; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-            rm -f "$err"
-            exit 0
-          fi
-          if grep -q 'AccessDenied' "$err"; then
-            echo "::error::GitHubActionsRole needs cloudformation:DescribeStacks on stack ${stack} in ${AWS_REGION}."
-            cat "$err" >&2
-            rm -f "$err"
-            exit 1
-          fi
-          echo "present=false" >> "$GITHUB_OUTPUT"
-          echo "::notice::${stack} is not deployed yet; skipping upload. Set PUBLIC_WWW_DOMAIN_NAME and PUBLIC_WWW_CERTIFICATE_ARN, then re-run Deploy Backend."
-          cat "$err" >&2 || true
-          rm -f "$err"
+        uses: lx-software-ltd/actions/cfn-stack-outputs@67d19fe22da0c68541b24034c56d52d25fe9c420 # main 2026-11-24
+        with:
+          stack: findingalpha-public-www
+          allow-missing: "true"
+          region: ${{ vars.AWS_REGION }}
 
       - name: Deploy public website
         if: steps.exists.outputs.present == 'true' && steps.aws.outputs.ready == 'true' && steps.stack.outputs.present == 'true'
-        uses: lx-software-ltd/actions/s3-cloudfront-deploy@7d93bef212616595c866a76b03862eb72abbb746 # main 2026-11-23
+        uses: lx-software-ltd/actions/s3-cloudfront-deploy@67d19fe22da0c68541b24034c56d52d25fe9c420 # main 2026-11-24
         with:
           source: apps/public_www/dist
           stack: findingalpha-public-www

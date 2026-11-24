@@ -169,6 +169,12 @@ class WorkflowSecretTest(unittest.TestCase):
         public = _workflow("deploy-public-www.yml")
         self.assertIn("findingalpha-public-www", public)
         self.assertIn("Skip when the stack is not deployed yet", public)
+        self.assertIn('allow-missing: "true"', public)
+        self.assertRegex(
+            public,
+            r"uses: lx-software-ltd/actions/cfn-stack-outputs@[0-9a-f]{40} # main \d{4}-\d{2}-\d{2}",
+        )
+        self.assertNotIn("aws cloudformation describe-stacks", public)
         self.assertLess(public.index("setup-node@"), public.index("actions/aws-oidc@"))
         self.assertLess(public.index("Build public website"), public.index("actions/aws-oidc@"))
         self.assertLess(public.index("actions/aws-oidc@"), public.index("Skip when the stack is not deployed yet"))
