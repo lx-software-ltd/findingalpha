@@ -243,12 +243,12 @@ class BacktestTest(unittest.TestCase):
             result = backtest.run({}, None)
         self.assertTrue(result["ok"])
         items = seen["items"]
-        assert isinstance(items, list)  # nosec B101
+        assert isinstance(items, list)
         self.assertEqual(items[0], ("actions", "2016"))
         self.assertLess(items.index(("inputs", "snapshot")), items.index(("part", "000")))
         self.assertIn(("marks", "000"), items)
         enabled = seen["enabled"]
-        assert callable(enabled)  # nosec B101
+        assert callable(enabled)
         self.assertFalse(enabled())
 
     def test_an_unfinished_month_is_dropped_and_an_exit_after_the_last_bar_is_not_priced(self) -> None:

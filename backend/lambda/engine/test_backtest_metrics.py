@@ -21,7 +21,7 @@ class BacktestMetricsTest(unittest.TestCase):
         self.assertAlmostEqual(backtest_metrics.hit_rate([0.1, 0.1, 0.2], [0.0, 0.0, 0.3]) or 0, 2 / 3)
         window = backtest_metrics.worst_window([100.0, 110.0, 90.0, 80.0], ["a", "b", "c", "d"], months=2)
         self.assertIsNotNone(window)
-        assert window is not None  # nosec B101
+        assert window is not None
         self.assertAlmostEqual(window["return"], 80 / 110 - 1)
         self.assertEqual(window["start"], "b")
         self.assertAlmostEqual(backtest_metrics.average_turnover([1, 0, 0.5]) or 0, 0.5)

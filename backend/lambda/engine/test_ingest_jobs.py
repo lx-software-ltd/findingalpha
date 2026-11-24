@@ -75,7 +75,7 @@ class _JobRows:
 
 
 def _copied_params(value: object) -> dict[str, object]:
-    assert isinstance(value, dict)  # nosec B101
+    assert isinstance(value, dict)
     copied: dict[str, object] = {}
     for key in value:
         copied[str(key)] = value[key]
@@ -284,7 +284,7 @@ class IngestJobsTest(unittest.TestCase):
 
         def build(_day: date, _context: object, **kwargs: object) -> dict[str, object]:
             assets = kwargs["assets"]
-            assert isinstance(assets, list)  # nosec B101
+            assert isinstance(assets, list)
             exchanges = [row.get("exchange") for row in assets]
             self.assertIn("ARCA", exchanges)
             return {"status": "done", "symbols": ["EXMPL"], "ciks": ["0000000001"]}
@@ -385,7 +385,7 @@ class IngestJobsTest(unittest.TestCase):
         self.assertNotIn("failures", failed)
         self.assertFalse(chunked._resumable(failed, "2999-01-01T00:00:00.000Z"))
         params = row["params"]
-        assert isinstance(params, dict)  # nosec B101
+        assert isinstance(params, dict)
         self.assertEqual(params["symbols"], ["EXMPL"])
 
     def test_this_run_drops_the_adjusted_lease_before_it_claims_the_job(self) -> None:

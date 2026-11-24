@@ -394,7 +394,7 @@ class ChunkedTest(unittest.TestCase):
         ):
             chunked._invoke_self("backfill_prices")
         payload = calls[0]["Payload"]
-        assert isinstance(payload, bytes)  # nosec B101
+        assert isinstance(payload, bytes)
         self.assertIn(b'"start": "2016-01-01"', payload)
 
     def test_tick_resumes_a_backtest_whose_size_is_a_whole_decimal(self) -> None:
