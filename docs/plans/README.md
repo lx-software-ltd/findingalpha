@@ -42,6 +42,7 @@ dashboard's Roadmap page shows those ids, so do not renumber them.
 | [`2026-11-24-bandit-application-asserts.md`](2026-11-24-bandit-application-asserts.md) | Reviewed asserts Bandit still reports in engine code |
 | [`2026-11-25-code-scanning-alerts.md`](2026-11-25-code-scanning-alerts.md) | Clear the open Semgrep alerts on secret reads and the data-source probe |
 | [`2026-11-26-semgrep-category.md`](2026-11-26-semgrep-category.md) | Upload Semgrep to the category the open alerts already use |
+| [`api-standard.md`](api-standard.md) | One API shape: `/v1/<audience>/`, bearer tokens, snake_case on the wire |
 
 ## Status values
 
