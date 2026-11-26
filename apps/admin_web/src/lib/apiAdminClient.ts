@@ -74,12 +74,13 @@ export async function adminFetch(
     const idToken = await ensureFreshTokens();
     headers.set("Authorization", `Bearer ${idToken}`);
   }
-  const skip = excluded(path, CONTRACT);
+  const route = path.split("?")[0] ?? path;
+  const skip = excluded(route, CONTRACT);
   const wirePath = skip ? path : convertQuery(path);
   let body = rest.body;
   if (!skip && typeof body === "string" && body) {
     try {
-      body = JSON.stringify(toWire(JSON.parse(body), CONTRACT));
+      body = JSON.stringify(toWire(JSON.parse(body), CONTRACT, route));
     } catch {
       // A body that is not JSON is sent unchanged.
     }
@@ -94,20 +95,31 @@ export async function adminFetch(
     const text = await res.text();
     let converted = text;
     try {
-      converted = JSON.stringify(fromWire(JSON.parse(text), CONTRACT));
+      converted = JSON.stringify(fromWire(JSON.parse(text), CONTRACT, route));
     } catch {
       converted = text;
     }
-    if (!res.ok) {
+    if (!res.ok && res.status !== 304) {
       throw new AdminApiError(res.status, converted);
     }
-    return new Response(converted, { status: res.status, statusText: res.statusText, headers: res.headers });
+    return new Response(responseBody(res.status, converted), {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    });
   }
   if (!res.ok) {
     const text = await res.text();
     throw new AdminApiError(res.status, text);
   }
   return res;
+}
+
+function responseBody(status: number, text: string): string | null {
+  if (status === 204 || status === 205 || status === 304 || text.length === 0) {
+    return null;
+  }
+  return text;
 }
 
 function convertQuery(path: string): string {

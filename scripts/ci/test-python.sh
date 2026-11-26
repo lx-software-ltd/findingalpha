@@ -7,3 +7,4 @@ for dir in backend/lambda/engine backend/lambda/pre_token_generation backend/lam
   fi
 done
 python3 -m unittest discover -s scripts -p 'test_*.py' -v
+python3 scripts/check_openapi_routes.py

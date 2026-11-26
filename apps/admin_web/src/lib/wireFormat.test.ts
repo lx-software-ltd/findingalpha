@@ -11,6 +11,12 @@ const document = JSON.parse(readFileSync(casesPath, "utf8")) as {
 };
 
 describe("wire format cases", () => {
+  it("ignores inherited keys such as constructor", () => {
+    const contract = document.contract;
+    expect(toWire({ constructor: 1 }, contract)).toEqual({ constructor: 1 });
+    expect(fromWire({ constructor: 1 }, contract)).toEqual({ constructor: 1 });
+  });
+
   it("round-trips every shared case", () => {
     for (const item of document.cases) {
       const wire = toWire(item.value, document.contract, item.route ?? "");

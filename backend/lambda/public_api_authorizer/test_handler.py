@@ -23,7 +23,11 @@ boto3.client = MagicMock()
 sys.modules["boto3"] = boto3
 
 
-class ClientError(Exception):
+class BotoCoreError(Exception):
+    pass
+
+
+class ClientError(BotoCoreError):
     def __init__(self, response: dict, operation: str) -> None:
         super().__init__(operation)
         self.response = response
@@ -32,6 +36,7 @@ class ClientError(Exception):
 
 class _Exceptions(types.ModuleType):
     ClientError: type[ClientError]
+    BotoCoreError: type[BotoCoreError]
 
 
 class _Botocore(types.ModuleType):
@@ -40,6 +45,7 @@ class _Botocore(types.ModuleType):
 
 exceptions = _Exceptions("botocore.exceptions")
 exceptions.ClientError = ClientError
+exceptions.BotoCoreError = BotoCoreError
 botocore = _Botocore("botocore")
 botocore.exceptions = exceptions
 sys.modules["botocore"] = botocore
@@ -168,6 +174,10 @@ class AuthorizerTest(unittest.TestCase):
 
     def test_table_error_is_denied(self) -> None:
         self.table.get_item.side_effect = ClientError({"Error": {"Code": "InternalServerError"}}, "GetItem")
+        self.assertFalse(lambda_handler(_event(), None)["isAuthorized"])
+
+    def test_a_boto_core_error_is_denied(self) -> None:
+        self.table.get_item.side_effect = BotoCoreError()
         self.assertFalse(lambda_handler(_event(), None)["isAuthorized"])
 
     def test_last_used_is_throttled_to_sixty_seconds(self) -> None:

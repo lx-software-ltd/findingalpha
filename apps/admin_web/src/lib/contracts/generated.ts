@@ -2196,10 +2196,7 @@ export const wireFormat = {
     "register"
   ],
   "rootMaps": {},
-  "excludedRoutes": [
-    "/v1/admin/backtests/",
-    "/v1/partner/backtests/"
-  ]
+  "excludedRoutes": []
 } as const;
 
 export const ROADMAP = roadmap;

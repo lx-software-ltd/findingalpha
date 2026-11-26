@@ -14,6 +14,8 @@ import { tagStack } from "./tags";
 
 export class FindingalphaStack extends cdk.Stack {
   public readonly httpApiEndpoint: string;
+  /** Execute-api URL. The deployed admin web still imports this export. */
+  public readonly executeApiEndpoint: string;
   /** Effective Cognito OAuth origin; same value as the CognitoDomain output. */
   public readonly cognitoOAuthBaseUrl: string;
 
@@ -57,7 +59,7 @@ export class FindingalphaStack extends cdk.Stack {
     });
     grantEngineSecrets(engineFn, secrets);
     defineKnowledgeBase(this, { kbBucket, engineFn });
-    const { keyAuthorizerFn, adminApiBaseUrl } = defineHttpApi(this, {
+    const { httpApi, keyAuthorizerFn, adminApiBaseUrl } = defineHttpApi(this, {
       adminFn,
       userPoolId: auth.userPool.userPoolId,
       userPoolClientId: auth.userPoolClient.userPoolClientId,
@@ -68,6 +70,7 @@ export class FindingalphaStack extends cdk.Stack {
       apiCustomDomainName: parameters.apiCustomDomainName,
       apiCustomDomainCertificateArn: parameters.apiCustomDomainCertificateArn,
     });
+    this.executeApiEndpoint = httpApi.apiEndpoint;
     this.httpApiEndpoint = adminApiBaseUrl;
     defineSchedules(this, engineFn);
     defineAlarms(this, [adminFn, engineFn, auth.preTokenFn, keyAuthorizerFn], lambdaDeadLetterQueue);

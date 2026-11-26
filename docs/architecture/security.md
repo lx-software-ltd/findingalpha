@@ -66,7 +66,7 @@ a reason. Dashboard routes ignore a token, and a dashboard token is
 ignored on `/v1/partner`.
 
 CORS stays the dashboard origin. Key callers are servers and do not
-send a browser preflight. `GET /api-keys` is the dashboard list and
+send a browser preflight. `GET /v1/admin/api-keys` is the dashboard list and
 never returns the digest. No key can read it.
 
 ## Edge

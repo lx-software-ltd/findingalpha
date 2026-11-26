@@ -14,5 +14,5 @@
   },
   "opaqueFields": ["register"],
   "rootMaps": {},
-  "excludedRoutes": ["/v1/admin/backtests/", "/v1/partner/backtests/"]
+  "excludedRoutes": []
 }

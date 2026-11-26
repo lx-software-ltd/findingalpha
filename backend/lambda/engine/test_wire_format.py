@@ -39,7 +39,18 @@ class WireFormatCasesTest(unittest.TestCase):
 
     def test_contract_keeps_ticker_and_date_keys_in_a_data_map(self) -> None:
         contract = wire_format.load_contract()
-        self.assertGreaterEqual(contract["mapFields"]["shareSources"], 1)
+        for name in (
+            "done",
+            "sectors",
+            "shareSources",
+            "flows",
+            "stocks",
+            "shareFlows",
+            "groups",
+            "factors",
+            "z",
+        ):
+            self.assertGreaterEqual(contract["mapFields"][name], 1, name)
         payload = {
             "shareSources": {
                 "600519.SH": 1,
