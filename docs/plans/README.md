@@ -40,6 +40,7 @@ dashboard's Roadmap page shows those ids, so do not renumber them.
 | --- | --- |
 | [`data-precision-followups.md`](data-precision-followups.md) | Follow-ups on data precision |
 | [`2026-11-24-bandit-application-asserts.md`](2026-11-24-bandit-application-asserts.md) | Reviewed asserts Bandit still reports in engine code |
+| [`2026-11-25-code-scanning-alerts.md`](2026-11-25-code-scanning-alerts.md) | Clear the open Semgrep alerts on secret reads and the data-source probe |
 
 ## Status values
 
