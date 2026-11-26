@@ -174,7 +174,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     table = _ddb.Table(os.environ["RECORDS_TABLE_NAME"])
     try:
         res = table.get_item(Key={"pk": f"{API_KEY_PK_PREFIX}{digest}", "sk": "META"})
-    except BotoCoreError as exc:
+    except (ClientError, BotoCoreError) as exc:
         error_code = type(exc).__name__
         if isinstance(exc, ClientError):
             error_code = exc.response.get("Error", {}).get("Code")

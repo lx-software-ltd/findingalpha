@@ -13,7 +13,6 @@ import { defineSecrets } from "./secrets";
 import { tagStack } from "./tags";
 
 export class FindingalphaStack extends cdk.Stack {
-  public readonly httpApiEndpoint: string;
   /** Execute-api URL. The deployed admin web still imports this export. */
   public readonly executeApiEndpoint: string;
   /** Effective Cognito OAuth origin; same value as the CognitoDomain output. */
@@ -71,7 +70,6 @@ export class FindingalphaStack extends cdk.Stack {
       apiCustomDomainCertificateArn: parameters.apiCustomDomainCertificateArn,
     });
     this.executeApiEndpoint = httpApi.apiEndpoint;
-    this.httpApiEndpoint = adminApiBaseUrl;
     defineSchedules(this, engineFn);
     defineAlarms(this, [adminFn, engineFn, auth.preTokenFn, keyAuthorizerFn], lambdaDeadLetterQueue);
     defineOutputs(this, {

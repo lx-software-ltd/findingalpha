@@ -49,6 +49,17 @@ describe("adminFetch", () => {
     expect(await response.text()).toBe("");
   });
 
+  it.each([204, 205, 304])("returns a non-JSON status %s without a body", async (status) => {
+    stubConfig();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status, headers: { "content-type": "text/plain" } })),
+    );
+    const response = await adminFetch("/v1/admin/settings", { requireAuth: false });
+    expect(response.status).toBe(status);
+    expect(await response.text()).toBe("");
+  });
+
   it("returns an empty JSON body", async () => {
     stubConfig();
     vi.stubGlobal(
@@ -78,8 +89,8 @@ describe("adminFetch", () => {
     expect(url).toBe("https://api.example.test/v1/admin/settings?page_size=2");
     expect(JSON.parse(String(init.body))).toEqual({ portfolio_size: 12 });
     expect(await response.json()).toEqual({ portfolioSize: 12, requestId: "req-1" });
-    expect(vi.mocked(toWire).mock.calls.some((call) => call[2] === "/v1/admin/settings")).toBe(true);
-    expect(vi.mocked(fromWire).mock.calls.some((call) => call[2] === "/v1/admin/settings")).toBe(true);
+    expect(vi.mocked(toWire).mock.calls.some((call) => call[2] === "PUT /v1/admin/settings")).toBe(true);
+    expect(vi.mocked(fromWire).mock.calls.some((call) => call[2] === "PUT /v1/admin/settings")).toBe(true);
   });
 });
 

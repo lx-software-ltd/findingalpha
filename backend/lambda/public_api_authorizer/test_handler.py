@@ -27,7 +27,7 @@ class BotoCoreError(Exception):
     pass
 
 
-class ClientError(BotoCoreError):
+class ClientError(Exception):
     def __init__(self, response: dict, operation: str) -> None:
         super().__init__(operation)
         self.response = response
@@ -172,9 +172,10 @@ class AuthorizerTest(unittest.TestCase):
         self.table.get_item.return_value = {"Item": _valid_item(expiresAt=future)}
         self.assertTrue(lambda_handler(_event(), None)["isAuthorized"])
 
-    def test_table_error_is_denied(self) -> None:
+    def test_a_client_error_that_is_not_a_boto_core_error_is_denied(self) -> None:
+        self.assertFalse(issubclass(ClientError, BotoCoreError))
         self.table.get_item.side_effect = ClientError({"Error": {"Code": "InternalServerError"}}, "GetItem")
-        self.assertFalse(lambda_handler(_event(), None)["isAuthorized"])
+        self.assertEqual(lambda_handler(_event(), None), {"isAuthorized": False})
 
     def test_a_boto_core_error_is_denied(self) -> None:
         self.table.get_item.side_effect = BotoCoreError()

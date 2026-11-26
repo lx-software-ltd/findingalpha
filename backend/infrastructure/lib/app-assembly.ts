@@ -36,7 +36,7 @@ export function wireFindingalphaApp(
   });
   adminWeb.addStackDependency(backend);
   // The deployed admin-web stack still imports the execute-api endpoint.
-  // Dropping the export fails the backend deploy. Keep it for one release.
+  // This export is removed in the next release after this admin-web stack has deployed.
   backend.exportValue(backend.executeApiEndpoint);
   return { backend, adminWeb };
 }

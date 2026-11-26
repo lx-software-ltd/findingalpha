@@ -74,8 +74,11 @@ export async function adminFetch(
     const idToken = await ensureFreshTokens();
     headers.set("Authorization", `Bearer ${idToken}`);
   }
-  const route = path.split("?")[0] ?? path;
-  const skip = excluded(route, CONTRACT);
+  const barePath = path.split("?")[0] ?? path;
+  const method = (rest.method || "GET").toUpperCase();
+  // rootMaps keys are "METHOD /path". The codec still looks up that string.
+  const route = `${method} ${barePath}`;
+  const skip = excluded(barePath, CONTRACT);
   const wirePath = skip ? path : convertQuery(path);
   let body = rest.body;
   if (!skip && typeof body === "string" && body) {
@@ -90,6 +93,14 @@ export async function adminFetch(
     headers.set("Content-Type", "application/json");
   }
   const res = await fetch(url, { ...rest, body, headers });
+  // new Response rejects a body on 204, 205, and 304, including a non-JSON body.
+  if (res.status === 204 || res.status === 205 || res.status === 304) {
+    return new Response(null, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    });
+  }
   const type = res.headers.get("content-type") ?? "";
   if (!skip && type.toLowerCase().includes("json")) {
     const text = await res.text();
@@ -99,7 +110,7 @@ export async function adminFetch(
     } catch {
       converted = text;
     }
-    if (!res.ok && res.status !== 304) {
+    if (!res.ok) {
       throw new AdminApiError(res.status, converted);
     }
     return new Response(responseBody(res.status, converted), {
