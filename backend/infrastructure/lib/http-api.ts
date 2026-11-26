@@ -169,8 +169,14 @@ function defineApiDomain(
     condition: useDomain,
   });
   const cfnApi = httpApi.node.defaultChild as apigwv2.CfnApi;
-  // The execute-api hostname stays enabled. Turning it off waits until the
-  // admin SPA is on the custom-domain base and that host has been quiet.
-  cfnApi.addPropertyOverride("DisableExecuteApiEndpoint", false);
+  // Off only when UseApiCustomDomain is true. Preconditions: the admin SPA
+  // is promoted on the custom-domain base, and the execute-api host has
+  // had no requests for 7 days.
+  cfnApi.description =
+    "execute-api is disabled only when UseApiCustomDomain is true, after the admin SPA is promoted on the custom-domain base and there have been no requests to the execute-api host for 7 days.";
+  cfnApi.addPropertyOverride(
+    "DisableExecuteApiEndpoint",
+    cdk.Fn.conditionIf(useDomain.logicalId, true, false),
+  );
   return cdk.Fn.conditionIf(useDomain.logicalId, customUrl, httpApi.apiEndpoint) as unknown as string;
 }

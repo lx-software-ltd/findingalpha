@@ -226,8 +226,10 @@ the stack's region. It is not the us-east-1 certificate used by
 CloudFront. Set `API_CUSTOM_DOMAIN_NAME` and
 `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` when the certificate is issued.
 Empty values leave the custom domain off, and `AdminApiBaseUrl` stays
-the execute-api URL. The execute-api endpoint stays enabled when the
-custom domain is on as well.
+the execute-api URL. The execute-api endpoint is disabled only when
+`UseApiCustomDomain` is true. Turn it off only after the admin SPA is
+promoted on the custom-domain base and there have been no requests to
+the execute-api host for 7 days.
 
 The DNS record points at the stack output `ApiCustomDomainTarget` (a
 `d-<id>.execute-api.<region>.amazonaws.com` name). It does not point at
