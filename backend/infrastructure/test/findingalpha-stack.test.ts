@@ -392,9 +392,14 @@ describe("findingalpha stack", () => {
     expect(authorizer?.Properties.AuthorizerResultTtlInSeconds).toBe(0);
   });
 
-  test("execute-api stays enabled and the custom domain becomes AdminApiBaseUrl", () => {
+  test("the custom domain turns off execute-api only when UseApiCustomDomain is true", () => {
     const api = Object.values(resources("AWS::ApiGatewayV2::Api"))[0];
-    expect(api.Properties.DisableExecuteApiEndpoint).toBe(false);
+    expect(api.Properties.DisableExecuteApiEndpoint).toEqual({
+      "Fn::If": ["UseApiCustomDomain", true, false],
+    });
+    expect(String(api.Properties.Description)).toBe(
+      "execute-api is disabled only when UseApiCustomDomain is true.",
+    );
     const template = synthesized.toJSON() as {
       Outputs: Record<string, { Value?: unknown }>;
     };
