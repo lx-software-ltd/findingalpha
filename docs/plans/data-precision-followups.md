@@ -348,12 +348,12 @@ Lands with M08-T05, as fact-sheet context. Not a factor.
 
 Lands with M06-T06. The route itself is red there.
 
-- `GET /screens/latest?fields=symbol,composite,roic` returns only
+- `GET /v1/admin/screens/latest?fields=symbol,composite,roic` returns only
   those keys.
 - Filters use `field[op]=value` with `eq`, `in`, `gt`, `gte`, `lt`,
   `lte`. An unknown field or operator is a 400.
 - `format=csv` returns the same rows as CSV.
-- The public mirror under `/public` gets the same behaviour through
+- The partner mirror under `/v1/partner` gets the same behaviour through
   the `research` scope.
 
 ## Done when

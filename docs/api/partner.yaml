@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: Finding Alpha partner API
+  version: 0.1.0
+  description: |
+    Field names on the wire are snake_case. findingalpha keeps message
+    beside the problem members. The address is https://api.findingalpha.app
+    and callers add /v1/ themselves.
+servers:
+  - url: https://api.findingalpha.app
+paths:
+  /v1/partner:
+    get:
+      summary: Routes the calling token may use
+      security:
+        - PartnerBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  "/v1/partner/{proxy+}":
+    parameters:
+      - name: proxy
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Partner mirror of an admin route
+      security:
+        - PartnerBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      summary: Partner mirror of an admin route
+      security:
+        - PartnerBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      summary: Partner mirror of an admin route
+      security:
+        - PartnerBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  securitySchemes:
+    PartnerBearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Object:
+      type: object
+      additionalProperties: true
+    Problem:
+      type: object
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        request_id:
+          type: string
+        message:
+          type: string
+  responses:
+    Problem:
+      description: Problem details. findingalpha keeps message.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"

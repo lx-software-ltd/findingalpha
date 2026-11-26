@@ -134,7 +134,7 @@ The domain comes from `ADMIN_WEB_DOMAIN_NAME`. Then
 Before the dashboard page exists (M03), check the API:
 
 1. `GET <AdminApiBaseUrl>/health` returns 200 without a token.
-2. `GET /me` without a token returns 401.
+2. `GET /v1/admin/me` without a token returns 401.
 3. The Scheduler console shows `findingalpha-tick`. The records table
    gets `JOB#tick` run rows once the job handler records them.
 4. Both secrets exist. Do not read their values.
@@ -145,7 +145,7 @@ When the page exists:
 1. Open `https://admin.<domain>`. The login screen appears.
 2. Sign in with Google using an allow-listed email. There is no
    password sign-in and no authenticator-app enrolment.
-3. `GET /health` without auth returns 200. `GET /me` with
+3. `GET /health` without auth returns 200. `GET /v1/admin/me` with
    `Authorization: Bearer <id_token>` returns 200.
 4. Sign out, reload, and land on the login screen again.
 5. A Google address that is not on `ADMIN_FEDERATED_EMAIL_ALLOWLIST` is
@@ -195,8 +195,8 @@ Mint, list, revoke, the write flag, and the scope list are the
 **Manage Public API Keys** workflow. `set-scopes` replaces the whole
 list, so repeat every scope the key should keep. A scope that tier
 cannot hold is refused. `set-write` stays separate. The authorizer
-cache is 60 seconds, so a changed key can keep the old verdict until
-that expires. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
+does not cache, so a changed key takes effect on the next request.
+Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
 environment first. A new key is not printed. The job summary holds an
 armored block. Save it as `key.asc` and decrypt it locally:
 
@@ -205,11 +205,14 @@ gpg --decrypt key.asc
 ```
 
 ```
-curl -H "x-api-key: fapk_..." https://api.<domain>/public
-curl -H "x-api-key: fapk_..." https://api.<domain>/public/system/status
-curl -X PUT -H "x-api-key: fapk_..." -H "content-type: application/json" \
-  -d '{"ingestEnabled": false}' https://api.<domain>/public/settings
+curl -H "Authorization: Bearer fapk_..." https://api.<domain>/v1/partner
+curl -H "Authorization: Bearer fapk_..." https://api.<domain>/v1/partner/system/status
+curl -X PUT -H "Authorization: Bearer fapk_..." -H "content-type: application/json" \
+  -d '{"ingest_enabled": false}' https://api.<domain>/v1/partner/settings
 ```
+
+The authorizer also accepts the previous header, `x-api-key: fapk_...`,
+on its own. A log line records `auth_scheme` as `bearer` or `legacy`.
 
 The dashboard System page lists keys, including each `keyId`. It does
 not mint, revoke, or change them. Run `list` in the workflow when the
@@ -222,8 +225,9 @@ The certificate for `api.<domain>` is requested in `ap-southeast-1`,
 the stack's region. It is not the us-east-1 certificate used by
 CloudFront. Set `API_CUSTOM_DOMAIN_NAME` and
 `API_CUSTOM_DOMAIN_CERTIFICATE_ARN` when the certificate is issued.
-Empty values leave the custom domain off, and the execute-api URL keeps
-working for the dashboard.
+Empty values leave the custom domain off, and `AdminApiBaseUrl` stays
+the execute-api URL. The execute-api endpoint stays enabled when the
+custom domain is on as well.
 
 The DNS record points at the stack output `ApiCustomDomainTarget` (a
 `d-<id>.execute-api.<region>.amazonaws.com` name). It does not point at

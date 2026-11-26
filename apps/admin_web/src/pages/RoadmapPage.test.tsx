@@ -64,7 +64,7 @@ describe("RoadmapPage", () => {
     const box = await screen.findByRole("checkbox", { name: "O02" });
     fetchJson.mockRejectedValueOnce(new Error("500"));
     await user.click(box);
-    expect(fetchJson).toHaveBeenCalledWith("/owner-tasks/O02", expect.objectContaining({ method: "PUT" }));
+    expect(fetchJson).toHaveBeenCalledWith("/v1/admin/owner-tasks/O02", expect.objectContaining({ method: "PUT" }));
     expect(box).not.toBeChecked();
   });
 });

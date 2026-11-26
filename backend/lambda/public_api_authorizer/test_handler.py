@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("RECORDS_TABLE_NAME", "findingalpha-records")
 
+
 class _Boto3(types.ModuleType):
     resource: MagicMock
     client: MagicMock
@@ -22,6 +23,10 @@ boto3.client = MagicMock()
 sys.modules["boto3"] = boto3
 
 
+class BotoCoreError(Exception):
+    pass
+
+
 class ClientError(Exception):
     def __init__(self, response: dict, operation: str) -> None:
         super().__init__(operation)
@@ -31,6 +36,7 @@ class ClientError(Exception):
 
 class _Exceptions(types.ModuleType):
     ClientError: type[ClientError]
+    BotoCoreError: type[BotoCoreError]
 
 
 class _Botocore(types.ModuleType):
@@ -39,6 +45,7 @@ class _Botocore(types.ModuleType):
 
 exceptions = _Exceptions("botocore.exceptions")
 exceptions.ClientError = ClientError
+exceptions.BotoCoreError = BotoCoreError
 botocore = _Botocore("botocore")
 botocore.exceptions = exceptions
 sys.modules["botocore"] = botocore
@@ -52,9 +59,10 @@ from handler import _is_expired, lambda_handler
 _KEY = "fapk_test-key"
 
 
-def _event(source_ip: str = "203.0.113.10") -> dict:
+def _event(source_ip: str = "203.0.113.10", authorization: str | None = None) -> dict:
+    header = f"Bearer {_KEY}" if authorization is None else authorization
     return {
-        "headers": {"x-api-key": _KEY},
+        "headers": {"authorization": header},
         "requestContext": {"requestId": "req-1", "http": {"method": "GET", "sourceIp": source_ip}},
     }
 
@@ -81,11 +89,18 @@ class AuthorizerTest(unittest.TestCase):
         self.table.get_item.return_value = {"Item": _valid_item()}
 
     def test_missing_or_blank_or_too_long_key_is_denied(self) -> None:
-        for headers in ({}, {"x-api-key": "   "}, {"x-api-key": "x" * 257}):
+        for headers in ({}, {"authorization": "   "}, {"authorization": "Bearer " + ("x" * 257)}):
             event = _event()
             event["headers"] = headers
             self.assertFalse(lambda_handler(event, None)["isAuthorized"])
         self.table.get_item.assert_not_called()
+
+    def test_bearer_scheme_is_required_in_any_letter_case(self) -> None:
+        self.assertTrue(lambda_handler(_event(authorization=f"bearer {_KEY}"), None)["isAuthorized"])
+        self.assertTrue(lambda_handler(_event(authorization=f"BEARER {_KEY}"), None)["isAuthorized"])
+        for authorization in (_KEY, f"Token {_KEY}", "Bearer"):
+            self.assertFalse(lambda_handler(_event(authorization=authorization), None)["isAuthorized"])
+        self.table.get_item.assert_called()
 
     def test_unknown_key_is_denied(self) -> None:
         self.table.get_item.return_value = {}
@@ -157,8 +172,13 @@ class AuthorizerTest(unittest.TestCase):
         self.table.get_item.return_value = {"Item": _valid_item(expiresAt=future)}
         self.assertTrue(lambda_handler(_event(), None)["isAuthorized"])
 
-    def test_table_error_is_denied(self) -> None:
+    def test_a_client_error_that_is_not_a_boto_core_error_is_denied(self) -> None:
+        self.assertFalse(issubclass(ClientError, BotoCoreError))
         self.table.get_item.side_effect = ClientError({"Error": {"Code": "InternalServerError"}}, "GetItem")
+        self.assertEqual(lambda_handler(_event(), None), {"isAuthorized": False})
+
+    def test_a_boto_core_error_is_denied(self) -> None:
+        self.table.get_item.side_effect = BotoCoreError()
         self.assertFalse(lambda_handler(_event(), None)["isAuthorized"])
 
     def test_last_used_is_throttled_to_sixty_seconds(self) -> None:
@@ -172,6 +192,62 @@ class AuthorizerTest(unittest.TestCase):
             clock.now.return_value = now + timedelta(seconds=60)
             lambda_handler(_event(), None)
         self.table.update_item.assert_called_once()
+
+
+class SchemeTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.table = MagicMock()
+        boto3.resource.return_value.Table.return_value = self.table
+        self.table.get_item.return_value = {"Item": _valid_item()}
+
+    def test_legacy_header_is_accepted_and_logged(self) -> None:
+        event = _event()
+        event["headers"] = {"x-api-key": _KEY}
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(event, None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "legacy"' in line for line in captured.output))
+        self.table.get_item.assert_called_with(Key={"pk": f"APIKEY#{hash_api_key(_KEY)}", "sk": "META"})
+
+    def test_legacy_header_name_is_case_insensitive(self) -> None:
+        event = _event()
+        event["headers"] = {"X-Api-Key": _KEY}
+        self.assertTrue(lambda_handler(event, None)["isAuthorized"])
+
+    def test_bearer_logs_its_scheme(self) -> None:
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(_event(), None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "bearer"' in line for line in captured.output))
+
+    def test_bearer_wins_when_both_headers_are_present(self) -> None:
+        event = _event()
+        event["headers"]["x-api-key"] = "fapk_legacy"
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(event, None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "bearer"' in line for line in captured.output))
+        self.table.get_item.assert_called_with(Key={"pk": f"APIKEY#{hash_api_key(_KEY)}", "sk": "META"})
+
+    def test_malformed_bearer_falls_through_to_the_legacy_header(self) -> None:
+        event = _event(authorization=f"Token {_KEY}")
+        event["headers"]["x-api-key"] = _KEY
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(event, None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "legacy"' in line for line in captured.output))
+
+    def test_blank_legacy_header_is_denied(self) -> None:
+        event = _event()
+        event["headers"] = {"x-api-key": "   "}
+        self.assertFalse(lambda_handler(event, None)["isAuthorized"])
+        self.table.get_item.assert_not_called()
+
+    def test_legacy_header_without_the_token_prefix_is_denied(self) -> None:
+        event = _event()
+        event["headers"] = {"x-api-key": "not-a-token"}
+        self.assertFalse(lambda_handler(event, None)["isAuthorized"])
+        self.table.get_item.assert_not_called()
 
 
 class KeyRuleTest(unittest.TestCase):

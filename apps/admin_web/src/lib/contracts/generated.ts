@@ -1979,6 +1979,226 @@ export const sicSectors = {
   ]
 } as const;
 
+export const wireFormatCases = {
+  "contract": {
+    "renames": {
+      "apiURL": "api_url"
+    },
+    "verbatimKeys": [
+      "next_cursor"
+    ],
+    "mapFields": {
+      "holdOverrides": 1,
+      "toolMatrix": 2
+    },
+    "opaqueFields": [
+      "register"
+    ],
+    "rootMaps": {
+      "GET /v1/admin/fx/rates": 1
+    },
+    "excludedRoutes": [
+      "/v1/webhooks/"
+    ]
+  },
+  "cases": [
+    {
+      "name": "plain keys",
+      "value": {
+        "portfolioSize": 12,
+        "accepted": true
+      },
+      "wire": {
+        "portfolio_size": 12,
+        "accepted": true
+      }
+    },
+    {
+      "name": "digits",
+      "value": {
+        "s3Key": "a",
+        "top10Items": [
+          1
+        ]
+      },
+      "wire": {
+        "s3_key": "a",
+        "top10_items": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "rename",
+      "value": {
+        "apiURL": "https://example.test"
+      },
+      "wire": {
+        "api_url": "https://example.test"
+      }
+    },
+    {
+      "name": "verbatim",
+      "value": {
+        "next_cursor": "abc",
+        "limit": 10
+      },
+      "wire": {
+        "next_cursor": "abc",
+        "limit": 10
+      }
+    },
+    {
+      "name": "one-level map",
+      "value": {
+        "holdOverrides": {
+          "seat-1": {
+            "holdUntil": 2
+          }
+        }
+      },
+      "wire": {
+        "hold_overrides": {
+          "seat-1": {
+            "hold_until": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "two-level map",
+      "value": {
+        "toolMatrix": {
+          "tool": {
+            "persona": {
+              "maxDrawdown": 1
+            }
+          }
+        }
+      },
+      "wire": {
+        "tool_matrix": {
+          "tool": {
+            "persona": {
+              "max_drawdown": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "opaque",
+      "value": {
+        "register": {
+          "apiURL": "keep",
+          "nestedKey": true
+        }
+      },
+      "wire": {
+        "register": {
+          "apiURL": "keep",
+          "nestedKey": true
+        }
+      }
+    },
+    {
+      "name": "root map",
+      "route": "GET /v1/admin/fx/rates",
+      "value": {
+        "USD": {
+          "bidPrice": 1
+        }
+      },
+      "wire": {
+        "USD": {
+          "bid_price": 1
+        }
+      }
+    },
+    {
+      "name": "list of objects",
+      "value": {
+        "items": [
+          {
+            "runId": "a"
+          },
+          {
+            "runId": "b"
+          }
+        ]
+      },
+      "wire": {
+        "items": [
+          {
+            "run_id": "a"
+          },
+          {
+            "run_id": "b"
+          }
+        ]
+      }
+    },
+    {
+      "name": "list with a cursor",
+      "value": {
+        "items": [
+          {
+            "startedAt": "t"
+          }
+        ],
+        "next_cursor": "abc"
+      },
+      "wire": {
+        "items": [
+          {
+            "started_at": "t"
+          }
+        ],
+        "next_cursor": "abc"
+      }
+    },
+    {
+      "name": "enum value",
+      "value": {
+        "house": "siuTinDei"
+      },
+      "wire": {
+        "house": "siuTinDei"
+      }
+    },
+    {
+      "name": "colon key",
+      "value": {
+        "cognito:groups": "admin"
+      },
+      "wire": {
+        "cognito:groups": "admin"
+      }
+    }
+  ]
+} as const;
+
+export const wireFormat = {
+  "renames": {},
+  "verbatimKeys": [],
+  "mapFields": {
+    "done": 1,
+    "sectors": 1,
+    "shareSources": 1,
+    "flows": 1,
+    "stocks": 1,
+    "shareFlows": 1,
+    "groups": 1,
+    "factors": 1,
+    "z": 1
+  },
+  "opaqueFields": [
+    "register"
+  ],
+  "rootMaps": {},
+  "excludedRoutes": []
+} as const;
+
 export const ROADMAP = roadmap;
 export const ADMIN_DOMAINS = adminDomains;
 export const storageKeyPrefix = adminDomains.storageKeyPrefix;

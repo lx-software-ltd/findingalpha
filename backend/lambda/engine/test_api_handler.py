@@ -6,6 +6,7 @@ import json
 import unittest
 
 import api_handler
+from http_call import http_call
 
 
 def _event(method: str, path: str, groups: str | None = None) -> dict:
@@ -21,16 +22,16 @@ def _event(method: str, path: str, groups: str | None = None) -> dict:
 
 class ApiHandlerTest(unittest.TestCase):
     def test_health_needs_no_token(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/health"), None)
+        response = http_call(_event("GET", "/health"), None)
         self.assertEqual(response["statusCode"], 200)
-        self.assertEqual(json.loads(response["body"])["ok"], True)
+        self.assertEqual(json.loads(response["body"])["status"], "ok")
 
     def test_me_without_admin_is_forbidden(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/me", "[viewer]"), None)
+        response = http_call(_event("GET", "/v1/admin/me", "[viewer]"), None)
         self.assertEqual(response["statusCode"], 403)
 
     def test_me_returns_only_the_three_fields(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/me", "[admin]"), None)
+        response = http_call(_event("GET", "/v1/admin/me", "[admin]"), None)
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(
             set(json.loads(response["body"])),
@@ -38,7 +39,7 @@ class ApiHandlerTest(unittest.TestCase):
         )
 
     def test_methodology_returns_the_register_and_the_hash(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/methodology", "[admin]"), None)
+        response = http_call(_event("GET", "/v1/admin/methodology", "[admin]"), None)
         self.assertEqual(response["statusCode"], 200)
         body = json.loads(response["body"])
         self.assertEqual(len(body["hash"]), 16)
@@ -49,7 +50,7 @@ class ApiHandlerTest(unittest.TestCase):
         self.assertIn("roic", {item["id"] for item in body["register"]["factors"]})
 
     def test_unknown_path_is_not_found(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/missing", "[admin]"), None)
+        response = http_call(_event("GET", "/v1/admin/missing", "[admin]"), None)
         self.assertEqual(response["statusCode"], 404)
 
     def test_a_manual_job_is_accepted_and_an_unknown_job_is_not(self) -> None:
@@ -61,13 +62,13 @@ class ApiHandlerTest(unittest.TestCase):
             sent.append((name, sub))
 
         with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write"):
-            allowed = api_handler.lambda_handler(_event("POST", "/jobs/ingest_daily/run", "[admin]"), None)
-            missing = api_handler.lambda_handler(_event("POST", "/jobs/reconcile/run", "[admin]"), None)
+            allowed = http_call(_event("POST", "/v1/admin/jobs/ingest_daily/run", "[admin]"), None)
+            missing = http_call(_event("POST", "/v1/admin/jobs/reconcile/run", "[admin]"), None)
         self.assertEqual(allowed["statusCode"], 202)
         self.assertEqual(json.loads(allowed["body"]), {"accepted": True})
         self.assertEqual(sent, [("ingest_daily", "user-1")])
         self.assertEqual(missing["statusCode"], 404)
-        plain = api_handler.lambda_handler(_event("POST", "/jobs/broker_setup/run", "[admin]"), None)
+        plain = http_call(_event("POST", "/v1/admin/jobs/broker_setup/run", "[admin]"), None)
         self.assertEqual(plain["statusCode"], 404)
         self.assertEqual(sent, [("ingest_daily", "user-1")])
 
@@ -80,10 +81,10 @@ class ApiHandlerTest(unittest.TestCase):
             sent.append((name, params))
 
         with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write"):
-            started = api_handler.lambda_handler(_event("POST", "/kb/sync", "[admin]"), None)
-            confirmed = _event("POST", "/kb/sync", "[admin]")
+            started = http_call(_event("POST", "/v1/admin/kb/sync", "[admin]"), None)
+            confirmed = _event("POST", "/v1/admin/kb/sync", "[admin]")
             confirmed["body"] = json.dumps({"confirmDeletion": True})
-            allowed = api_handler.lambda_handler(confirmed, None)
+            allowed = http_call(confirmed, None)
         self.assertEqual(started["statusCode"], 202)
         self.assertEqual(allowed["statusCode"], 202)
         self.assertEqual(sent, [("kb_sync_check", None), ("kb_sync_check", {"confirmDeletion": True})])
@@ -101,16 +102,16 @@ class ApiHandlerTest(unittest.TestCase):
             audited.append(target)
 
         with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write", write):
-            empty = api_handler.lambda_handler(_event("POST", "/jobs/kb_sync_check/run", "[admin]"), None)
-            confirmed = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
+            empty = http_call(_event("POST", "/v1/admin/jobs/kb_sync_check/run", "[admin]"), None)
+            confirmed = _event("POST", "/v1/admin/jobs/kb_sync_check/run", "[admin]")
             confirmed["body"] = json.dumps({"confirmDeletion": True})
-            allowed = api_handler.lambda_handler(confirmed, None)
-            rejected = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
+            allowed = http_call(confirmed, None)
+            rejected = _event("POST", "/v1/admin/jobs/kb_sync_check/run", "[admin]")
             rejected["body"] = json.dumps({"confirmDeletion": False})
-            refused = api_handler.lambda_handler(rejected, None)
-            stopped = _event("POST", "/jobs/kb_sync_check/run", "[admin]")
+            refused = http_call(rejected, None)
+            stopped = _event("POST", "/v1/admin/jobs/kb_sync_check/run", "[admin]")
             stopped["body"] = json.dumps({"stop": True})
-            halt = api_handler.lambda_handler(stopped, None)
+            halt = http_call(stopped, None)
         self.assertEqual(empty["statusCode"], 202)
         self.assertEqual(allowed["statusCode"], 202)
         self.assertEqual(halt["statusCode"], 202)
@@ -147,7 +148,7 @@ class ApiHandlerTest(unittest.TestCase):
             return None
 
         with patch("store.query_gsi1", return_value=rows), patch("store.get", side_effect=get):
-            response = api_handler.lambda_handler(_event("GET", "/universe/latest", "[admin]"), None)
+            response = http_call(_event("GET", "/v1/admin/universe/latest", "[admin]"), None)
         body = json.loads(response["body"])
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(body["asOf"], "2024-06-03")
@@ -161,7 +162,7 @@ class ApiHandlerTest(unittest.TestCase):
         from unittest.mock import patch
 
         with patch("store.query_gsi1", return_value=[]), patch("store.get", return_value=None):
-            response = api_handler.lambda_handler(_event("GET", "/universe/latest", "[admin]"), None)
+            response = http_call(_event("GET", "/v1/admin/universe/latest", "[admin]"), None)
         body = json.loads(response["body"])
         self.assertEqual(body["asOf"], None)
         self.assertEqual(body["members"], 0)

@@ -50,8 +50,12 @@ export function defineKeyAuthorizer(
   }
   const authorizer = new HttpLambdaAuthorizer("public-api-key", fn, {
     responseTypes: [HttpLambdaResponseType.SIMPLE],
-    identitySource: ["$request.header.x-api-key", "$context.identity.sourceIp"],
-    resultsCacheTtl: cdk.Duration.seconds(60),
+    // A listed identity source that is missing makes API Gateway return 401
+    // without calling the Lambda. Callers send one credential header, not
+    // both, so neither header is an identity source. Caching is off, so a
+    // verdict cannot be reused for another token, scheme, or address.
+    identitySource: ["$context.identity.sourceIp"],
+    resultsCacheTtl: cdk.Duration.seconds(0),
   });
   return { authorizer, fn };
 }

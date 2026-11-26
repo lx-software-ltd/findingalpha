@@ -1,0 +1,18 @@
+{
+  "renames": {},
+  "verbatimKeys": [],
+  "mapFields": {
+    "done": 1,
+    "sectors": 1,
+    "shareSources": 1,
+    "flows": 1,
+    "stocks": 1,
+    "shareFlows": 1,
+    "groups": 1,
+    "factors": 1,
+    "z": 1
+  },
+  "opaqueFields": ["register"],
+  "rootMaps": {},
+  "excludedRoutes": []
+}

@@ -1,5 +1,9 @@
 import { ensureFreshTokens } from "./auth";
 import { getAdminConfig } from "./config";
+import { wireFormat } from "./contracts/generated";
+import { excluded, fromWire, toWire, type WireContract } from "./wireFormat";
+
+const CONTRACT = wireFormat as unknown as WireContract;
 
 export class AdminApiError extends Error {
   readonly status: number;
@@ -70,16 +74,77 @@ export async function adminFetch(
     const idToken = await ensureFreshTokens();
     headers.set("Authorization", `Bearer ${idToken}`);
   }
-  const url = joinUrl(cfg.apiBaseUrl, path);
-  if (!headers.has("Content-Type") && rest.body) {
+  const barePath = path.split("?")[0] ?? path;
+  const method = (rest.method || "GET").toUpperCase();
+  // rootMaps keys are "METHOD /path". The codec still looks up that string.
+  const route = `${method} ${barePath}`;
+  const skip = excluded(barePath, CONTRACT);
+  const wirePath = skip ? path : convertQuery(path);
+  let body = rest.body;
+  if (!skip && typeof body === "string" && body) {
+    try {
+      body = JSON.stringify(toWire(JSON.parse(body), CONTRACT, route));
+    } catch {
+      // A body that is not JSON is sent unchanged.
+    }
+  }
+  const url = joinUrl(cfg.apiBaseUrl, wirePath);
+  if (!headers.has("Content-Type") && body) {
     headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(url, { ...rest, headers });
+  const res = await fetch(url, { ...rest, body, headers });
+  // new Response rejects a body on 204, 205, and 304, including a non-JSON body.
+  if (res.status === 204 || res.status === 205 || res.status === 304) {
+    return new Response(null, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    });
+  }
+  const type = res.headers.get("content-type") ?? "";
+  if (!skip && type.toLowerCase().includes("json")) {
+    const text = await res.text();
+    let converted = text;
+    try {
+      converted = JSON.stringify(fromWire(JSON.parse(text), CONTRACT, route));
+    } catch {
+      converted = text;
+    }
+    if (!res.ok) {
+      throw new AdminApiError(res.status, converted);
+    }
+    return new Response(responseBody(res.status, converted), {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    });
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new AdminApiError(res.status, text);
   }
   return res;
+}
+
+function responseBody(status: number, text: string): string | null {
+  if (status === 204 || status === 205 || status === 304 || text.length === 0) {
+    return null;
+  }
+  return text;
+}
+
+function convertQuery(path: string): string {
+  const mark = path.indexOf("?");
+  if (mark < 0) {
+    return path;
+  }
+  const params = new URLSearchParams(path.slice(mark + 1));
+  const next = new URLSearchParams();
+  for (const [key, value] of params) {
+    const renamed = Object.keys(toWire({ [key]: null }, CONTRACT) as Record<string, unknown>)[0] ?? key;
+    next.append(renamed, value);
+  }
+  return `${path.slice(0, mark + 1)}${next.toString()}`;
 }
 
 export async function adminFetchJson<T>(

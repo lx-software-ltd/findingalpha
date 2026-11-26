@@ -9,7 +9,17 @@ import os
 from pathlib import Path
 from typing import Any
 
-from http_common import _claims, _json_response, _require_admin, _route, not_found
+import wire_format
+from http_common import (
+    _claims,
+    _json_response,
+    _log_event,
+    _require_admin,
+    _route,
+    bind_request_id,
+    error_body,
+    not_found,
+)
 from owner_tasks import list_tasks, put_task
 from research_api import backtest_by_id, latest_screen, list_backtests, screen_by_date
 from router import Route, route_matches
@@ -20,7 +30,7 @@ _JOBS = Path(__file__).resolve().parent / "contracts" / "jobs.json"
 
 
 def _health(_event: dict[str, Any]) -> dict[str, Any]:
-    return _json_response(200, {"ok": True})
+    return _json_response(200, {"status": "ok"})
 
 
 def _me(event: dict[str, Any]) -> dict[str, Any]:
@@ -110,26 +120,26 @@ def run_job(event: dict[str, Any]) -> dict[str, Any]:
     if not allowed:
         return not_found()
     if _key_caller(event) and _backfill_finished(name):
-        return _json_response(409, {"message": f"{name} already finished"})
+        return _json_response(409, error_body(409, f"{name} already finished"))
     parsed = _run_params(name, event)
     if isinstance(parsed, str):
-        return _json_response(400, {"message": parsed})
+        return _json_response(400, error_body(400, parsed))
     params, chosen = parsed
     if name == "kb_sync_check" and _key_caller(event):
         refusal = _sync_key_refusal(params)
         if refusal:
-            return _json_response(403, {"message": refusal})
+            return _json_response(403, error_body(403, refusal))
     if name == "kb_eval":
         refusal = _eval_refusal()
         if refusal:
-            return _json_response(409, {"message": refusal})
+            return _json_response(409, error_body(409, refusal))
     if name == "backtest" and chosen is not None:
         import backtest
         import store
 
         conflict = backtest.size_conflict(store.get("JOB#backtest", "STATE") or {}, chosen)
         if conflict:
-            return _json_response(409, {"message": conflict})
+            return _json_response(409, error_body(409, conflict))
     actor = str(event.get("actor") or "") if _key_caller(event) else str(_claims(event).get("sub") or "")
     if params:
         _invoke_engine(name, actor, params)
@@ -362,16 +372,68 @@ ROUTES = (
 )
 
 
-def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
-    method, path = _route(event)
-    if path == "/public" or path.startswith("/public/"):
+_CONTRACT: dict[str, Any] | None = None
+
+
+def _contract() -> dict[str, Any]:
+    global _CONTRACT
+    if _CONTRACT is None:
+        _CONTRACT = wire_format.load_contract()
+    return _CONTRACT
+
+
+def split_audience(path: str) -> tuple[str, str]:
+    """``/v1/admin/settings`` is ``admin`` and ``/settings``. ``/health`` has no audience."""
+    parts = [part for part in path.split("/") if part]
+    if len(parts) < 2 or parts[0] != "v1":
+        return "", path
+    rest = parts[2:]
+    inner = "/" + "/".join(rest) if rest else "/"
+    return parts[1], inner
+
+
+def _with_inner_path(event: dict[str, Any], inner: str) -> dict[str, Any]:
+    forwarded = dict(event)
+    request = dict(event.get("requestContext") or {})
+    http = dict(request.get("http") or {})
+    http["path"] = inner
+    request["http"] = http
+    forwarded["requestContext"] = request
+    return forwarded
+
+
+def _dispatch(event: dict[str, Any], method: str, path: str) -> dict[str, Any]:
+    if path == "/health":
+        return _health(event)
+    audience, inner = split_audience(path)
+    if audience == "partner":
         from public_api import handle
 
         return handle(event)
+    if audience != "admin":
+        return not_found()
+    forwarded = _with_inner_path(event, inner)
     for route in ROUTES:
-        if not route_matches(route, method, path):
+        if route.pattern == "/health" or not route_matches(route, method, inner):
             continue
-        if route.auth == "jwt" and _require_admin(event) is None:
-            return _json_response(403, {"message": "Forbidden"})
-        return route.handler(event)
+        if route.auth == "jwt" and _require_admin(forwarded) is None:
+            return _json_response(403, error_body(403, "Forbidden"))
+        return route.handler(forwarded)
     return not_found()
+
+
+def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
+    bind_request_id(event)
+    _method, path = _route(event)
+    contract = _contract()
+    skipped = wire_format.excluded(path, contract)
+    prepared = event if skipped else wire_format.prepare_request(event, contract)
+    method, path = _route(prepared)
+    response = _dispatch(prepared, method, path)
+    if skipped:
+        return response
+    converted = wire_format.prepare_response(response, contract, f"{method} {path}")
+    if converted is None:
+        _log_event("warning", tag="wire_format_pass_through", path=path)
+        return response
+    return converted

@@ -9,6 +9,7 @@ from typing import Any
 from unittest.mock import patch
 
 import api_handler
+from http_call import http_call
 
 
 def _event(
@@ -112,8 +113,8 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(seen, set(DECISIONS))
 
     def test_a_key_without_the_scope_gets_404(self) -> None:
-        event = _event("GET", "/public/system/status", key=_key(scopes="research", write="0"))
-        response = api_handler.lambda_handler(event, None)
+        event = _event("GET", "/v1/partner/system/status", key=_key(scopes="research", write="0"))
+        response = http_call(event, None)
         self.assertEqual(response["statusCode"], 404)
 
     def test_each_write_reason(self) -> None:
@@ -125,43 +126,43 @@ class PublicApiTest(unittest.TestCase):
             (_key(), "owner_only"),
         ]
         with patch.dict("os.environ", {"PUBLIC_API_WRITES_ENABLED": "false"}):
-            response = api_handler.lambda_handler(_event("PUT", "/public/settings", body, key=cases[1][0]), None)
+            response = http_call(_event("PUT", "/v1/partner/settings", body, key=cases[1][0]), None)
             self.assertEqual(json.loads(response["body"])["reason"], "writes_disabled")
-        response = api_handler.lambda_handler(_event("PUT", "/public/settings", body, key=cases[0][0]), None)
+        response = http_call(_event("PUT", "/v1/partner/settings", body, key=cases[0][0]), None)
         self.assertEqual(json.loads(response["body"])["reason"], "scope")
-        response = api_handler.lambda_handler(_event("PUT", "/public/settings", body, key=cases[2][0]), None)
+        response = http_call(_event("PUT", "/v1/partner/settings", body, key=cases[2][0]), None)
         self.assertEqual(json.loads(response["body"])["reason"], "key_read_only")
-        response = api_handler.lambda_handler(
-            _event("PUT", "/public/settings", {"ingestEnabled": True}, key=_key()), None
+        response = http_call(
+            _event("PUT", "/v1/partner/settings", {"ingestEnabled": True}, key=_key()), None
         )
         self.assertEqual(response["statusCode"], 403)
         self.assertEqual(json.loads(response["body"])["reason"], "owner_only")
         self.assertEqual(self.store.rows, {})
 
     def test_a_key_can_turn_a_switch_off_and_the_audit_actor_is_the_key(self) -> None:
-        response = api_handler.lambda_handler(
-            _event("PUT", "/public/settings", {"ingestEnabled": False}, key=_key()), None
+        response = http_call(
+            _event("PUT", "/v1/partner/settings", {"ingestEnabled": False}, key=_key()), None
         )
         self.assertEqual(response["statusCode"], 200)
         self.assertFalse(json.loads(response["body"])["ingestEnabled"])
         self.assertEqual(self.audit.call_args.args[0], "apikey:abc123")
 
     def test_a_key_on_a_dashboard_path_is_ignored(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/system/status", key=_key()), None)
+        response = http_call(_event("GET", "/v1/admin/system/status", key=_key()), None)
         self.assertEqual(response["statusCode"], 403)
 
     def test_a_dashboard_token_on_a_public_path_is_refused(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/public/system/status", admin=True), None)
+        response = http_call(_event("GET", "/v1/partner/system/status", admin=True), None)
         self.assertEqual(response["statusCode"], 401)
 
     def test_the_index_lists_only_what_the_key_may_call(self) -> None:
-        response = api_handler.lambda_handler(_event("GET", "/public", key=_key(scopes="system", write="0")), None)
+        response = http_call(_event("GET", "/v1/partner", key=_key(scopes="system", write="0")), None)
         body = json.loads(response["body"])
         paths = {(row["method"], row["path"]) for row in body["routes"]}
-        self.assertIn(("GET", "/public/system/status"), paths)
-        self.assertNotIn(("GET", "/public/api-keys"), paths)
-        self.assertNotIn(("PUT", "/public/settings"), paths)
-        self.assertNotIn(("GET", "/public/me"), paths)
+        self.assertIn(("GET", "/v1/partner/system/status"), paths)
+        self.assertNotIn(("GET", "/v1/partner/api-keys"), paths)
+        self.assertNotIn(("PUT", "/v1/partner/settings"), paths)
+        self.assertNotIn(("GET", "/v1/partner/me"), paths)
         self.assertTrue(all(row["scope"] == "system" for row in body["routes"]))
 
     def test_the_key_list_never_returns_the_digest(self) -> None:
@@ -181,7 +182,7 @@ class PublicApiTest(unittest.TestCase):
             }
         )
         self.store.put({"pk": "APIKEY#hidden", "sk": "META", "keyId": "hidden", "label": "not indexed"})
-        response = api_handler.lambda_handler(_event("GET", "/api-keys", admin=True), None)
+        response = http_call(_event("GET", "/v1/admin/api-keys", admin=True), None)
         text = response["body"]
         body = json.loads(text)
         self.assertNotIn("APIKEY#", text)
@@ -190,22 +191,22 @@ class PublicApiTest(unittest.TestCase):
         self.assertTrue(body["writesEnabled"])
 
     def test_an_unmirrored_write_is_forbidden_and_a_read_is_not_found(self) -> None:
-        denied = api_handler.lambda_handler(_event("PUT", "/public/owner-tasks/O04", {"done": True}, key=_key()), None)
+        denied = http_call(_event("PUT", "/v1/partner/owner-tasks/O04", {"done": True}, key=_key()), None)
         self.assertEqual(json.loads(denied["body"])["reason"], "not_mirrored")
-        missing = api_handler.lambda_handler(_event("GET", "/public/me", key=_key()), None)
+        missing = http_call(_event("GET", "/v1/partner/me", key=_key()), None)
         self.assertEqual(missing["statusCode"], 404)
 
     def test_a_write_without_the_write_flag_is_owner_only(self) -> None:
         from public_api import deny_reason
         from router import Route
 
-        route = Route("POST", "/jobs/tick/run", lambda _event: None, "jwt", key_scope="system")
+        route = Route("POST", "/v1/admin/jobs/tick/run", lambda _event: None, "jwt", key_scope="system")
         self.assertEqual(deny_reason("POST", route, _key(scopes="system", write="1"), {}), "owner_only")
         self.assertEqual(deny_reason("POST", route, _key(scopes="research", write="1"), {}), "scope")
         self.assertIsNone(deny_reason("GET", route, _key(scopes="system", write="0"), {}))
 
     def test_a_dashboard_settings_write_keeps_the_bare_subject(self) -> None:
-        response = api_handler.lambda_handler(_event("PUT", "/settings", {"ingestEnabled": False}, admin=True), None)
+        response = http_call(_event("PUT", "/v1/admin/settings", {"ingestEnabled": False}, admin=True), None)
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual(self.audit.call_args.args[0], "user-1")
 
@@ -220,10 +221,10 @@ class PublicApiTest(unittest.TestCase):
     def test_a_key_cannot_start_the_evaluation_and_the_owner_waits_for_a_sync(self) -> None:
         sent: list[str] = []
         with patch.object(api_handler, "_invoke_engine", lambda name, _sub, params=None: sent.append(name)):
-            refused = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_eval/run", key=_key()), None)
-            early = api_handler.lambda_handler(_event("POST", "/jobs/kb_eval/run", admin=True), None)
+            refused = http_call(_event("POST", "/v1/partner/jobs/kb_eval/run", key=_key()), None)
+            early = http_call(_event("POST", "/v1/admin/jobs/kb_eval/run", admin=True), None)
             self.store.put({"pk": "KB#state", "sk": "META", "manifestHash": "done"})
-            allowed = api_handler.lambda_handler(_event("POST", "/jobs/kb_eval/run", admin=True), None)
+            allowed = http_call(_event("POST", "/v1/admin/jobs/kb_eval/run", admin=True), None)
         self.assertEqual(refused["statusCode"], 404)
         self.assertEqual(early["statusCode"], 409)
         self.assertEqual(json.loads(early["body"])["message"], "the knowledge base has not been synced")
@@ -237,15 +238,15 @@ class PublicApiTest(unittest.TestCase):
             sent.append(name)
 
         with patch.object(api_handler, "_invoke_engine", invoke), patch("audit.write") as audit:
-            prices = api_handler.lambda_handler(_event("POST", "/public/jobs/backfill_prices/run", key=_key()), None)
-            weekly = api_handler.lambda_handler(_event("POST", "/public/jobs/weekly_refresh/run", key=_key()), None)
-            panel = api_handler.lambda_handler(_event("POST", "/jobs/weekly_refresh/run", admin=True), None)
-            daily = api_handler.lambda_handler(_event("POST", "/public/jobs/ingest_daily/run", key=_key()), None)
-            facts = api_handler.lambda_handler(
-                _event("POST", "/public/jobs/backfill_fundamentals/run", key=_key()), None
+            prices = http_call(_event("POST", "/v1/partner/jobs/backfill_prices/run", key=_key()), None)
+            weekly = http_call(_event("POST", "/v1/partner/jobs/weekly_refresh/run", key=_key()), None)
+            panel = http_call(_event("POST", "/v1/admin/jobs/weekly_refresh/run", admin=True), None)
+            daily = http_call(_event("POST", "/v1/partner/jobs/ingest_daily/run", key=_key()), None)
+            facts = http_call(
+                _event("POST", "/v1/partner/jobs/backfill_fundamentals/run", key=_key()), None
             )
-            screen = api_handler.lambda_handler(_event("POST", "/public/jobs/screen/run", key=_key()), None)
-            drill = api_handler.lambda_handler(_event("POST", "/public/jobs/breaker_drill/run", key=_key()), None)
+            screen = http_call(_event("POST", "/v1/partner/jobs/screen/run", key=_key()), None)
+            drill = http_call(_event("POST", "/v1/partner/jobs/breaker_drill/run", key=_key()), None)
         self.assertEqual(prices["statusCode"], 202)
         self.assertEqual(weekly["statusCode"], 202)
         self.assertEqual(panel["statusCode"], 202)
@@ -273,8 +274,8 @@ class PublicApiTest(unittest.TestCase):
         self.store.put({"pk": "JOB#backfill_prices", "sk": "STATE", "status": "done", "cursor": 131, "total": 131})
         sent: list[str] = []
         with patch.object(api_handler, "_invoke_engine", lambda name, _sub: sent.append(name)):
-            refused = api_handler.lambda_handler(_event("POST", "/public/jobs/backfill_prices/run", key=_key()), None)
-            allowed = api_handler.lambda_handler(_event("POST", "/jobs/backfill_prices/run", admin=True), None)
+            refused = http_call(_event("POST", "/v1/partner/jobs/backfill_prices/run", key=_key()), None)
+            allowed = http_call(_event("POST", "/v1/admin/jobs/backfill_prices/run", admin=True), None)
         self.assertEqual(refused["statusCode"], 409)
         self.assertEqual(json.loads(refused["body"])["message"], "backfill_prices already finished")
         self.assertEqual(allowed["statusCode"], 202)
@@ -287,12 +288,12 @@ class PublicApiTest(unittest.TestCase):
             sent.append((name, params))
 
         with patch.object(api_handler, "_invoke_engine", invoke):
-            sized = api_handler.lambda_handler(
-                _event("POST", "/public/jobs/backtest/run", {"portfolioSize": 15}, key=_key()), None
+            sized = http_call(
+                _event("POST", "/v1/partner/jobs/backtest/run", {"portfolioSize": 15}, key=_key()), None
             )
-            plain = api_handler.lambda_handler(_event("POST", "/public/jobs/backtest/run", key=_key()), None)
-            panel = api_handler.lambda_handler(
-                _event("POST", "/jobs/backtest/run", {"portfolioSize": 30}, admin=True), None
+            plain = http_call(_event("POST", "/v1/partner/jobs/backtest/run", key=_key()), None)
+            panel = http_call(
+                _event("POST", "/v1/admin/jobs/backtest/run", {"portfolioSize": 30}, admin=True), None
             )
         self.assertEqual(sized["statusCode"], 202)
         self.assertEqual(plain["statusCode"], 202)
@@ -325,11 +326,11 @@ class PublicApiTest(unittest.TestCase):
         )
         with patch.object(api_handler, "_invoke_engine", invoke):
             for job, body, message in refused:
-                response = api_handler.lambda_handler(_event("POST", f"/public/jobs/{job}/run", body, key=_key()), None)
+                response = http_call(_event("POST", f"/v1/partner/jobs/{job}/run", body, key=_key()), None)
                 self.assertEqual(response["statusCode"], 400, body)
                 self.assertEqual(json.loads(response["body"])["message"], message)
-            admin = api_handler.lambda_handler(
-                _event("POST", "/jobs/backtest/run", {"portfolioSize": 9}, admin=True), None
+            admin = http_call(
+                _event("POST", "/v1/admin/jobs/backtest/run", {"portfolioSize": 9}, admin=True), None
             )
         self.assertEqual(admin["statusCode"], 400)
         self.assertEqual(sent, [])
@@ -345,15 +346,15 @@ class PublicApiTest(unittest.TestCase):
 
         with patch.object(api_handler, "_invoke_engine", invoke):
             for raw in ('{"portfolioSize": 15', "[15]", "15", "portfolioSize=15", "null"):
-                event = _event("POST", "/public/jobs/backtest/run", key=_key())
+                event = _event("POST", "/v1/partner/jobs/backtest/run", key=_key())
                 event["body"] = raw
-                response = api_handler.lambda_handler(event, None)
+                response = http_call(event, None)
                 self.assertEqual(response["statusCode"], 400, raw)
                 self.assertEqual(json.loads(response["body"])["message"], "body must be a JSON object")
-            encoded = _event("POST", "/public/jobs/backtest/run", key=_key())
+            encoded = _event("POST", "/v1/partner/jobs/backtest/run", key=_key())
             encoded["isBase64Encoded"] = True
             encoded["body"] = base64.b64encode(b'{"portfolioSize": 15}').decode("ascii")
-            accepted = api_handler.lambda_handler(encoded, None)
+            accepted = http_call(encoded, None)
         self.assertEqual(accepted["statusCode"], 202)
         self.assertEqual(json.loads(accepted["body"])["portfolioSize"], 15)
         self.assertEqual(sent, ["backtest"])
@@ -375,12 +376,12 @@ class PublicApiTest(unittest.TestCase):
             sent.append((name, params))
 
         with patch.object(api_handler, "_invoke_engine", invoke):
-            other = api_handler.lambda_handler(
-                _event("POST", "/public/jobs/backtest/run", {"portfolioSize": 30}, key=_key()), None
+            other = http_call(
+                _event("POST", "/v1/partner/jobs/backtest/run", {"portfolioSize": 30}, key=_key()), None
             )
-            implied = api_handler.lambda_handler(_event("POST", "/public/jobs/backtest/run", key=_key()), None)
-            same = api_handler.lambda_handler(
-                _event("POST", "/jobs/backtest/run", {"portfolioSize": 15}, admin=True), None
+            implied = http_call(_event("POST", "/v1/partner/jobs/backtest/run", key=_key()), None)
+            same = http_call(
+                _event("POST", "/v1/admin/jobs/backtest/run", {"portfolioSize": 15}, admin=True), None
             )
         self.assertEqual(other["statusCode"], 409)
         self.assertEqual(json.loads(other["body"])["message"], "unfinished backtest is 15 names")
@@ -395,19 +396,19 @@ class PublicApiTest(unittest.TestCase):
             sent.append((name, params))
 
         with patch.object(api_handler, "_invoke_engine", invoke):
-            first = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_sync_check/run", key=_key()), None)
-            first_page = api_handler.lambda_handler(_event("POST", "/public/kb/sync", key=_key()), None)
-            confirm = api_handler.lambda_handler(
-                _event("POST", "/public/jobs/kb_sync_check/run", {"confirmDeletion": True}, key=_key()), None
+            first = http_call(_event("POST", "/v1/partner/jobs/kb_sync_check/run", key=_key()), None)
+            first_page = http_call(_event("POST", "/v1/partner/kb/sync", key=_key()), None)
+            confirm = http_call(
+                _event("POST", "/v1/partner/jobs/kb_sync_check/run", {"confirmDeletion": True}, key=_key()), None
             )
-            confirm_page = api_handler.lambda_handler(
-                _event("POST", "/public/kb/sync", {"confirmDeletion": True}, key=_key()), None
+            confirm_page = http_call(
+                _event("POST", "/v1/partner/kb/sync", {"confirmDeletion": True}, key=_key()), None
             )
-            stop = api_handler.lambda_handler(
-                _event("POST", "/public/jobs/kb_sync_check/run", {"stop": True}, key=_key()), None
+            stop = http_call(
+                _event("POST", "/v1/partner/jobs/kb_sync_check/run", {"stop": True}, key=_key()), None
             )
-            stop_page = api_handler.lambda_handler(
-                _event("POST", "/public/kb/sync", {"stop": True}, key=_key()), None
+            stop_page = http_call(
+                _event("POST", "/v1/partner/kb/sync", {"stop": True}, key=_key()), None
             )
         self.assertEqual(first["statusCode"], 403)
         self.assertEqual(first_page["statusCode"], 403)
@@ -419,8 +420,8 @@ class PublicApiTest(unittest.TestCase):
         self.assertEqual(json.loads(stop_page["body"])["message"], "only the owner can stop a sync")
         self.store.put({"pk": "KB#state", "sk": "META", "manifestHash": "abc"})
         with patch.object(api_handler, "_invoke_engine", invoke):
-            later = api_handler.lambda_handler(_event("POST", "/public/jobs/kb_sync_check/run", key=_key()), None)
-            mirrored = api_handler.lambda_handler(_event("POST", "/public/kb/sync", key=_key()), None)
+            later = http_call(_event("POST", "/v1/partner/jobs/kb_sync_check/run", key=_key()), None)
+            mirrored = http_call(_event("POST", "/v1/partner/kb/sync", key=_key()), None)
         self.assertEqual(later["statusCode"], 202)
         self.assertEqual(mirrored["statusCode"], 202)
         self.assertEqual(sent, [("kb_sync_check", None), ("kb_sync_check", None)])

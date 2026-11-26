@@ -243,14 +243,16 @@ describe("findingalpha stack", () => {
 
   test("dashboard routes use the JWT authorizer and public routes use the key", () => {
     const keyRoutes = new Set([
-      "GET /public",
-      "GET /public/{proxy+}",
-      "PUT /public/{proxy+}",
-      "POST /public/{proxy+}",
+      "GET /v1/partner",
+      "GET /v1/partner/{proxy+}",
+      "PUT /v1/partner/{proxy+}",
+      "POST /v1/partner/{proxy+}",
     ]);
     const routes = resources("AWS::ApiGatewayV2::Route");
     const keys = Object.values(routes).map((route) => String(route.Properties.RouteKey));
-    expect(keys).toEqual(expect.arrayContaining(["GET /health", "GET /me", "GET /api-keys", "GET /public"]));
+    expect(keys).toEqual(
+      expect.arrayContaining(["GET /health", "GET /v1/admin/me", "GET /v1/admin/api-keys", "GET /v1/partner"]),
+    );
     for (const route of Object.values(routes)) {
       const routeKey = String(route.Properties.RouteKey);
       if (routeKey === "GET /health") {
@@ -260,7 +262,8 @@ describe("findingalpha stack", () => {
         expect(route.Properties.AuthorizationType).toBe("CUSTOM");
       } else {
         expect(route.Properties.AuthorizationType).toBe("JWT");
-        expect(routeKey.startsWith("GET /public")).toBe(false);
+        expect(routeKey.startsWith("GET /v1/partner")).toBe(false);
+        expect(routeKey.includes("/v1/public/")).toBe(false);
       }
     }
   });
@@ -361,10 +364,10 @@ describe("findingalpha stack", () => {
   test("public routes are throttled below the stage default", () => {
     const stage = Object.values(resources("AWS::ApiGatewayV2::Stage"))[0];
     const settings = stage.Properties.RouteSettings as Record<string, { ThrottlingRateLimit: number; ThrottlingBurstLimit: number }>;
-    expect(settings["GET /public"]).toEqual({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 });
-    expect(settings["GET /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 });
-    expect(settings["PUT /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
-    expect(settings["POST /public/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
+    expect(settings["GET /v1/partner"]).toEqual({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 });
+    expect(settings["GET /v1/partner/{proxy+}"]).toEqual({ ThrottlingRateLimit: 2, ThrottlingBurstLimit: 10 });
+    expect(settings["PUT /v1/partner/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
+    expect(settings["POST /v1/partner/{proxy+}"]).toEqual({ ThrottlingRateLimit: 1, ThrottlingBurstLimit: 5 });
   });
 
   test("the stage and the domain mapping wait for the resources they name", () => {
@@ -376,6 +379,42 @@ describe("findingalpha stack", () => {
     }
     const mapping = Object.values(resources("AWS::ApiGatewayV2::ApiMapping"))[0];
     expect(dependencyList(mapping)).toContain(stageId);
+  });
+
+  test("the key authorizer does not require both credential headers and does not cache", () => {
+    const authorizers = resources("AWS::ApiGatewayV2::Authorizer");
+    const authorizer = Object.values(authorizers).find((item) =>
+      JSON.stringify(item.Properties.AuthorizerUri ?? "").includes("PublicApiKeyAuthorizerFn"),
+    );
+    expect(authorizer).toBeDefined();
+    const sources = authorizer?.Properties.IdentitySource as string[];
+    expect(sources).toEqual(["$context.identity.sourceIp"]);
+    expect(authorizer?.Properties.AuthorizerResultTtlInSeconds).toBe(0);
+  });
+
+  test("execute-api stays enabled and the custom domain becomes AdminApiBaseUrl", () => {
+    const api = Object.values(resources("AWS::ApiGatewayV2::Api"))[0];
+    expect(api.Properties.DisableExecuteApiEndpoint).toBe(false);
+    const template = synthesized.toJSON() as {
+      Outputs: Record<string, { Value?: unknown }>;
+    };
+    const base = JSON.stringify(template.Outputs.AdminApiBaseUrl.Value);
+    expect(base).toContain("Fn::If");
+    expect(base).toContain("UseApiCustomDomain");
+    expect(base).toContain("ApiCustomDomainName");
+  });
+
+  test("every partner method has the token authorizer and no public method does", () => {
+    for (const route of Object.values(resources("AWS::ApiGatewayV2::Route"))) {
+      const routeKey = String(route.Properties.RouteKey);
+      const path = routeKey.split(" ").slice(1).join(" ");
+      if (path === "/v1/partner" || path.startsWith("/v1/partner/")) {
+        expect(route.Properties.AuthorizationType).toBe("CUSTOM");
+      }
+      if (path.startsWith("/v1/public/")) {
+        expect(route.Properties.AuthorizationType).not.toBe("CUSTOM");
+      }
+    }
   });
 
   test("the key authorizer has an error alarm", () => {
@@ -426,9 +465,24 @@ describe("findingalpha stack", () => {
     const cors = api.Properties.CorsConfiguration as {
       AllowOrigins: unknown[];
       AllowCredentials: boolean;
+      AllowMethods: string[];
+      ExposeHeaders: string[];
     };
     expect(cors.AllowOrigins).toHaveLength(1);
     expect(cors.AllowCredentials).toBe(false);
+    expect(cors.ExposeHeaders).toContain("x-request-id");
+    const jwtMethods = new Set<string>();
+    for (const route of Object.values(resources("AWS::ApiGatewayV2::Route"))) {
+      if (route.Properties.AuthorizationType !== "JWT") {
+        continue;
+      }
+      const [method] = String(route.Properties.RouteKey).split(" ");
+      jwtMethods.add(method);
+    }
+    expect(jwtMethods.size).toBeGreaterThan(0);
+    for (const method of jwtMethods) {
+      expect(cors.AllowMethods).toContain(method);
+    }
     expect(JSON.stringify(cors.AllowOrigins)).toContain("AdminWebDomainName");
     synthesized.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
       DefaultRouteSettings: Match.objectLike({

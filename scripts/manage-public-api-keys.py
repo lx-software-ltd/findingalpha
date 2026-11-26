@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Mint, list, revoke, and toggle write or scopes on public API keys.
 
-Keys authenticate ``/public/*`` with the ``x-api-key`` header. Only the
+Keys authenticate ``/v1/partner/*`` with ``Authorization: Bearer``. Only the
 scrypt digest is stored (``pk = APIKEY#<digest>``, ``sk = META``). The
 plaintext is printed once by ``create``, or written to ``--plaintext-out``
 for the workflow to encrypt. The only tier that can be minted is ``admin``.
@@ -155,7 +155,7 @@ def cmd_create(args: argparse.Namespace) -> None:
     print(f"  {plaintext}")
     print()
     print("Example:")
-    print(f'  curl -H "x-api-key: {plaintext}" https://api.<domain>/public/system/status')
+    print(f'  curl -H "Authorization: Bearer {plaintext}" https://api.<domain>/v1/partner/system/status')
 
 
 def _query_keys(args: argparse.Namespace) -> list[dict]:

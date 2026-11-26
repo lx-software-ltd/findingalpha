@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from config import env_flag
-from http_common import _json_response
+from http_common import _json_response, error_body
 from kill_switch import is_enabled
 from settings import SWITCHES, _flags, _row
 
@@ -105,9 +105,9 @@ def list_runs(event: dict[str, Any]) -> dict[str, Any]:
     try:
         limit = int(raw)
     except (TypeError, ValueError):
-        return _json_response(400, {"message": "limit must be an integer"})
+        return _json_response(400, error_body(400, "limit must be an integer"))
     if limit < 1 or limit > 100:
-        return _json_response(400, {"message": "limit must be from 1 to 100"})
+        return _json_response(400, error_body(400, "limit must be from 1 to 100"))
     rows = store.query_gsi1_latest("JOBRUNS", limit)
     runs = [
         {

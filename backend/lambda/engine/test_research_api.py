@@ -6,7 +6,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-import api_handler
+from http_call import http_call
 
 
 def _event(path: str) -> dict:
@@ -47,7 +47,7 @@ class ResearchApiTest(unittest.TestCase):
             patch("research_api.s3io.exists", return_value=True),
             patch("research_api.s3io.get_jsonl_gz", return_value=iter(rows)),
         ):
-            response = api_handler.lambda_handler(_event("/screens/latest"), None)
+            response = http_call(_event("/v1/admin/screens/latest"), None)
         body = json.loads(response["body"])
         self.assertEqual(response["statusCode"], 200)
         self.assertEqual([row["symbol"] for row in body["rows"]], ["AAA"])
@@ -71,13 +71,13 @@ class ResearchApiTest(unittest.TestCase):
             },
         ]
         with patch("store.query_gsi1", return_value=rows):
-            response = api_handler.lambda_handler(_event("/backtests"), None)
+            response = http_call(_event("/v1/admin/backtests"), None)
         body = json.loads(response["body"])
         self.assertEqual([item["runId"] for item in body["runs"]], ["newer", "older"])
 
     def test_a_missing_backtest_is_not_found(self) -> None:
         with patch("store.get", return_value=None):
-            response = api_handler.lambda_handler(_event("/backtests/missing"), None)
+            response = http_call(_event("/v1/admin/backtests/missing"), None)
         self.assertEqual(response["statusCode"], 404)
 
 
