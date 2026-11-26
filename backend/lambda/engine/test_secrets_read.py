@@ -73,9 +73,13 @@ class SecretsReadTest(unittest.TestCase):
 
     def test_a_failed_read_is_not_cached(self) -> None:
         client = _Client("{}", fail=True)
-        with self.assertRaises(secrets_read.NotConfigured) as raised:
-            secrets_read.read_json_secret("findingalpha/alpaca-paper", ("keyId",), client=client, now=lambda: 0.0)
+        with self.assertLogs("secrets_read", level="INFO") as logs:
+            with self.assertRaises(secrets_read.NotConfigured) as raised:
+                secrets_read.read_json_secret("findingalpha/alpaca-paper", ("keyId",), client=client, now=lambda: 0.0)
         self.assertIsNone(raised.exception.__cause__)
+        self.assertIn("store read failed error=RuntimeError", logs.output[0])
+        self.assertNotIn("findingalpha/alpaca-paper", logs.output[0])
+        self.assertNotIn("super-secret-value", logs.output[0])
         client.fail = False
         client.payload = '{"keyId":"k"}'
         secrets_read.read_json_secret("findingalpha/alpaca-paper", ("keyId",), client=client, now=lambda: 0.0)

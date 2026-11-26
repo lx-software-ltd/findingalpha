@@ -30,9 +30,13 @@ def _redact(text: str) -> str:
 
 
 def fetch(url: str, headers: dict[str, str]) -> tuple[int, bytes]:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError("only https URLs are fetched")
     request = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        with urllib.request.urlopen(request, timeout=120) as response:  # nosec B310
             return response.status, response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read()
