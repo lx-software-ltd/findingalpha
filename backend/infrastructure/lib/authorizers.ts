@@ -50,9 +50,14 @@ export function defineKeyAuthorizer(
   }
   const authorizer = new HttpLambdaAuthorizer("public-api-key", fn, {
     responseTypes: [HttpLambdaResponseType.SIMPLE],
-    // The header is the credential. Source IP stays in the cache key so a
-    // CIDR allow for one address is not reused for another.
-    identitySource: ["$request.header.Authorization", "$context.identity.sourceIp"],
+    // Both credential headers are identity sources, with source IP, so a
+    // cached verdict cannot cross schemes and a CIDR allow is not reused
+    // for another address.
+    identitySource: [
+      "$request.header.Authorization",
+      "$request.header.x-api-key",
+      "$context.identity.sourceIp",
+    ],
     resultsCacheTtl: cdk.Duration.seconds(60),
   });
   return { authorizer, fn };

@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("RECORDS_TABLE_NAME", "findingalpha-records")
 
+
 class _Boto3(types.ModuleType):
     resource: MagicMock
     client: MagicMock
@@ -180,6 +181,56 @@ class AuthorizerTest(unittest.TestCase):
             clock.now.return_value = now + timedelta(seconds=60)
             lambda_handler(_event(), None)
         self.table.update_item.assert_called_once()
+
+
+class SchemeTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.table = MagicMock()
+        boto3.resource.return_value.Table.return_value = self.table
+        self.table.get_item.return_value = {"Item": _valid_item()}
+
+    def test_legacy_header_is_accepted_and_logged(self) -> None:
+        event = _event()
+        event["headers"] = {"x-api-key": _KEY}
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(event, None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "legacy"' in line for line in captured.output))
+        self.table.get_item.assert_called_with(Key={"pk": f"APIKEY#{hash_api_key(_KEY)}", "sk": "META"})
+
+    def test_legacy_header_name_is_case_insensitive(self) -> None:
+        event = _event()
+        event["headers"] = {"X-Api-Key": _KEY}
+        self.assertTrue(lambda_handler(event, None)["isAuthorized"])
+
+    def test_bearer_logs_its_scheme(self) -> None:
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(_event(), None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "bearer"' in line for line in captured.output))
+
+    def test_bearer_wins_when_both_headers_are_present(self) -> None:
+        event = _event()
+        event["headers"]["x-api-key"] = "fapk_legacy"
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(event, None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "bearer"' in line for line in captured.output))
+        self.table.get_item.assert_called_with(Key={"pk": f"APIKEY#{hash_api_key(_KEY)}", "sk": "META"})
+
+    def test_malformed_bearer_falls_through_to_the_legacy_header(self) -> None:
+        event = _event(authorization=f"Token {_KEY}")
+        event["headers"]["x-api-key"] = _KEY
+        with self.assertLogs(level="INFO") as captured:
+            out = lambda_handler(event, None)
+        self.assertTrue(out["isAuthorized"])
+        self.assertTrue(any('"auth_scheme": "legacy"' in line for line in captured.output))
+
+    def test_blank_legacy_header_is_denied(self) -> None:
+        event = _event()
+        event["headers"] = {"x-api-key": "   "}
+        self.assertFalse(lambda_handler(event, None)["isAuthorized"])
+        self.table.get_item.assert_not_called()
 
 
 class KeyRuleTest(unittest.TestCase):

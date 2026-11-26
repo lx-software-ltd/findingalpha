@@ -44,14 +44,18 @@ Kill switches are strings `true` or `false` and default to `false`.
 ## API keys
 
 `/v1/partner/*` uses a Lambda authorizer, not the dashboard JWT. The
-caller sends `Authorization: Bearer <token>`. The authorizer reads one
+caller sends `Authorization: Bearer <token>` and the previous
+`x-api-key` header carrying an `fapk_` token. Both headers are identity
+sources, so API Gateway requires both on the request. A parseable Bearer
+token wins. The authorizer reads one
 `APIKEY#*` row and may update `lastUsedAt` on that row. It cannot scan
 the table. The plaintext token is shown once, at mint time, and only
 its scrypt digest is stored. Logs carry the first eight hex characters
-of the digest.
+of the digest and `auth_scheme` (`bearer` or `legacy`).
 
-The authorizer cache is 60 seconds and does not include the HTTP
-method, so the authorizer never denies a method. The Manage Public
+The authorizer cache is 60 seconds and includes both credential headers
+and the source IP, not the HTTP method, so the authorizer never denies a
+method and a verdict for one scheme is not reused for the other. The Manage Public
 API Keys workflow replaces scopes with `set-scopes`. The caller
 repeats every scope the key should keep. A scope that tier cannot
 hold is refused. The write flag is a separate `set-write`. The engine allows a write only when the key has

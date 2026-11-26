@@ -381,7 +381,7 @@ describe("findingalpha stack", () => {
     expect(dependencyList(mapping)).toContain(stageId);
   });
 
-  test("the key authorizer reads Authorization and caches for 60 seconds", () => {
+  test("the key authorizer cache key lists both credential headers and caches for 60 seconds", () => {
     const authorizers = resources("AWS::ApiGatewayV2::Authorizer");
     const authorizer = Object.values(authorizers).find((item) =>
       JSON.stringify(item.Properties.AuthorizerUri ?? "").includes("PublicApiKeyAuthorizerFn"),
@@ -389,14 +389,14 @@ describe("findingalpha stack", () => {
     expect(authorizer).toBeDefined();
     const sources = authorizer?.Properties.IdentitySource as string[];
     expect(sources).toContain("$request.header.Authorization");
-    expect(sources).not.toContain("$request.header.x-api-key");
+    expect(sources).toContain("$request.header.x-api-key");
+    expect(sources).toContain("$context.identity.sourceIp");
     expect(authorizer?.Properties.AuthorizerResultTtlInSeconds).toBe(60);
   });
 
-  test("the custom domain turns off execute-api and becomes AdminApiBaseUrl", () => {
+  test("execute-api stays enabled and the custom domain becomes AdminApiBaseUrl", () => {
     const api = Object.values(resources("AWS::ApiGatewayV2::Api"))[0];
-    const disabled = JSON.stringify(api.Properties.DisableExecuteApiEndpoint);
-    expect(disabled).toContain("UseApiCustomDomain");
+    expect(api.Properties.DisableExecuteApiEndpoint).toBe(false);
     const template = synthesized.toJSON() as {
       Outputs: Record<string, { Value?: unknown }>;
     };
