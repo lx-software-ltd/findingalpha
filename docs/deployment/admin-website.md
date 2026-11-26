@@ -195,8 +195,8 @@ Mint, list, revoke, the write flag, and the scope list are the
 **Manage Public API Keys** workflow. `set-scopes` replaces the whole
 list, so repeat every scope the key should keep. A scope that tier
 cannot hold is refused. `set-write` stays separate. The authorizer
-cache is 60 seconds and includes both `Authorization` and `x-api-key`,
-so a changed key can keep the old verdict until that expires. Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
+does not cache, so a changed key takes effect on the next request.
+Add `PUBLIC_API_KEY_GPG_PASSPHRASE` on the `production`
 environment first. A new key is not printed. The job summary holds an
 armored block. Save it as `key.asc` and decrypt it locally:
 
@@ -211,10 +211,8 @@ curl -X PUT -H "Authorization: Bearer fapk_..." -H "content-type: application/js
   -d '{"ingest_enabled": false}' https://api.<domain>/v1/partner/settings
 ```
 
-The authorizer also accepts the previous header, `x-api-key: fapk_...`.
-The cache key lists both headers, so API Gateway calls the authorizer
-only when the request includes both. A log line records `auth_scheme`
-as `bearer` or `legacy`.
+The authorizer also accepts the previous header, `x-api-key: fapk_...`,
+on its own. A log line records `auth_scheme` as `bearer` or `legacy`.
 
 The dashboard System page lists keys, including each `keyId`. It does
 not mint, revoke, or change them. Run `list` in the workflow when the

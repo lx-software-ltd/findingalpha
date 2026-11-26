@@ -10,15 +10,15 @@ characters of that digest (``digest_prefix``) and ``auth_scheme``
 plaintext token is shown once at mint time
 (``scripts/manage-public-api-keys.py``).
 
-Returns the API Gateway v2 simple authorizer response. API Gateway caches
-the verdict for 60 seconds. The cache key includes both credential headers
-and source IP, not the HTTP method, so a verdict for one scheme is not
-reused for the other and this function never denies based on method. A
-POST denial would block GETs for the same token and IP. Write methods are
-enforced by the engine using the forwarded ``write`` flag. Revocation takes
-up to that cache TTL. The scheme ``Bearer`` is accepted in any letter case.
-A missing token is a denial. When both headers are present, a parseable
-Bearer token wins.
+Returns the API Gateway v2 simple authorizer response. API Gateway does
+not cache the verdict. A listed identity source that is missing is
+rejected before this function runs, so the optional credential headers
+are not identity sources. Callers send one of them. This function never
+denies based on method. Write methods are enforced by the engine using
+the forwarded ``write`` flag. The scheme ``Bearer`` is accepted in any
+letter case. A legacy token must start with ``fapk_``. A missing token
+is a denial. When both headers are present, a parseable Bearer token
+wins.
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ def _legacy_token(raw: str | None) -> str | None:
     if raw is None:
         return None
     key = raw.strip()
-    if not key or len(key) > MAX_API_KEY_LEN:
+    if not key.startswith("fapk_") or len(key) > MAX_API_KEY_LEN:
         return None
     return key
 

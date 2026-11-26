@@ -381,17 +381,15 @@ describe("findingalpha stack", () => {
     expect(dependencyList(mapping)).toContain(stageId);
   });
 
-  test("the key authorizer cache key lists both credential headers and caches for 60 seconds", () => {
+  test("the key authorizer does not require both credential headers and does not cache", () => {
     const authorizers = resources("AWS::ApiGatewayV2::Authorizer");
     const authorizer = Object.values(authorizers).find((item) =>
       JSON.stringify(item.Properties.AuthorizerUri ?? "").includes("PublicApiKeyAuthorizerFn"),
     );
     expect(authorizer).toBeDefined();
     const sources = authorizer?.Properties.IdentitySource as string[];
-    expect(sources).toContain("$request.header.Authorization");
-    expect(sources).toContain("$request.header.x-api-key");
-    expect(sources).toContain("$context.identity.sourceIp");
-    expect(authorizer?.Properties.AuthorizerResultTtlInSeconds).toBe(60);
+    expect(sources).toEqual(["$context.identity.sourceIp"]);
+    expect(authorizer?.Properties.AuthorizerResultTtlInSeconds).toBe(0);
   });
 
   test("execute-api stays enabled and the custom domain becomes AdminApiBaseUrl", () => {

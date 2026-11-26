@@ -232,6 +232,12 @@ class SchemeTest(unittest.TestCase):
         self.assertFalse(lambda_handler(event, None)["isAuthorized"])
         self.table.get_item.assert_not_called()
 
+    def test_legacy_header_without_the_token_prefix_is_denied(self) -> None:
+        event = _event()
+        event["headers"] = {"x-api-key": "not-a-token"}
+        self.assertFalse(lambda_handler(event, None)["isAuthorized"])
+        self.table.get_item.assert_not_called()
+
 
 class KeyRuleTest(unittest.TestCase):
     def test_write_requires_an_enabled_tier_that_may_write(self) -> None:
