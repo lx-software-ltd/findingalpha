@@ -1,0 +1,334 @@
+openapi: 3.0.3
+info:
+  title: Finding Alpha admin API
+  version: 0.1.0
+  description: |
+    Field names on the wire are snake_case. findingalpha keeps message
+    beside the problem members. The address is https://api.findingalpha.app
+    and callers add /v1/ themselves.
+servers:
+  - url: https://api.findingalpha.app
+paths:
+  /health:
+    get:
+      summary: Liveness
+      security: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/me:
+    get:
+      summary: Claims of the caller
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/owner-tasks:
+    get:
+      summary: Owner checklist
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/owner-tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      summary: Tick an owner task
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/settings:
+    get:
+      summary: Runtime settings
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      summary: Runtime settings
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/jobs/runs:
+    get:
+      summary: Recent job runs
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/jobs/{job_name}/run:
+    parameters:
+      - name: job_name
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      summary: Start an allowed job
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/universe/latest:
+    get:
+      summary: Universe summary
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/system/status:
+    get:
+      summary: Kill switches, last runs, and versions
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/api-keys:
+    get:
+      summary: Key list without digests
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/methodology:
+    get:
+      summary: Methodology register and counts
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/screens/latest:
+    get:
+      summary: Latest shortlist
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/screens/{date}:
+    parameters:
+      - name: date
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Shortlist for one date
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/backtests:
+    get:
+      summary: Backtest runs
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/backtests/{run_id}:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: One backtest
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/kb/status:
+    get:
+      summary: Knowledge base status
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/kb/eval/latest:
+    get:
+      summary: Latest knowledge base evaluation
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+  /v1/admin/kb/sync:
+    post:
+      summary: Start a knowledge base sync
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: JSON object. Field names are snake_case.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Object"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  securitySchemes:
+    AdminBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Object:
+      type: object
+      additionalProperties: true
+    Problem:
+      type: object
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        code:
+          type: string
+        request_id:
+          type: string
+        message:
+          type: string
+  responses:
+    Problem:
+      description: Problem details. findingalpha keeps message.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"

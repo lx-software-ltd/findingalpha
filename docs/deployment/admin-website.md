@@ -205,10 +205,10 @@ gpg --decrypt key.asc
 ```
 
 ```
-curl -H "x-api-key: fapk_..." https://api.<domain>/public
-curl -H "x-api-key: fapk_..." https://api.<domain>/public/system/status
-curl -X PUT -H "x-api-key: fapk_..." -H "content-type: application/json" \
-  -d '{"ingestEnabled": false}' https://api.<domain>/public/settings
+curl -H "Authorization: Bearer fapk_..." https://api.<domain>/v1/partner
+curl -H "Authorization: Bearer fapk_..." https://api.<domain>/v1/partner/system/status
+curl -X PUT -H "Authorization: Bearer fapk_..." -H "content-type: application/json" \
+  -d '{"ingest_enabled": false}' https://api.<domain>/v1/partner/settings
 ```
 
 The dashboard System page lists keys, including each `keyId`. It does

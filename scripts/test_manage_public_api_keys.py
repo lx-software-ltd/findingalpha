@@ -74,6 +74,14 @@ class ManageKeysTest(unittest.TestCase):
                     keys.cmd_create(args)
                 self.assertEqual(target.read_text(encoding="utf-8"), "fapk_short\n")
                 self.assertNotIn("fapk_short", printed.getvalue())
+            args.plaintext_out = None
+            shown = io.StringIO()
+            with patch("sys.stdout", shown):
+                keys.cmd_create(args)
+            example = shown.getvalue()
+            self.assertIn("Authorization: Bearer fapk_short", example)
+            self.assertIn("/v1/partner/system/status", example)
+            self.assertNotIn("x-api-key", example)
         self.assertEqual(stored["tier"], "admin")
         self.assertEqual(stored["gsi1pk"], "APIKEYS")
         self.assertTrue(str(stored["gsi1sk"]).endswith("#abc123abc123"))

@@ -48,7 +48,7 @@ export type UniverseLatest = {
 export function useSystemStatus() {
   return useQuery({
     queryKey: queryKeys.status,
-    queryFn: () => adminFetchJson<SystemStatus>("/system/status"),
+    queryFn: () => adminFetchJson<SystemStatus>("/v1/admin/system/status"),
     refetchInterval: 60_000,
   });
 }
@@ -57,7 +57,7 @@ export function useApiKeys() {
   return useQuery({
     queryKey: queryKeys.apiKeys,
     queryFn: async () => {
-      const data = await adminFetchJson<{ keys: ApiKeyRow[]; writesEnabled?: boolean }>("/api-keys");
+      const data = await adminFetchJson<{ keys: ApiKeyRow[]; writesEnabled?: boolean }>("/v1/admin/api-keys");
       const now = Date.now();
       return {
         writesEnabled: data.writesEnabled === true,
@@ -75,7 +75,7 @@ export function useApiKeys() {
 export function useUniverse() {
   return useQuery({
     queryKey: queryKeys.universe,
-    queryFn: () => adminFetchJson<UniverseLatest>("/universe/latest"),
+    queryFn: () => adminFetchJson<UniverseLatest>("/v1/admin/universe/latest"),
     refetchInterval: 60_000,
   });
 }
@@ -101,7 +101,7 @@ export function useRunJob() {
           : portfolioSize === undefined
             ? undefined
             : { portfolioSize };
-      return adminFetchJson<{ accepted: boolean; portfolioSize?: number }>(`/jobs/${job}/run`, {
+      return adminFetchJson<{ accepted: boolean; portfolioSize?: number }>(`/v1/admin/jobs/${job}/run`, {
         method: "POST",
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
@@ -116,7 +116,7 @@ export function useRunJob() {
 export function useJobRuns() {
   return useQuery({
     queryKey: queryKeys.runs,
-    queryFn: () => adminFetchJson<{ runs: JobRun[] }>("/jobs/runs?limit=50"),
+    queryFn: () => adminFetchJson<{ runs: JobRun[] }>("/v1/admin/jobs/runs?limit=50"),
     refetchInterval: 60_000,
   });
 }

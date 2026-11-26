@@ -7,7 +7,7 @@ from typing import Any
 
 import audit
 import timeutil
-from http_common import _json_response, _parse_json_body, _require_admin, _route
+from http_common import _json_response, _parse_json_body, _require_admin, _route, error_body
 
 _TASK_ID = re.compile(r"^O[0-9]{2}$")
 _PK_PREFIX = "OWNER_TASK#"
@@ -32,13 +32,13 @@ def list_tasks(_event: dict[str, Any]) -> dict[str, Any]:
 def put_task(event: dict[str, Any]) -> dict[str, Any]:
     claims = _require_admin(event)
     if claims is None:
-        return _json_response(403, {"message": "Forbidden"})
+        return _json_response(403, error_body(403, "Forbidden"))
     task_id = _task_id(event)
     if not _TASK_ID.fullmatch(task_id):
-        return _json_response(400, {"message": "Unknown task"})
+        return _json_response(400, error_body(400, "Unknown task"))
     body = _parse_json_body(event)
     if not isinstance(body.get("done"), bool):
-        return _json_response(400, {"message": "done must be a boolean"})
+        return _json_response(400, error_body(400, "done must be a boolean"))
     import store
 
     pk = f"{_PK_PREFIX}{task_id}"

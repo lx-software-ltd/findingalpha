@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import audit
-from http_common import _json_response, _parse_json_body, _require_admin
+from http_common import _json_response, _parse_json_body, _require_admin, error_body
 from kill_switch import SETTINGS_PK, SETTINGS_SK
 
 SWITCHES = (
@@ -38,15 +38,15 @@ def put_settings(event: dict[str, Any]) -> dict[str, Any]:
     else:
         claims = _require_admin(event)
         if claims is None:
-            return _json_response(403, {"message": "Forbidden"})
+            return _json_response(403, error_body(403, "Forbidden"))
         # The partition key stays USER#<sub>, the same form as earlier dashboard writes.
         actor = str(claims.get("sub") or "")
     body = _parse_json_body(event)
     unknown = [key for key in body if key not in SWITCHES]
     if unknown or not body:
-        return _json_response(400, {"message": "Unknown setting"})
+        return _json_response(400, error_body(400, "Unknown setting"))
     if any(not isinstance(value, bool) for value in body.values()):
-        return _json_response(400, {"message": "Settings must be booleans"})
+        return _json_response(400, error_body(400, "Settings must be booleans"))
     import store
 
     row = _row()

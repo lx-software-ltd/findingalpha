@@ -13,7 +13,7 @@ export type Settings = {
 export function useSettings() {
   return useQuery({
     queryKey: queryKeys.settings,
-    queryFn: () => adminFetchJson<Settings>("/settings"),
+    queryFn: () => adminFetchJson<Settings>("/v1/admin/settings"),
   });
 }
 
@@ -21,7 +21,7 @@ export function usePutSettings() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: Partial<Settings>) =>
-      adminFetchJson<Settings>("/settings", { method: "PUT", body: JSON.stringify(body) }),
+      adminFetchJson<Settings>("/v1/admin/settings", { method: "PUT", body: JSON.stringify(body) }),
     onSuccess: (data) => {
       client.setQueryData(queryKeys.settings, data);
       void client.invalidateQueries({ queryKey: queryKeys.status });

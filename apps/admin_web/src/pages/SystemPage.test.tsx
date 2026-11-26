@@ -31,7 +31,7 @@ describe("SystemPage", () => {
     };
     fetchJson.mockReset();
     fetchJson.mockImplementation((path: string, init?: { method?: string }) => {
-      if (path === "/system/status") {
+      if (path === "/v1/admin/system/status") {
         return Promise.resolve({
           switches: [],
           brokerMode: "paper",
@@ -46,9 +46,9 @@ describe("SystemPage", () => {
           ],
         });
       }
-      if (String(path).startsWith("/jobs/runs")) return Promise.resolve({ runs: [] });
-      if (path === "/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
-      if (path === "/universe/latest") {
+      if (String(path).startsWith("/v1/admin/jobs/runs")) return Promise.resolve({ runs: [] });
+      if (path === "/v1/admin/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
+      if (path === "/v1/admin/universe/latest") {
         return Promise.resolve({
           asOf: "2024-06-03",
           members: 4,
@@ -78,12 +78,12 @@ describe("SystemPage", () => {
     expect(screen.getByText("Run ingest_daily now?")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Run" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Accepted ingest_daily.");
-    expect(fetchJson).toHaveBeenCalledWith("/jobs/ingest_daily/run", { method: "POST" });
+    expect(fetchJson).toHaveBeenCalledWith("/v1/admin/jobs/ingest_daily/run", { method: "POST" });
   });
 
   it("asks for a backtest size and sends an integer", async () => {
     fetchJson.mockImplementation((path: string, init?: { method?: string; body?: string }) => {
-      if (path === "/system/status") {
+      if (path === "/v1/admin/system/status") {
         return Promise.resolve({
           switches: [],
           brokerMode: "paper",
@@ -93,9 +93,9 @@ describe("SystemPage", () => {
           ],
         });
       }
-      if (String(path).startsWith("/jobs/runs")) return Promise.resolve({ runs: [] });
-      if (path === "/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
-      if (path === "/universe/latest") {
+      if (String(path).startsWith("/v1/admin/jobs/runs")) return Promise.resolve({ runs: [] });
+      if (path === "/v1/admin/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
+      if (path === "/v1/admin/universe/latest") {
         return Promise.resolve({ asOf: null, members: 0, counts: {} });
       }
       if (init?.method === "POST") {
@@ -114,7 +114,7 @@ describe("SystemPage", () => {
     expect(screen.getByText(/Leave 20/)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Run" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Accepted backtest.");
-    expect(fetchJson).toHaveBeenCalledWith("/jobs/backtest/run", { method: "POST" });
+    expect(fetchJson).toHaveBeenCalledWith("/v1/admin/jobs/backtest/run", { method: "POST" });
     await user.click(within(row).getByRole("button", { name: "Run now" }));
     const again = screen.getByRole("spinbutton", { name: "Names" });
     await user.clear(again);
@@ -124,7 +124,7 @@ describe("SystemPage", () => {
     await user.type(again, "15");
     await user.click(screen.getByRole("button", { name: "Run" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Accepted backtest, 15 names.");
-    expect(fetchJson).toHaveBeenCalledWith("/jobs/backtest/run", {
+    expect(fetchJson).toHaveBeenCalledWith("/v1/admin/jobs/backtest/run", {
       method: "POST",
       body: JSON.stringify({ portfolioSize: 15 }),
     });
@@ -132,16 +132,16 @@ describe("SystemPage", () => {
 
   it("shows a refusal and an unconfirmed size", async () => {
     fetchJson.mockImplementation((path: string, init?: { method?: string }) => {
-      if (path === "/system/status") {
+      if (path === "/v1/admin/system/status") {
         return Promise.resolve({
           switches: [],
           brokerMode: "paper",
           jobs: [{ job: "backtest", schedule: "", manualRun: true, lastRun: null }],
         });
       }
-      if (String(path).startsWith("/jobs/runs")) return Promise.resolve({ runs: [] });
-      if (path === "/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
-      if (path === "/universe/latest") return Promise.resolve({ asOf: null, members: 0, counts: {} });
+      if (String(path).startsWith("/v1/admin/jobs/runs")) return Promise.resolve({ runs: [] });
+      if (path === "/v1/admin/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
+      if (path === "/v1/admin/universe/latest") return Promise.resolve({ asOf: null, members: 0, counts: {} });
       if (init?.method === "POST") return Promise.resolve({ accepted: true });
       return Promise.resolve({});
     });
@@ -167,10 +167,10 @@ describe("SystemPage", () => {
 
   it("renders before a universe exists", async () => {
     fetchJson.mockImplementation((path: string) => {
-      if (path === "/system/status") return Promise.resolve({ switches: [], brokerMode: "paper", jobs: [] });
-      if (String(path).startsWith("/jobs/runs")) return Promise.resolve({ runs: [] });
-      if (path === "/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
-      if (path === "/universe/latest") return Promise.resolve({ asOf: null, members: 0, counts: {} });
+      if (path === "/v1/admin/system/status") return Promise.resolve({ switches: [], brokerMode: "paper", jobs: [] });
+      if (String(path).startsWith("/v1/admin/jobs/runs")) return Promise.resolve({ runs: [] });
+      if (path === "/v1/admin/api-keys") return Promise.resolve({ keys: [], writesEnabled: false });
+      if (path === "/v1/admin/universe/latest") return Promise.resolve({ asOf: null, members: 0, counts: {} });
       return Promise.resolve({});
     });
     renderPage();

@@ -68,7 +68,7 @@ export type PeriodMetrics = SeriesMetrics & {
 };
 
 export function useScreen(date: string) {
-  const path = date ? `/screens/${date}` : "/screens/latest";
+  const path = date ? `/v1/admin/screens/${date}` : "/v1/admin/screens/latest";
   return useQuery({
     queryKey: date ? queryKeys.screen(date) : queryKeys.screenLatest,
     queryFn: () => adminFetchJson<ScreenResponse>(path),
@@ -78,14 +78,14 @@ export function useScreen(date: string) {
 export function useBacktests() {
   return useQuery({
     queryKey: queryKeys.backtests,
-    queryFn: () => adminFetchJson<{ runs: readonly BacktestRun[] }>("/backtests"),
+    queryFn: () => adminFetchJson<{ runs: readonly BacktestRun[] }>("/v1/admin/backtests"),
   });
 }
 
 export function useBacktest(runId: string) {
   return useQuery({
     queryKey: queryKeys.backtest(runId),
-    queryFn: () => adminFetchJson<BacktestDetail>(`/backtests/${runId}`),
+    queryFn: () => adminFetchJson<BacktestDetail>(`/v1/admin/backtests/${runId}`),
     enabled: runId.length > 0,
     placeholderData: keepPreviousData,
   });

@@ -8,7 +8,7 @@ import unittest
 from typing import Any, Protocol
 from unittest.mock import patch
 
-import api_handler
+from http_call import http_call
 
 
 class _Patch(Protocol):
@@ -89,23 +89,23 @@ class DashboardTest(unittest.TestCase):
             item.stop()
 
     def test_settings_reject_an_unknown_key_and_keep_booleans(self) -> None:
-        denied = api_handler.lambda_handler(_event("PUT", "/settings", {"ingestEnabled": True, "extra": True}), None)
+        denied = http_call(_event("PUT", "/v1/admin/settings", {"ingestEnabled": True, "extra": True}), None)
         self.assertEqual(denied["statusCode"], 400)
-        saved = api_handler.lambda_handler(_event("PUT", "/settings", {"ingestEnabled": True}), None)
+        saved = http_call(_event("PUT", "/v1/admin/settings", {"ingestEnabled": True}), None)
         self.assertEqual(json.loads(saved["body"])["ingestEnabled"], True)
-        listed = json.loads(api_handler.lambda_handler(_event("GET", "/settings"), None)["body"])
+        listed = json.loads(http_call(_event("GET", "/v1/admin/settings"), None)["body"])
         self.assertTrue(listed["ingestEnabled"])
         self.assertFalse(listed["tradingEnabled"])
 
     def test_owner_task_id_must_match_and_a_tick_is_listed(self) -> None:
-        bad = api_handler.lambda_handler(_event("PUT", "/owner-tasks/nope", {"done": True}), None)
+        bad = http_call(_event("PUT", "/v1/admin/owner-tasks/nope", {"done": True}), None)
         self.assertEqual(bad["statusCode"], 400)
-        ok = api_handler.lambda_handler(_event("PUT", "/owner-tasks/O04", {"done": True}), None)
+        ok = http_call(_event("PUT", "/v1/admin/owner-tasks/O04", {"done": True}), None)
         self.assertEqual(ok["statusCode"], 200)
-        done = json.loads(api_handler.lambda_handler(_event("GET", "/owner-tasks"), None)["body"])["done"]
+        done = json.loads(http_call(_event("GET", "/v1/admin/owner-tasks"), None)["body"])["done"]
         self.assertIn("O04", done)
-        api_handler.lambda_handler(_event("PUT", "/owner-tasks/O04", {"done": False}), None)
-        done = json.loads(api_handler.lambda_handler(_event("GET", "/owner-tasks"), None)["body"])["done"]
+        http_call(_event("PUT", "/v1/admin/owner-tasks/O04", {"done": False}), None)
+        done = json.loads(http_call(_event("GET", "/v1/admin/owner-tasks"), None)["body"])["done"]
         self.assertNotIn("O04", done)
 
     def test_status_lists_jobs_and_the_latest_run(self) -> None:
@@ -128,7 +128,7 @@ class DashboardTest(unittest.TestCase):
                 "finishedAt": "2026-01-01T00:00:01.000Z",
             }
         )
-        body = json.loads(api_handler.lambda_handler(_event("GET", "/system/status"), None)["body"])
+        body = json.loads(http_call(_event("GET", "/v1/admin/system/status"), None)["body"])
         ingest = next(item for item in body["switches"] if item["name"] == "ingestEnabled")
         self.assertTrue(ingest["effective"])
         self.assertEqual(body["brokerMode"], "paper")
@@ -158,17 +158,17 @@ class DashboardTest(unittest.TestCase):
                 "gsi1sk": "backfill_prices",
             }
         )
-        again = json.loads(api_handler.lambda_handler(_event("GET", "/system/status"), None)["body"])
+        again = json.loads(http_call(_event("GET", "/v1/admin/system/status"), None)["body"])
         prices = next(item for item in again["jobs"] if item["job"] == "backfill_prices")
         self.assertEqual(prices["progress"], {"status": "running", "cursor": 11, "total": 131})
-        runs = json.loads(api_handler.lambda_handler(_event("GET", "/jobs/runs", limit="1"), None)["body"])["runs"]
+        runs = json.loads(http_call(_event("GET", "/v1/admin/jobs/runs", limit="1"), None)["body"])["runs"]
         self.assertEqual(len(runs), 1)
         os.environ.pop("INGEST_ENABLED", None)
 
     def test_viewer_is_forbidden(self) -> None:
-        event = _event("GET", "/settings")
+        event = _event("GET", "/v1/admin/settings")
         event["requestContext"]["authorizer"]["jwt"]["claims"]["cognito:groups"] = "[viewer]"
-        self.assertEqual(api_handler.lambda_handler(event, None)["statusCode"], 403)
+        self.assertEqual(http_call(event, None)["statusCode"], 403)
 
 
 if __name__ == "__main__":

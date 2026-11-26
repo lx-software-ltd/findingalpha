@@ -1,6 +1,6 @@
 """Mirror of the dashboard routes for an API key.
 
-A request on ``/public`` never calls ``_require_admin``. The authorizer
+A request on ``/v1/partner`` never calls ``_require_admin``. The authorizer
 already accepted the key. This module decides which mirrored route that
 key may call, and which denial the caller sees.
 """
@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from http_common import _json_response, _parse_json_body, _route, not_found
+from http_common import _json_response, _parse_json_body, _route, error_body, not_found
 from router import Route, route_matches
 
 _WRITE_METHODS = {"PUT", "POST", "DELETE"}
-_PUBLIC = "/public"
+_PUBLIC = "/v1/partner"
 # Key rows are listed through this index. A table scan would read every record.
 API_KEYS_GSI_PK = "APIKEYS"
 
@@ -58,7 +58,7 @@ def _routes() -> tuple[Route, ...]:
 
 
 def resolve(method: str, path: str) -> Route | None:
-    """Strip ``/public`` and return the dashboard route, or None."""
+    """Strip ``/v1/partner`` and return the dashboard route, or None."""
     if path == _PUBLIC:
         return None
     if not path.startswith(f"{_PUBLIC}/"):
@@ -168,7 +168,7 @@ def handle(event: dict[str, Any]) -> dict[str, Any]:
         return not_found()
     key_ctx = key_context(event)
     if not str(key_ctx.get("keyId") or "").strip():
-        return _json_response(401, {"message": "Unauthorized"})
+        return _json_response(401, error_body(401, "Unauthorized"))
     if method == "GET" and path == _PUBLIC:
         return _json_response(200, {"routes": route_index(key_ctx)})
     route = resolve(method, path)
@@ -176,7 +176,7 @@ def handle(event: dict[str, Any]) -> dict[str, Any]:
     reason = deny_reason(method, route, key_ctx, body)
     if reason is not None or route is None:
         if method in _WRITE_METHODS:
-            return _json_response(403, {"message": "Forbidden", "reason": reason or "not_mirrored"})
+            return _json_response(403, error_body(403, "Forbidden", reason=reason or "not_mirrored"))
         return not_found()
     inner = path[len(_PUBLIC) :]
     return route.handler(_forward(event, method, inner, key_ctx))

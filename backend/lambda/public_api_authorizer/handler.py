@@ -1,18 +1,19 @@
-"""HTTP API Lambda authorizer for the public API key routes.
+"""HTTP API Lambda authorizer for the partner API token routes.
 
-Validates the ``x-api-key`` header against hashed key records stored in the
-records DynamoDB table (``pk = APIKEY#<scrypt-hex>``, ``sk = META``). Only
-the scrypt digest of a key is ever persisted. Logs carry the first eight
-hex characters of that digest (``digest_prefix``), never the key and never
-the full digest. The plaintext key is shown once at mint time
+Validates ``Authorization: Bearer <token>`` against hashed key records stored
+in the records DynamoDB table (``pk = APIKEY#<scrypt-hex>``, ``sk = META``).
+Only the scrypt digest of a token is ever persisted. Logs carry the first
+eight hex characters of that digest (``digest_prefix``), never the token and
+never the full digest. The plaintext token is shown once at mint time
 (``scripts/manage-public-api-keys.py``).
 
 Returns the API Gateway v2 simple authorizer response. API Gateway caches
-the verdict for 60 seconds keyed on ``x-api-key`` and source IP, not on
-the HTTP method, so this function never denies based on method. A POST
-denial would block GETs for the same key and IP. Write methods are
-enforced by the engine using the forwarded ``write`` flag. Revocation
-takes up to that cache TTL.
+the verdict for 60 seconds keyed on the Authorization header and source IP,
+not on the HTTP method, so this function never denies based on method. A
+POST denial would block GETs for the same token and IP. Write methods are
+enforced by the engine using the forwarded ``write`` flag. Revocation takes
+up to that cache TTL. The scheme ``Bearer`` is accepted in any letter case.
+A missing scheme or a missing token is a denial.
 """
 
 from __future__ import annotations
@@ -59,14 +60,26 @@ def _log(level: str, **fields: Any) -> None:
         logger.info(line)
 
 
-def _extract_api_key(event: dict[str, Any]) -> str | None:
-    # HTTP API payload 2.0 lower-cases header names.
+def _authorization_header(event: dict[str, Any]) -> str | None:
+    # HTTP API payload 2.0 lower-cases header names. Tests may send either case.
     headers = event.get("headers") or {}
-    raw = headers.get("x-api-key")
-    if not isinstance(raw, str):
+    if not isinstance(headers, dict):
         return None
-    key = raw.strip()
-    if not key or len(key) > MAX_API_KEY_LEN:
+    for name, value in headers.items():
+        if str(name).lower() == "authorization" and isinstance(value, str):
+            return value
+    return None
+
+
+def _extract_api_key(event: dict[str, Any]) -> str | None:
+    raw = _authorization_header(event)
+    if raw is None:
+        return None
+    scheme, separator, token = raw.strip().partition(" ")
+    if not separator or scheme.lower() != "bearer":
+        return None
+    key = token.strip()
+    if not key or len(key) > MAX_API_KEY_LEN or " " in key:
         return None
     return key
 

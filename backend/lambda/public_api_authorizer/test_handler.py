@@ -52,9 +52,10 @@ from handler import _is_expired, lambda_handler
 _KEY = "fapk_test-key"
 
 
-def _event(source_ip: str = "203.0.113.10") -> dict:
+def _event(source_ip: str = "203.0.113.10", authorization: str | None = None) -> dict:
+    header = f"Bearer {_KEY}" if authorization is None else authorization
     return {
-        "headers": {"x-api-key": _KEY},
+        "headers": {"authorization": header},
         "requestContext": {"requestId": "req-1", "http": {"method": "GET", "sourceIp": source_ip}},
     }
 
@@ -81,11 +82,18 @@ class AuthorizerTest(unittest.TestCase):
         self.table.get_item.return_value = {"Item": _valid_item()}
 
     def test_missing_or_blank_or_too_long_key_is_denied(self) -> None:
-        for headers in ({}, {"x-api-key": "   "}, {"x-api-key": "x" * 257}):
+        for headers in ({}, {"authorization": "   "}, {"authorization": "Bearer " + ("x" * 257)}):
             event = _event()
             event["headers"] = headers
             self.assertFalse(lambda_handler(event, None)["isAuthorized"])
         self.table.get_item.assert_not_called()
+
+    def test_bearer_scheme_is_required_in_any_letter_case(self) -> None:
+        self.assertTrue(lambda_handler(_event(authorization=f"bearer {_KEY}"), None)["isAuthorized"])
+        self.assertTrue(lambda_handler(_event(authorization=f"BEARER {_KEY}"), None)["isAuthorized"])
+        for authorization in (_KEY, f"Token {_KEY}", "Bearer"):
+            self.assertFalse(lambda_handler(_event(authorization=authorization), None)["isAuthorized"])
+        self.table.get_item.assert_called()
 
     def test_unknown_key_is_denied(self) -> None:
         self.table.get_item.return_value = {}

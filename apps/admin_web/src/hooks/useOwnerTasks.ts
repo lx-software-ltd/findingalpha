@@ -7,7 +7,7 @@ export type OwnerTaskDone = { readonly done: Record<string, { readonly at: strin
 export function useOwnerTasks() {
   return useQuery({
     queryKey: queryKeys.ownerTasks,
-    queryFn: () => adminFetchJson<OwnerTaskDone>("/owner-tasks"),
+    queryFn: () => adminFetchJson<OwnerTaskDone>("/v1/admin/owner-tasks"),
   });
 }
 
@@ -15,7 +15,7 @@ export function useSetOwnerTask() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { id: string; done: boolean }) =>
-      adminFetchJson<OwnerTaskDone>(`/owner-tasks/${input.id}`, {
+      adminFetchJson<OwnerTaskDone>(`/v1/admin/owner-tasks/${input.id}`, {
         method: "PUT",
         body: JSON.stringify({ done: input.done }),
       }),

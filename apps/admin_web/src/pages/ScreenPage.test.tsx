@@ -29,9 +29,9 @@ describe("ScreenPage", () => {
   beforeEach(() => {
     fetchJson.mockReset();
     fetchJson.mockImplementation((path: string) => {
-      if (path === "/screens/latest") return Promise.resolve(screenFixture);
-      if (path === "/backtests") return Promise.resolve({ runs: backtestListFixture });
-      if (path === "/backtests/run-example") return Promise.resolve(backtestFixture);
+      if (path === "/v1/admin/screens/latest") return Promise.resolve(screenFixture);
+      if (path === "/v1/admin/backtests") return Promise.resolve({ runs: backtestListFixture });
+      if (path === "/v1/admin/backtests/run-example") return Promise.resolve(backtestFixture);
       return Promise.reject(new Error("missing"));
     });
   });
@@ -77,8 +77,8 @@ describe("ScreenPage", () => {
 
   it("says a screen is missing only when the response is not found", async () => {
     fetchJson.mockImplementation((path: string) => {
-      if (path === "/screens/latest") return Promise.reject({ status: 500 });
-      if (path === "/screens/2017-01-01") return Promise.reject({ status: 404 });
+      if (path === "/v1/admin/screens/latest") return Promise.reject({ status: 500 });
+      if (path === "/v1/admin/screens/2017-01-01") return Promise.reject({ status: 404 });
       return Promise.resolve({ runs: [] });
     });
     renderPage();
@@ -91,7 +91,7 @@ describe("ScreenPage", () => {
 
   it("sorts missing composites last and breaks rank ties by symbol", async () => {
     fetchJson.mockImplementation((path: string) => {
-      if (path === "/screens/latest") {
+      if (path === "/v1/admin/screens/latest") {
         const [first, second] = screenFixture.rows;
         return Promise.resolve({
           ...screenFixture,
@@ -123,10 +123,10 @@ describe("ScreenPage", () => {
       rejectOther = reject;
     });
     fetchJson.mockImplementation((path: string) => {
-      if (path === "/screens/latest") return Promise.resolve(screenFixture);
-      if (path === "/backtests") return Promise.resolve({ runs: backtestListFixture });
-      if (path === "/backtests/run-example") return detailPromise;
-      if (path === "/backtests/run-other") return otherPromise;
+      if (path === "/v1/admin/screens/latest") return Promise.resolve(screenFixture);
+      if (path === "/v1/admin/backtests") return Promise.resolve({ runs: backtestListFixture });
+      if (path === "/v1/admin/backtests/run-example") return detailPromise;
+      if (path === "/v1/admin/backtests/run-other") return otherPromise;
       return Promise.reject(new Error("missing"));
     });
     renderPage();
@@ -138,7 +138,7 @@ describe("ScreenPage", () => {
     expect(screen.getByLabelText("Run")).toBe(select);
     select.focus();
     fireEvent.change(select, { target: { value: "run-other" } });
-    await waitFor(() => expect(fetchJson).toHaveBeenCalledWith("/backtests/run-other"));
+    await waitFor(() => expect(fetchJson).toHaveBeenCalledWith("/v1/admin/backtests/run-other"));
     expect(screen.getByLabelText("Run")).toBe(select);
     expect(document.activeElement).toBe(select);
     expect(screen.getByRole("img", { name: "Backtest equity curves" })).toBeInTheDocument();

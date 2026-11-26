@@ -43,11 +43,12 @@ Kill switches are strings `true` or `false` and default to `false`.
 
 ## API keys
 
-`/public/*` uses a Lambda authorizer, not the dashboard JWT. The
-authorizer reads one `APIKEY#*` row and may update `lastUsedAt` on that
-row. It cannot scan the table. The plaintext key is shown once, at mint
-time, and only its scrypt digest is stored. Logs carry the first eight
-hex characters of the digest.
+`/v1/partner/*` uses a Lambda authorizer, not the dashboard JWT. The
+caller sends `Authorization: Bearer <token>`. The authorizer reads one
+`APIKEY#*` row and may update `lastUsedAt` on that row. It cannot scan
+the table. The plaintext token is shown once, at mint time, and only
+its scrypt digest is stored. Logs carry the first eight hex characters
+of the digest.
 
 The authorizer cache is 60 seconds and does not include the HTTP
 method, so the authorizer never denies a method. The Manage Public
@@ -57,8 +58,8 @@ hold is refused. The write flag is a separate `set-write`. The engine allows a w
 `operate`, the key's `allowWrite` flag is on, and
 `PublicApiWritesEnabled` is `true`. A key can turn a switch off. It
 cannot turn one on. A denied read is 404. A denied write is 403 with
-a reason. Dashboard routes ignore a key, and a dashboard token is
-ignored on `/public`.
+a reason. Dashboard routes ignore a token, and a dashboard token is
+ignored on `/v1/partner`.
 
 CORS stays the dashboard origin. Key callers are servers and do not
 send a browser preflight. `GET /api-keys` is the dashboard list and

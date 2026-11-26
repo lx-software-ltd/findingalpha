@@ -1,5 +1,9 @@
 import { ensureFreshTokens } from "./auth";
 import { getAdminConfig } from "./config";
+import { wireFormat } from "./contracts/generated";
+import { excluded, fromWire, toWire, type WireContract } from "./wireFormat";
+
+const CONTRACT = wireFormat as unknown as WireContract;
 
 export class AdminApiError extends Error {
   readonly status: number;
@@ -70,16 +74,54 @@ export async function adminFetch(
     const idToken = await ensureFreshTokens();
     headers.set("Authorization", `Bearer ${idToken}`);
   }
-  const url = joinUrl(cfg.apiBaseUrl, path);
-  if (!headers.has("Content-Type") && rest.body) {
+  const skip = excluded(path, CONTRACT);
+  const wirePath = skip ? path : convertQuery(path);
+  let body = rest.body;
+  if (!skip && typeof body === "string" && body) {
+    try {
+      body = JSON.stringify(toWire(JSON.parse(body), CONTRACT));
+    } catch {
+      // A body that is not JSON is sent unchanged.
+    }
+  }
+  const url = joinUrl(cfg.apiBaseUrl, wirePath);
+  if (!headers.has("Content-Type") && body) {
     headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(url, { ...rest, headers });
+  const res = await fetch(url, { ...rest, body, headers });
+  const type = res.headers.get("content-type") ?? "";
+  if (!skip && type.toLowerCase().includes("json")) {
+    const text = await res.text();
+    let converted = text;
+    try {
+      converted = JSON.stringify(fromWire(JSON.parse(text), CONTRACT));
+    } catch {
+      converted = text;
+    }
+    if (!res.ok) {
+      throw new AdminApiError(res.status, converted);
+    }
+    return new Response(converted, { status: res.status, statusText: res.statusText, headers: res.headers });
+  }
   if (!res.ok) {
     const text = await res.text();
     throw new AdminApiError(res.status, text);
   }
   return res;
+}
+
+function convertQuery(path: string): string {
+  const mark = path.indexOf("?");
+  if (mark < 0) {
+    return path;
+  }
+  const params = new URLSearchParams(path.slice(mark + 1));
+  const next = new URLSearchParams();
+  for (const [key, value] of params) {
+    const renamed = Object.keys(toWire({ [key]: null }, CONTRACT) as Record<string, unknown>)[0] ?? key;
+    next.append(renamed, value);
+  }
+  return `${path.slice(0, mark + 1)}${next.toString()}`;
 }
 
 export async function adminFetchJson<T>(

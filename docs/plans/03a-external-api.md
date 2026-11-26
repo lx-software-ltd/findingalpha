@@ -12,8 +12,8 @@ Keys have a **tier** and **scopes**. Two tiers are defined, `admin`
 and `user`. Only `admin` is built. A `user` key cannot be minted and
 is refused if one ever appears in the table.
 
-This is the `lx-software` "public API key" design, copied: `/public/*`
-mirror routes, the `x-api-key` header, a Lambda authorizer, scrypt
+This is the `lx-software` "public API key" design, copied: `/v1/partner/*`
+mirror routes, the `Authorization: Bearer` header, a Lambda authorizer, scrypt
 digests, scopes, expiry, an optional IP allow-list, a write flag, a
 stack kill switch for writes, and owner-only routes that no key can
 reach. The additions are the tier, a route index, and the hostname
@@ -38,10 +38,10 @@ reach. The additions are the tier, a route index, and the hostname
 
 ## How it works
 
-1. A caller sends `x-api-key: fapk_...` to
-   `https://api.<domain>/public/<path>`, where `<path>` is the path of
+1. A caller sends `Authorization: Bearer fapk_...` to
+   `https://api.<domain>/v1/partner/<path>`, where `<path>` is the path of
    a dashboard route. Example:
-   `GET https://api.<domain>/public/system/status`. The same routes
+   `GET https://api.<domain>/v1/partner/system/status`. The same routes
    also answer on the `AdminApiBaseUrl` address.
 2. API Gateway calls `PublicApiKeyAuthorizerFn`. It computes the
    scrypt digest of the key, reads `APIKEY#<digest>` / `META`, and
@@ -50,7 +50,7 @@ reach. The additions are the tier, a route index, and the hostname
    allow-list. On allow it passes `keyId`, `label`, `tier`, `scopes`
    and `write` to the handler. The verdict is cached 60 seconds per
    key and source address.
-3. `AdminApiFn` strips `/public`, finds the route in the same route
+3. `AdminApiFn` strips `/v1/partner`, finds the route in the same route
    table the dashboard uses, and checks the route's scope against the
    key. It then runs the same handler function the dashboard route
    runs.
@@ -103,18 +103,18 @@ Writes a key with `operate` may do:
 
 | Write | Limit |
 | --- | --- |
-| `PUT /public/settings` | Only to turn switches **off**. A body that sets any switch to `true` is refused |
-| `POST /public/jobs/{jobName}/run` | Only jobs marked `keyRun: true` in `contracts/jobs.json`. Every job is marked |
-| `POST /public/kb/sync` | Same caps as from the dashboard |
-| `POST /public/holds/{holdId}/veto` | Same rules as from the dashboard |
+| `PUT /v1/partner/settings` | Only to turn switches **off**. A body that sets any switch to `true` is refused |
+| `POST /v1/partner/jobs/{job_name}/run` | Only jobs marked `keyRun: true` in `contracts/jobs.json`. Every job is marked |
+| `POST /v1/partner/kb/sync` | Same caps as from the dashboard |
+| `POST /v1/partner/holds/{hold_id}/veto` | Same rules as from the dashboard |
 
 Owner-only, never reachable with any key, whatever its tier:
 
 - turning any switch on;
-- `POST /breakers/{name}/reset`;
-- `PUT /owner-tasks/{taskId}`;
-- `GET /api-keys` and anything that manages keys;
-- `GET /me`;
+- `POST /v1/admin/breakers/{name}/reset`;
+- `PUT /v1/admin/owner-tasks/{task_id}`;
+- `GET /v1/admin/api-keys` and anything that manages keys;
+- `GET /v1/admin/me`;
 - every approval of a real-money order (M12).
 
 The reason is the same as in the sibling: a leaked key must not be
@@ -215,8 +215,9 @@ Copy the key half of `admin-api-authorizers.ts` into
   `ForAllValues:StringLike dynamodb:LeadingKeys = ["APIKEY#*"]`, and
   `grantDecrypt` on the shared key.
 - `HttpLambdaAuthorizer("public-api-key", ...)`: simple responses,
-  identity sources `$request.header.x-api-key` and
-  `$context.identity.sourceIp`, cache 60 seconds.
+  identity sources `$request.header.Authorization` and
+  `$context.identity.sourceIp`, cache 60 seconds. The source address
+  stays in the cache key so a CIDR allow is not reused for another address.
 
 Parameter `PublicApiWritesEnabled` (`true` or `false`, default
 `false`) and the environment variable `PUBLIC_API_WRITES_ENABLED` on
@@ -226,10 +227,10 @@ Routes, with the sibling's throttles:
 
 | Route | Authorizer | Throttle |
 | --- | --- | --- |
-| `GET /public` | key | 2 a second, burst 10 |
-| `GET /public/{proxy+}` | key | 2 a second, burst 10 |
-| `PUT /public/{proxy+}`, `POST /public/{proxy+}` | key | 1 a second, burst 5 |
-| `GET /api-keys` | Cognito | default |
+| `GET /v1/partner` | key | 2 a second, burst 10 |
+| `GET /v1/partner/{proxy+}` | key | 2 a second, burst 10 |
+| `PUT /v1/partner/{proxy+}`, `POST /v1/partner/{proxy+}` | key | 1 a second, burst 5 |
+| `GET /v1/admin/api-keys` | Cognito | default |
 
 One proxy route serves every mirror, so a later milestone that adds a
 mirrored route changes no infrastructure. The handler's route table is
@@ -278,7 +279,7 @@ the domain is regional with TLS 1.2.
      `requestContext.authorizer.lambda`.
    - `scopes_from_key_context`, `key_context_allows_write`,
      `writes_enabled` as in the sibling.
-   - `resolve(method, path)`: strips `/public`, returns the matching
+   - `resolve(method, path)`: strips `/v1/partner`, returns the matching
      `Route` or `None`.
    - `deny_reason(method, route, key_ctx)`: `not_mirrored`, `scope`,
      `writes_disabled`, `key_read_only`, `owner_only`, or `None`. A
@@ -288,7 +289,7 @@ the domain is regional with TLS 1.2.
      `false`.
    - `route_index(key_ctx)`: the mirrored routes the key may call,
      with method, path, scope and whether it is a write.
-3. `api_handler.py`: a request whose path starts with `/public` goes
+3. `api_handler.py`: a request whose path starts with `/v1/partner` goes
    to `public_api.handle`. It never calls `_require_admin`. Any other
    path never looks at the key context. Responses as in the sibling: a
    denied read returns 404, a denied write returns 403 with
@@ -296,8 +297,8 @@ the domain is regional with TLS 1.2.
 4. Handlers receive an `actor`: the Cognito `sub` from the dashboard,
    `apikey:<keyId>` from a key. `audit.write` uses it. The dashboard
    partition key stays `USER#<sub>`.
-5. `GET /public` returns `route_index`.
-6. `GET /api-keys` (Cognito only): query `gsi1pk = APIKEYS` and return
+5. `GET /v1/partner` returns `route_index`.
+6. `GET /v1/admin/api-keys` (Cognito only): query `gsi1pk = APIKEYS` and return
    `keyId`, `label`, `tier`, `scopes`, `allowWrite`, `revoked`,
    `createdAt`, `expiresAt`, `lastUsedAt`, `allowedCidrs`. Never the
    digest.
@@ -306,7 +307,7 @@ Tests: every route in the table is either mirrored with a scope or
 explicitly not mirrored (a route added without deciding fails the
 test); a key without the scope gets 404; each write reason; a settings
 body with one `true` is refused; a key context on a dashboard path is
-ignored; the dashboard JWT on a `/public` path is refused; the index
+ignored; the dashboard JWT on a `/v1/partner` path is refused; the index
 lists only what the key may call.
 
 ### M03A-T05 Key management
@@ -348,10 +349,10 @@ within 14 days is highlighted. Mock fixture and a unit test.
 
   ```bash
   API="https://api.<domain>"
-  curl -H "x-api-key: fapk_..." "$API/public"
-  curl -H "x-api-key: fapk_..." "$API/public/system/status"
-  curl -X PUT -H "x-api-key: fapk_..." -H "Content-Type: application/json" \
-    -d '{"tradingEnabled": false}' "$API/public/settings"
+  curl -H "Authorization: Bearer fapk_..." "$API/v1/partner"
+  curl -H "Authorization: Bearer fapk_..." "$API/v1/partner/system/status"
+  curl -X PUT -H "Authorization: Bearer fapk_..." -H "Content-Type: application/json" \
+    -d '{"trading_enabled": false}' "$API/v1/partner/settings"
   ```
 - The same document: a section "API hostname" with the certificate
   region, the two variables, the DNS record, and the warning from the
@@ -368,23 +369,23 @@ Needs O19 and O20. Before the numbered tests, bring the hostname up:
 - With the owner's go, the developer creates the DNS record `api` as a
   CNAME to the `ApiCustomDomainTarget` output, DNS only.
 - `curl https://api.<domain>/health` returns 200 with a valid
-  certificate. `GET https://api.<domain>/me` without a token returns
+  certificate. `GET https://api.<domain>/v1/admin/me` without a token returns
   401. The `AdminApiBaseUrl` address still answers and the dashboard
   still works.
 
 Run the tests below against `https://api.<domain>`.
 
 1. With `PublicApiWritesEnabled=false`: mint a key with scope
-   `system`. `GET /public` lists the routes. `GET /public/system/status`
-   returns 200. `GET /public/settings` returns 200.
-   `PUT /public/settings` returns 403 `writes_disabled`. A wrong key
+   `system`. `GET /v1/partner` lists the routes. `GET /v1/partner/system/status`
+   returns 200. `GET /v1/partner/settings` returns 200.
+   `PUT /v1/partner/settings` returns 403 `writes_disabled`. A wrong token
    returns 403. No header returns 401.
 2. Revoke the key. Within 60 seconds every call returns 403.
 3. Set `PublicApiWritesEnabled=true` and redeploy. Mint a key with
    `system,operate` and `allowWrite`.
-   `PUT /public/settings {"ingestEnabled": false}` returns 200 and an
+   `PUT /v1/partner/settings {"ingest_enabled": false}` returns 200 and an
    audit row `USER#apikey:<keyId>` exists.
-   `PUT /public/settings {"ingestEnabled": true}` returns 403
+   `PUT /v1/partner/settings {"ingest_enabled": true}` returns 403
    `owner_only`. Revoke the key.
 
 ## What later milestones must do

@@ -47,6 +47,7 @@ export function defineHttpApi(
         apigwv2.CorsHttpMethod.PUT,
         apigwv2.CorsHttpMethod.OPTIONS,
       ],
+      exposeHeaders: ["x-request-id"],
       allowOrigins: [cdk.Fn.join("", ["https://", input.adminWebDomainName.valueAsString])],
       allowCredentials: false,
     },
@@ -115,8 +116,14 @@ export function defineHttpApi(
   }
   // The L2 map keeps the inner names in camel case, which CloudFormation ignores.
   defaultStage.addPropertyOverride("RouteSettings", routeSettings);
-  defineApiDomain(scope, httpApi, defaultStage, input.apiCustomDomainName, input.apiCustomDomainCertificateArn);
-  return { httpApi, jwtAuthorizer, keyAuthorizerFn };
+  const adminApiBaseUrl = defineApiDomain(
+    scope,
+    httpApi,
+    defaultStage,
+    input.apiCustomDomainName,
+    input.apiCustomDomainCertificateArn,
+  );
+  return { httpApi, jwtAuthorizer, keyAuthorizerFn, adminApiBaseUrl };
 }
 
 function defineApiDomain(
@@ -125,7 +132,7 @@ function defineApiDomain(
   stage: apigwv2.CfnStage,
   name: cdk.CfnParameter,
   certificateArn: cdk.CfnParameter,
-) {
+): string {
   const useDomain = new cdk.CfnCondition(scope, "UseApiCustomDomain", {
     expression: cdk.Fn.conditionAnd(
       cdk.Fn.conditionNot(cdk.Fn.conditionEquals(name.valueAsString, "")),
@@ -156,8 +163,16 @@ function defineApiDomain(
     condition: useDomain,
     description: "Regional API Gateway hostname. The api DNS record points here.",
   });
+  const customUrl = cdk.Fn.join("", ["https://", name.valueAsString]);
   new cdk.CfnOutput(scope, "ApiCustomDomainUrl", {
-    value: cdk.Fn.join("", ["https://", name.valueAsString]),
+    value: customUrl,
     condition: useDomain,
   });
+  const cfnApi = httpApi.node.defaultChild as apigwv2.CfnApi;
+  // The execute-api hostname is off only when callers have the custom domain.
+  cfnApi.addPropertyOverride(
+    "DisableExecuteApiEndpoint",
+    cdk.Fn.conditionIf(useDomain.logicalId, true, false),
+  );
+  return cdk.Fn.conditionIf(useDomain.logicalId, customUrl, httpApi.apiEndpoint) as unknown as string;
 }

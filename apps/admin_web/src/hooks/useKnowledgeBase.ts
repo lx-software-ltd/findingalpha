@@ -42,7 +42,7 @@ export type KnowledgeBaseEvaluation = {
 export function useKnowledgeBaseStatus() {
   return useQuery({
     queryKey: queryKeys.knowledgeBase,
-    queryFn: () => adminFetchJson<KnowledgeBaseStatus>("/kb/status"),
+    queryFn: () => adminFetchJson<KnowledgeBaseStatus>("/v1/admin/kb/status"),
     refetchInterval: 60_000,
   });
 }
@@ -50,7 +50,7 @@ export function useKnowledgeBaseStatus() {
 export function useKnowledgeBaseEvaluation() {
   return useQuery({
     queryKey: queryKeys.knowledgeBaseEval,
-    queryFn: () => adminFetchJson<KnowledgeBaseEvaluation>("/kb/eval/latest"),
+    queryFn: () => adminFetchJson<KnowledgeBaseEvaluation>("/v1/admin/kb/eval/latest"),
     refetchInterval: 60_000,
   });
 }
@@ -59,7 +59,7 @@ export function useSyncKnowledgeBase() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body?: { confirmDeletion?: boolean; stop?: boolean }) =>
-      adminFetchJson<{ accepted: boolean }>("/kb/sync", {
+      adminFetchJson<{ accepted: boolean }>("/v1/admin/kb/sync", {
         method: "POST",
         ...(body ? { body: JSON.stringify(body) } : {}),
       }),

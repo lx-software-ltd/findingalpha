@@ -52,6 +52,6 @@ export type MethodologyResponse = {
 export function useMethodology() {
   return useQuery({
     queryKey: queryKeys.methodology,
-    queryFn: () => adminFetchJson<MethodologyResponse>("/methodology"),
+    queryFn: () => adminFetchJson<MethodologyResponse>("/v1/admin/methodology"),
   });
 }

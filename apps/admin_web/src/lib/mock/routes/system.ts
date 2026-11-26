@@ -33,7 +33,9 @@ function readBody(ctx: MockCtx): Record<string, unknown> {
 }
 
 function runJob(ctx: MockCtx): Json {
-  const job = ctx.path.split("/")[2] ?? "";
+  const parts = ctx.path.split("/");
+  const jobsAt = parts.indexOf("jobs");
+  const job = jobsAt >= 0 ? (parts[jobsAt + 1] ?? "") : "";
   const raw = ctx.init.body;
   let record: Record<string, unknown> = {};
   if (typeof raw === "string" && raw.trim()) {
@@ -68,20 +70,20 @@ function runJob(ctx: MockCtx): Json {
 }
 
 export function handleSystem(ctx: MockCtx): Json | null {
-  if (ctx.method === "GET" && ctx.path === "/owner-tasks") return json(200, state.tasks);
-  if (ctx.method === "PUT" && ctx.path.startsWith("/owner-tasks/")) {
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/owner-tasks") return json(200, state.tasks);
+  if (ctx.method === "PUT" && ctx.path.startsWith("/v1/admin/owner-tasks/")) {
     const id = ctx.path.split("/").pop() ?? "";
     const body = readBody(ctx);
     if (body.done === true) state.tasks.done[id] = { at: "2026-01-03T00:00:00.000Z" };
     if (body.done === false) delete state.tasks.done[id];
     return json(200, state.tasks);
   }
-  if (ctx.method === "GET" && ctx.path === "/settings") return json(200, state.settings);
-  if (ctx.method === "PUT" && ctx.path === "/settings") {
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/settings") return json(200, state.settings);
+  if (ctx.method === "PUT" && ctx.path === "/v1/admin/settings") {
     Object.assign(state.settings, readBody(ctx));
     return json(200, state.settings);
   }
-  if (ctx.method === "GET" && ctx.path === "/api-keys") {
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/api-keys") {
     const soon = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     return json(200, {
       writesEnabled: false,
@@ -122,7 +124,7 @@ export function handleSystem(ctx: MockCtx): Json | null {
       ],
     });
   }
-  if (ctx.method === "GET" && ctx.path === "/system/status") {
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/system/status") {
     return json(200, {
       ...statusFixture,
       switches: statusFixture.switches.map((item) =>
@@ -132,19 +134,19 @@ export function handleSystem(ctx: MockCtx): Json | null {
       ),
     });
   }
-  if (ctx.method === "GET" && ctx.path === "/jobs/runs") return json(200, runsFixture);
-  if (ctx.method === "GET" && ctx.path === "/methodology") return json(200, methodologyFixture);
-  if (ctx.method === "GET" && (ctx.path === "/screens/latest" || ctx.path === "/screens/2017-02-28")) {
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/jobs/runs") return json(200, runsFixture);
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/methodology") return json(200, methodologyFixture);
+  if (ctx.method === "GET" && (ctx.path === "/v1/admin/screens/latest" || ctx.path === "/v1/admin/screens/2017-02-28")) {
     return json(200, screenFixture);
   }
-  if (ctx.method === "GET" && ctx.path.startsWith("/screens/")) return json(404, { message: "Not found" });
-  if (ctx.method === "GET" && ctx.path === "/backtests") return json(200, { runs: backtestListFixture });
-  if (ctx.method === "GET" && (ctx.path === "/backtests/run-example" || ctx.path === "/backtests/run-other")) {
-    const runId = ctx.path.slice("/backtests/".length);
+  if (ctx.method === "GET" && ctx.path.startsWith("/v1/admin/screens/")) return json(404, { message: "Not found" });
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/backtests") return json(200, { runs: backtestListFixture });
+  if (ctx.method === "GET" && (ctx.path === "/v1/admin/backtests/run-example" || ctx.path === "/v1/admin/backtests/run-other")) {
+    const runId = ctx.path.slice("/v1/admin/backtests/".length);
     return json(200, { ...backtestFixture, runId });
   }
-  if (ctx.method === "GET" && ctx.path.startsWith("/backtests/")) return json(404, { message: "Not found" });
-  if (ctx.method === "GET" && ctx.path === "/universe/latest") {
+  if (ctx.method === "GET" && ctx.path.startsWith("/v1/admin/backtests/")) return json(404, { message: "Not found" });
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/universe/latest") {
     return json(200, {
       asOf: "2024-06-03",
       members: 4,
@@ -157,7 +159,7 @@ export function handleSystem(ctx: MockCtx): Json | null {
       },
     });
   }
-  if (ctx.method === "GET" && ctx.path === "/kb/status") {
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/kb/status") {
     return json(200, {
       documents: 131,
       bytes: 500_000_000,
@@ -177,7 +179,7 @@ export function handleSystem(ctx: MockCtx): Json | null {
       cost: { storageUsd: 2.5, retrievalUsd: 0.01 },
     });
   }
-  if (ctx.method === "GET" && ctx.path === "/kb/eval/latest") {
+  if (ctx.method === "GET" && ctx.path === "/v1/admin/kb/eval/latest") {
     return json(200, {
       ranAt: "2026-11-18T02:00:00.000Z",
       questions: 20,
@@ -186,7 +188,7 @@ export function handleSystem(ctx: MockCtx): Json | null {
       results: [{ id: "q01", rank: 2 }],
     });
   }
-  if (ctx.method === "POST" && ctx.path === "/kb/sync") return runJob({ ...ctx, path: "/jobs/kb_sync_check/run" });
-  if (ctx.method === "POST" && /^\/jobs\/[^/]+\/run$/.test(ctx.path)) return runJob(ctx);
+  if (ctx.method === "POST" && ctx.path === "/v1/admin/kb/sync") return runJob({ ...ctx, path: "/v1/admin/jobs/kb_sync_check/run" });
+  if (ctx.method === "POST" && /^\/v1\/admin\/jobs\/[^/]+\/run$/.test(ctx.path)) return runJob(ctx);
   return null;
 }
