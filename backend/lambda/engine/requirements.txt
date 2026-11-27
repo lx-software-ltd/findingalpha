@@ -4,5 +4,5 @@
 # by region. 1.44.4 is the current pin (1.44.3 was checked on
 # 17 November 2026). boto3 1.44.x accepts any botocore from the same
 # minor line up to 1.45, so botocore is pinned at the same release.
-boto3==1.44.4
-botocore==1.44.4
+boto3==1.44.7
+botocore==1.44.7
