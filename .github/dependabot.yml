@@ -22,6 +22,11 @@ updates:
       github-actions:
         patterns:
           - "*"
+        exclude-patterns:
+          - "lx-software-ltd/actions/*"
+      actions-pin:
+        patterns:
+          - "lx-software-ltd/actions/*"
 
   - package-ecosystem: "npm"
     directory: "/apps/admin_web"
