@@ -46,6 +46,6 @@ You get updates while the fix is in progress and a note when it ships. The advis
 
 - Nothing in git identifies the owner. The capital amount, holdings, account identifiers, the domain, and the source PDFs stay out.
 - The system trades on paper only. `BrokerMode` allows only `paper`.
-- `security.yml` runs Checkov, CodeQL, the personal-data denylist, Gitleaks, pip-audit, Bandit, and npm audit. `semgrep.yml` runs Semgrep.
+- `security.yml` runs Checkov, CodeQL, the personal-data denylist, Gitleaks, pip-audit, Bandit, npm audit, and Semgrep. `lint.yml` checks the lockfiles. Both gates are required.
 
 The product rules are in [`docs/architecture/overview.md`](docs/architecture/overview.md). How the system enforces them is in [`docs/architecture/security.md`](docs/architecture/security.md).
