@@ -11,6 +11,8 @@ updates:
       day: "monday"
     cooldown:
       default-days: 7
+      exclude:
+        - "lx-software-ltd/actions/*"
     commit-message:
       prefix: "ci"
     labels:
@@ -20,6 +22,11 @@ updates:
       github-actions:
         patterns:
           - "*"
+        exclude-patterns:
+          - "lx-software-ltd/actions/*"
+      actions-pin:
+        patterns:
+          - "lx-software-ltd/actions/*"
 
   - package-ecosystem: "npm"
     directory: "/apps/admin_web"
