@@ -9,4 +9,4 @@ alwaysApply: false
 - Tests live in `scripts/test_*.py` and run under `python3 -m unittest discover -s scripts -p 'test_*.py'`. [why: convention from the sibling repository]
 - `scripts/deploy/*.sh` publish the live site. Deploys go through the GitHub Actions workflows. [why: convention from the sibling repository]
 - After editing `contracts/*.json`, run `sync-contracts.py` and `check-contracts.py`. [why: convention from the sibling repository]
-- Do not add plaintext entries to `scripts/pii-denylist.sha256`. [why: convention from the sibling repository]
+- Do not add plaintext denylist entries. Extra digests, if any, go in `scripts/pii-denylist.sha256` as digests only. The organisation list lives in `lx-software-ltd/actions`. [why: convention from the sibling repository]

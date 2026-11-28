@@ -9,7 +9,7 @@ Path-scoped rules and `.cursor/skills/` add procedures. The stricter zone in `do
 
 - Never hardcode secrets, API keys, passwords, or tokens. CDK secret parameters use `noEcho: true`. [why: convention from the sibling repository]
 - Do not put real personal names, phones, emails, street addresses, bank numbers, or business-registration numbers in source or docs. Tests use fictional people and `example.com`. [why: convention from the sibling repository]
-- Do not add plaintext denylist entries. The `check-pii` hook enforces `scripts/pii-denylist.sha256`. [why: convention from the sibling repository]
+- Do not add plaintext denylist entries. The `check-pii` hook applies the organisation list from `lx-software-ltd/actions`. Extra digests, if any, go in `scripts/pii-denylist.sha256`. [why: convention from the sibling repository]
 - Edit shared constants only in `contracts/*.json`, then run `python3 scripts/sync-contracts.py` and `python3 scripts/check-contracts.py`. [why: convention from the sibling repository]
 - Use npm and the committed `package-lock.json` in `apps/admin_web` and `backend/infrastructure`. [why: convention from the sibling repository]
 - Use TypeScript, functional components, and named exports. Keep components in `src/components`, pages in `src/pages`, helpers in `src/lib`. [why: convention from the sibling repository]
